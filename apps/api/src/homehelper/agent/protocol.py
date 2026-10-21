@@ -1,0 +1,36 @@
+"""The interface every agent implementation exposes: the journey agent, the baseline agent (M2-06),
+and the HTTP client the eval runner uses for end-to-end runs."""
+
+from collections.abc import AsyncIterator
+from typing import Any, Literal, Protocol
+
+from pydantic import BaseModel, Field
+
+from homehelper.channels.events import AgentEvent, InboundMessage
+
+Outcome = Literal["resolved", "escalated", "abandoned", "out_of_scope"]
+
+
+class ToolCall(BaseModel):
+    name: str  # e.g. "service_booking.book"
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentSnapshot(BaseModel):
+    """What graders may inspect after a conversation (spec §16.3 state grader)."""
+
+    conversation_id: str
+    outcome: Outcome | None = None
+    journey: str | None = None
+    step: str | None = None
+    hazard_flags: list[str] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    decision_log: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentRuntime(Protocol):
+    def handle(self, message: InboundMessage) -> AsyncIterator[AgentEvent]:
+        """Process one user turn and stream events until `message.completed` or `error`."""
+        ...
+
+    async def snapshot(self, conversation_id: str) -> AgentSnapshot: ...

@@ -1,0 +1,48 @@
+# Task → model mapping (docs/SPEC.md §9.1). A release manifest may override `model`/`fallbacks` per task.
+# Model ids use LiteLLM's "<provider>/<model>" form. Fallbacks whose provider has no API key are skipped.
+tasks:
+  nlu:
+    model: anthropic/claude-haiku-5-5
+    fallbacks: [openai/gpt-5.4-mini]
+    timeout_s: 20
+    max_tokens: 1024
+  planner:
+    model: anthropic/claude-sonnet-5-5
+    fallbacks: [openai/gpt-5.5]
+    timeout_s: 45
+    max_tokens: 4096
+  responder:
+    model: anthropic/claude-sonnet-5-5
+    fallbacks: [openai/gpt-5.5]
+    timeout_s: 45
+    max_tokens: 2048
+  supervisor:
+    model: anthropic/claude-haiku-5-5
+    fallbacks: [openai/gpt-5.4-mini]
+    timeout_s: 20
+    max_tokens: 1024
+  extract:
+    # Tool-less structured extraction (manual metadata, untrusted web content).
+    model: anthropic/claude-haiku-5-5
+    fallbacks: [openai/gpt-5.4-mini]
+    timeout_s: 30
+    max_tokens: 2048
+  vision:
+    model: anthropic/claude-sonnet-5-5
+    fallbacks: []
+    timeout_s: 45
+    max_tokens: 1024
+  user_simulator:
+    model: anthropic/claude-haiku-5-5
+    fallbacks: []
+    timeout_s: 30
+    max_tokens: 1024
+  judge:
+    model: anthropic/claude-sonnet-5-5
+    fallbacks: []
+    timeout_s: 60
+    max_tokens: 2048
+
+embedding:
+  model: openai/text-embedding-3-small
+  dimensions: 1536

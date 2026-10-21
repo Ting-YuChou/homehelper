@@ -19,7 +19,7 @@ HomeHelper v2 — a B2C home-appliance repair support agent (portfolio project),
 apps/api/        Python 3.12 · FastAPI · package `homehelper` (src layout)
 apps/web/        TypeScript · Next.js (App Router)
 mcp_servers/     MCP servers (FastMCP), each with real|mock mode
-evals/           τ-bench-style simulator, graders, runner
+evals/           uv workspace member, package `homehelper_evals`: splits, retrieval eval, simulator, graders, runner
 data/            manifest, scenarios, mock data (PDFs/media are git-ignored)
 releases/        release manifests
 infra/           Dockerfiles, docker-compose, Cloud Run config
@@ -46,6 +46,35 @@ pnpm --filter web build
 - Integration tests are marked `@pytest.mark.integration` and skipped unless `RUN_INTEGRATION=1` (CI sets it, with Postgres/Redis service containers).
 - `apps/web` uses Next.js 16, which differs from older versions: read `apps/web/AGENTS.md` and the docs in `apps/web/node_modules/next/dist/docs/` before writing web code. `pnpm typecheck` runs `next typegen` first (needed for `LayoutProps` and similar types).
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
+
+## Shared contracts (Wave 0) — import these, don't redefine them
+
+| Contract | Module |
+|---|---|
+| `LLMClient` protocol, `Message`, `LLMError`, `LLMUsage` | `homehelper.llm` (`types.py`) |
+| `LiteLLMClient` (fallbacks, structured output + one corrective retry, cost) / `FakeLLMClient` (scripted) | `homehelper.llm`; build with `build_llm_client(settings)` |
+| Task → model mapping | `apps/api/src/homehelper/llm/models.yaml` (`ModelRegistry.load(overrides=...)`) |
+| `CategoryId`, `ChunkMetadata`, `RetrievedChunk`, `Citation`, `RetrievalQuery`, `RetrievalResult`, `WebFinding` | `homehelper.knowledge.schemas` |
+| `InboundMessage`, `StructuredAction`, cards, `AgentEvent` | `homehelper.channels.events` |
+| `AgentRuntime` protocol, `AgentSnapshot`, `Outcome` | `homehelper.agent.protocol` |
+| dev/test split | `data/scenarios/splits.json` via `homehelper_evals.splits` (`--check` verifies it is current) |
+
+Changing a contract means updating every caller in the same PR and saying so in the PR description.
+
+## Parallel development (spec §19)
+
+Several sessions may work at once, each in its own worktree and branch. Stay inside your track's directories:
+
+| Track | Branch | Owns |
+|---|---|---|
+| A — M1 knowledge base | `m1-knowledge-base` | `homehelper/knowledge/`, `homehelper/ingestion/`, `homehelper/db/` (Alembic), `homehelper/cli.py`, `evals/homehelper_evals/retrieval/`, `data/manuals/`, `config/web_whitelist.yaml` |
+| B — M2 eval framework | `m2-eval-framework` | `evals/` except `homehelper_evals/retrieval/` and `splits.py`; `data/scenarios/` except `splits.json` |
+| C — M3 journey engine & guardrails | `m3-journey-engine` | `homehelper/agent/engine/`, `homehelper/agent/guardrails/`, `homehelper/agent/journeys/`, `homehelper/agent/state.py` |
+
+- Shared files (`pyproject.toml`, `uv.lock`, `Makefile`, `.github/workflows/ci.yml`, `CLAUDE.md`, `docs/SPEC.md`) get additive edits only. On a `uv.lock` conflict, take either side and rerun `uv lock`.
+- Only edit the spec sections for your track, plus one Appendix D change-log line.
+- Whoever finishes first merges first; the others rebase onto `main`.
+- A new worktree has no `.env` (it is git-ignored): copy it from the main checkout before running anything that needs keys. PDFs (`data/manuals/pdfs/`) exist only in the main checkout.
 
 ## Conventions
 
