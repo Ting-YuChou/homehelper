@@ -58,8 +58,13 @@ async def test_admin_routes_need_the_admin_token(client: httpx.AsyncClient) -> N
 def settings(tmp_path: Path) -> Settings:
     (tmp_path / "mock").mkdir()
     users = [
-        {"id": "demo_alex", "display_name": "Alex", "persona": "First-time homeowner"},
-        {"id": "demo_sam", "display_name": "Sam", "zip": "94110"},
+        {
+            "user_id": "demo_alex",
+            "display_name": "Alex",
+            "persona": "novice",
+            "notes": "First-time homeowner",
+        },
+        {"user_id": "demo_sam", "display_name": "Sam", "zip_code": "94110", "notes": None},
     ]
     (tmp_path / "mock" / "users.json").write_text(json.dumps(users))
     return make_settings(data_dir=tmp_path, admin_token="admin-secret")

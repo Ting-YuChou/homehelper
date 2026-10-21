@@ -1,11 +1,10 @@
 """Demo login (spec §18.1): pick a mock user (or continue as a guest) and get a signed cookie."""
 
-import json
 from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from homehelper.api.deps import SESSION_COOKIE, SessionDep, SessionSigner, SettingsDep, UserDep
 from homehelper.api.schemas import DemoLoginRequest, DemoUserOut, UserOut
@@ -14,16 +13,26 @@ from homehelper.conversations import repository
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GUEST_NAME = "Guest"
-_DEMO_USERS = TypeAdapter(list[DemoUserOut])
+
+
+class MockUser(BaseModel):
+    """An entry of `data/mock/users.json`, owned by the mock data platform (M5, spec §12.2).
+    Only these fields are relied on; the MCP servers key on the same `user_id`."""
+
+    user_id: str
+    display_name: str
+    notes: str | None = None
+
+
+_MOCK_USERS = TypeAdapter(list[MockUser])
 
 
 @lru_cache(maxsize=4)
 def _load_demo_users(path: Path, mtime: float) -> tuple[DemoUserOut, ...]:
-    raw = json.loads(path.read_text())
-    # users.json is owned by the mock data platform (M5); only id/display_name are relied on.
-    for user in raw:
-        user.setdefault("description", user.get("persona"))
-    return tuple(_DEMO_USERS.validate_python(raw))
+    users = _MOCK_USERS.validate_json(path.read_bytes())
+    return tuple(
+        DemoUserOut(id=u.user_id, display_name=u.display_name, description=u.notes) for u in users
+    )
 
 
 def demo_users(data_dir: Path) -> tuple[DemoUserOut, ...]:

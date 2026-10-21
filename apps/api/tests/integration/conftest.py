@@ -74,7 +74,7 @@ def parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
 def write_demo_data(data_dir: Path) -> None:
     """A demo user and one manual with a tiny PDF, under a temporary data dir."""
     (data_dir / "mock").mkdir(parents=True)
-    users = [{"id": "demo_alex", "display_name": "Alex", "persona": "First-time homeowner"}]
+    users = [{"user_id": "demo_alex", "display_name": "Alex", "persona": "novice", "notes": None}]
     (data_dir / "mock" / "users.json").write_text(json.dumps(users))
     pdfs = data_dir / "manuals" / "pdfs" / "dishwasher" / "Bosch"
     pdfs.mkdir(parents=True)

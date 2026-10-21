@@ -800,7 +800,7 @@ Agent Runtime 只認得 `InboundMessage` 和 `AgentEvent`，完全不知道 HTTP
 | 方法 | 路徑 | 說明 |
 |---|---|---|
 | POST | `/v1/auth/demo-login` | 選擇 demo 使用者，回傳簽章 cookie（`user_id: null` = 匿名訪客） |
-| GET | `/v1/auth/demo-users`、`/v1/auth/me` | demo 使用者清單（讀 `data/mock/users.json` 的 `id`、`display_name`、`persona`）；目前使用者 |
+| GET | `/v1/auth/demo-users`、`/v1/auth/me` | demo 使用者清單（讀 `data/mock/users.json` 的 `user_id`、`display_name`、`notes`，id 與 MCP 共用）；目前使用者 |
 | POST | `/v1/auth/logout` | 清除 cookie |
 | GET | `/v1/conversations` | 列出我的對話 |
 | POST | `/v1/conversations` | 建立對話（綁定當前 `release_id`） |
