@@ -221,6 +221,18 @@ async def test_web_fallback_only_when_manuals_are_insufficient() -> None:
     assert web.calls == 1
 
 
+async def test_with_web_swaps_only_the_web_fallback() -> None:
+    backend = FakeBackend({})
+    base = retriever(backend)
+    web = FakeWeb()
+    result = await base.with_web(web).search(
+        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE)
+    )
+    assert (result.source, web.calls) == ("web", 1)
+    result = await base.search(RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE))
+    assert result.source == "none"  # the original keeps no web fallback
+
+
 async def test_results_are_cached_per_kb_version() -> None:
     backend = FakeBackend({"category": ([cand("a:p1:0")], [])})
     cache = DictCache()
