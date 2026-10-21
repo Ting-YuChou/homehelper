@@ -1,0 +1,10 @@
+{
+  "name": "homehelper",
+  "private": true,
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "web:dev": "pnpm --filter web dev",
+    "web:build": "pnpm --filter web build",
+    "web:lint": "pnpm --filter web lint && pnpm --filter web typecheck"
+  }
+}
