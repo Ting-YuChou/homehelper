@@ -1,5 +1,7 @@
 """`understand` (M3-03): structured NLU for free text. Card buttons skip it (spec §7.3)."""
 
+from typing import Any
+
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
 from homehelper.agent.state import NLUResult
@@ -30,13 +32,13 @@ def nlu_messages(state: GraphState, deps: AgentDeps, user_text: str) -> list[Mes
     return [Message(role="user", content=prompt)]
 
 
-async def understand(state: GraphState, deps: AgentDeps) -> dict[str, object]:
+async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
     message = state.turn.message
     assert message is not None
     if message.action is not None or not (message.text or "").strip():
         return {}
     nlu = await deps.llm.structured("nlu", nlu_messages(state, deps, message.text or ""), NLUResult)
-    update: dict[str, object] = {"turn": state.turn.model_copy(update={"nlu": nlu})}
+    update: dict[str, Any] = {"turn": state.turn.model_copy(update={"nlu": nlu})}
     if nlu.search_query_en and nlu.intent in QUERY_INTENTS:
         update["search_query"] = nlu.search_query_en
     return update

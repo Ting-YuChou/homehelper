@@ -8,6 +8,7 @@ state (the API writes `messages` from these events, spec v0.8).
 
 import uuid
 from collections.abc import Callable
+from typing import Any
 
 from homehelper.agent.deps import AgentDeps, presented_item
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
@@ -82,9 +83,7 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
     return text, cards, list({c.chunk_id: c for c in citations}.values())
 
 
-def emit(
-    graph: GraphState, deps: AgentDeps, write: Callable[[AgentEvent], None]
-) -> dict[str, object]:
+def emit(graph: GraphState, deps: AgentDeps, write: Callable[[AgentEvent], None]) -> dict[str, Any]:
     text, cards, citations = compose(graph, deps)
     state = graph.state
     message_id = f"msg_{uuid.uuid4().hex[:12]}"

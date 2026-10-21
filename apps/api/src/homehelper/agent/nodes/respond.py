@@ -6,6 +6,7 @@ ids. A fixed template that replaces the response (hazards, scope) skips the LLM 
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
@@ -179,7 +180,7 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
     return [Message(role="user", content=prompt)]
 
 
-async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, object]:
+async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     turn = graph.turn
     if any(reply.replaces_response for reply in turn.fixed_replies):
         return {}

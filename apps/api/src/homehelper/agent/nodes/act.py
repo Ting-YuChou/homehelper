@@ -7,12 +7,12 @@ skipped until then.
 """
 
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from homehelper.agent import prompts
-from homehelper.agent.deps import AgentDeps
+from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
@@ -62,6 +62,20 @@ def retrieval_label(state: AgentState) -> str:
     category = _slot(state, "appliance_category")
     what = " ".join(p for p in (_slot(state, "brand"), category) if p).replace("_", " ")
     return f"Checking the {what} manual…" if what else "Checking the manuals…"
+
+
+def retrieval_summary(retrieval: RetrievalResult) -> dict[str, Any]:
+    return {
+        "source": retrieval.source,
+        "filter_level": retrieval.filter_level,
+        "top_score": retrieval.top_score,
+        "sufficient": retrieval.sufficient,
+        "chunks": [
+            {"id": c.chunk_id, "doc_id": c.metadata.doc_id, "page": c.metadata.page_start}
+            for c in retrieval.chunks
+        ],
+        "web_findings": len(retrieval.web_findings),
+    }
 
 
 def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
@@ -127,7 +141,10 @@ async def run_action(
     if action == "knowledge.search":
         text = graph.search_query or _slot(state, "symptom") or _slot(state, "question") or ""
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
-        state.last_retrieval = await deps.retriever.search(retrieval_query(state, text))
+        query = retrieval_query(state, text)
+        with deps.span("knowledge.search", input=query.model_dump(exclude_none=True)) as span:
+            state.last_retrieval = await deps.retriever.search(query)
+            record(span, output=retrieval_summary(state.last_retrieval))
         state.decision_log.append(
             Decision(
                 kind="plan",
@@ -142,7 +159,15 @@ async def run_action(
         )
     elif action == "plan.build":
         emit(StatusEvent(stage="planning", label="Putting together the steps…"))
-        state.plan, decisions = await build_plan(deps, state)
+        with deps.span("plan.build") as span:
+            state.plan, decisions = await build_plan(deps, state)
+            record(
+                span,
+                output={
+                    "items": [item.instruction for item in state.plan],
+                    "edits": [d.reason for d in decisions],
+                },
+            )
         state.plan_cursor = 0
         state.decision_log.extend(decisions)
     else:
@@ -162,7 +187,7 @@ def _remember_citations(graph: GraphState, retrieval: RetrievalResult | None) ->
             graph.citations[chunk.chunk_id] = Citation.from_chunk(chunk)
 
 
-async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[str, object]:
+async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[str, Any]:
     message = graph.turn.message
     assert message is not None
     result = transition(deps.catalog, graph.state, TurnInput.from_message(message, graph.turn.nlu))
@@ -191,7 +216,10 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     if turn.side_question and turn.nlu and turn.nlu.search_query_en:
         # Answer a how-to question during another journey without touching its step (§7.4).
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
-        side = await deps.retriever.search(retrieval_query(state, turn.nlu.search_query_en))
+        query = retrieval_query(state, turn.nlu.search_query_en)
+        with deps.span("knowledge.search", input=query.model_dump(exclude_none=True)) as span:
+            side = await deps.retriever.search(query)
+            record(span, output=retrieval_summary(side))
         _remember_citations(graph, side)
         turn.retrieval = side
     return {"agent": state, "turn": turn, "citations": graph.citations}

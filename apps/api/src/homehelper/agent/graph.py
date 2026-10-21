@@ -17,7 +17,7 @@ from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from homehelper.agent.deps import AgentDeps
+from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.nodes.act import step_and_act
 from homehelper.agent.nodes.emit import emit
 from homehelper.agent.nodes.respond import respond
@@ -53,23 +53,58 @@ def build_graph(
         }
 
     async def understand_node(state: GraphState) -> Update:
-        return await understand(state, deps)
+        with deps.span("understand") as span:
+            update = await understand(state, deps)
+            turn = update.get("turn")
+            nlu = turn.nlu if turn is not None else None
+            record(span, output=nlu.model_dump() if nlu else "skipped: card action")
+            return update
 
     async def step_executor(state: GraphState) -> Update:
-        return await step_and_act(state, deps, get_stream_writer())
+        # Covers spec §7.3 guard_input/route/step_executor/act: the engine does all of them.
+        before = len(state.state.decision_log)
+        where = {"journey": state.state.active_journey, "step": state.state.step_id}
+        with deps.span("step_executor", input=where) as span:
+            update = await step_and_act(state, deps, get_stream_writer())
+            agent, turn = update["agent"], update["turn"]
+            record(
+                span,
+                output={
+                    "journey": agent.active_journey,
+                    "step": agent.step_id,
+                    "decisions": [
+                        d.model_dump(exclude_none=True) for d in agent.decision_log[before:]
+                    ],
+                    "fixed_replies": [reply.rule_id for reply in turn.fixed_replies],
+                },
+            )
+            return update
 
     async def respond_node(state: GraphState) -> Update:
         if state.turn.reply is None:
             get_stream_writer()(StatusEvent(stage="responding", label="Writing a reply…"))
-        return await respond(state, deps)
+        with deps.span("respond") as span:
+            update = await respond(state, deps)
+            turn = update.get("turn")
+            reply = turn.reply if turn is not None else None
+            record(span, output=reply.model_dump() if reply else "skipped: fixed template")
+            return update
 
     async def supervise_node(state: GraphState) -> Update:
         if state.turn.reply is not None:
             get_stream_writer()(StatusEvent(stage="checking", label="Double-checking…"))
-        return await supervise(state, deps)
+        with deps.span("supervise") as span:
+            update = await supervise(state, deps)
+            turn = update.get("turn")
+            verdict = turn.verdict if turn is not None else None
+            record(span, output=verdict.model_dump() if verdict else "skipped: fixed template")
+            return update
 
     async def emit_node(state: GraphState) -> Update:
-        return emit(state, deps, get_stream_writer())
+        # The journey is known only now; tag the trace with it from here on (spec §17.1).
+        journey = state.state.active_journey or "none"
+        with deps.span("emit", tags=[f"journey:{journey}"]):
+            return emit(state, deps, get_stream_writer())
 
     builder = StateGraph(GraphState)
     builder.add_node("load_context", load_context)

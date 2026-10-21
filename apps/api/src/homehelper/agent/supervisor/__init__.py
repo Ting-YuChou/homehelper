@@ -6,6 +6,8 @@ technical claims. A failed draft is revised once with the reasons; a second fail
 by `BLOCKED_REPLY`.
 """
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from homehelper.agent import prompts
@@ -71,7 +73,7 @@ async def llm_review(
     return review.reasons or ["The reviewer rejected the draft without a reason."]
 
 
-async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, object]:
+async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     turn = graph.turn
     reply = turn.reply
     if reply is None:  # a fixed template replaced the response

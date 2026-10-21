@@ -14,6 +14,7 @@ from langfuse.types import (
     OtelSpanIdentifier,
     OtelSpanPatch,
 )
+from opentelemetry import trace as otel_trace
 from opentelemetry.sdk.trace.export import SpanExporter
 
 from homehelper.core.config import Settings
@@ -141,6 +142,46 @@ class Tracer:
             return
         with self._client.start_as_current_observation(
             name=name, as_type="generation", model=model, input=input
+        ) as span:
+            yield span
+
+    @contextmanager
+    def span(self, name: str, *, input: Any = None, tags: list[str] | None = None) -> Iterator[Any]:
+        """A child span under the current one. `tags` are added to the trace from here on.
+        Yields None when disabled."""
+        if self._client is None:
+            with nullcontext(None) as span:
+                yield span
+            return
+        tagged = propagate_attributes(tags=tags) if tags else nullcontext()
+        with tagged, self._client.start_as_current_observation(name=name, input=input) as span:
+            yield span
+
+    @contextmanager
+    def turn(
+        self,
+        name: str,
+        *,
+        session_id: str,
+        user_id: str | None = None,
+        tags: list[str] | None = None,
+        input: Any = None,
+    ) -> Iterator[Any]:
+        """One agent turn: a child span of the request's trace when there is one (the API),
+        otherwise a trace of its own (evals, scripts). Yields None when disabled."""
+        if self._client is None:
+            with nullcontext(None) as span:
+                yield span
+            return
+        if otel_trace.get_current_span().get_span_context().is_valid:
+            with (
+                propagate_attributes(session_id=session_id, user_id=user_id, tags=tags),
+                self._client.start_as_current_observation(name=name, input=input) as span,
+            ):
+                yield span
+            return
+        with self.trace(
+            name, new_trace_id(), session_id=session_id, user_id=user_id, tags=tags, input=input
         ) as span:
             yield span
 
