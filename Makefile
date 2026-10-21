@@ -31,8 +31,8 @@ fmt:
 	uv run ruff check --fix .
 	uv run ruff format .
 
-migrate:
-	@echo "Not implemented yet (M4-01)"
+migrate: ## Apply DB migrations (needs `make up`)
+	uv run alembic -c apps/api/alembic.ini upgrade head
 
 ingest:
 	@echo "Not implemented yet (M1-04)"
