@@ -35,7 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.db_engine = create_engine(settings.database_url)
     app.state.redis = create_redis(settings.redis_url)
 
-    app.add_middleware(TraceMiddleware, tracer=tracer)
+    app.add_middleware(TraceMiddleware, tracer=tracer, router=app.router)
     app.include_router(health.router)
     app.include_router(meta.router)
     return app

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +19,10 @@ class Settings(BaseSettings):
 
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
-    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_base_url: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST"),
+    )
 
     @property
     def tracing_enabled(self) -> bool:

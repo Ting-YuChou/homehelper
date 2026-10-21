@@ -9,7 +9,10 @@ import structlog
 from structlog.typing import EventDict, WrappedLogger
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_PHONE = re.compile(r"(?<!\w)\+?\d[\d\s().-]{7,}\d(?!\w)")
+# Phone-shaped digit groups (+1 (415) 555-0100, 0912-345-678); dates and short numbers don't match.
+_PHONE = re.compile(
+    r"(?<![\w-])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\d{2,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?![\w-])"
+)
 
 
 def redact_pii(text: str) -> str:
