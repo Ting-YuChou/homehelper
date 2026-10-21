@@ -236,7 +236,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send Message */
+        /**
+         * Send Message
+         * @description Stream one turn. Guard failures are a single `error` event with a matching status.
+         */
         post: operations["send_message_v1_conversations__conversation_id__messages_post"];
         delete?: never;
         options?: never;
@@ -1254,6 +1257,13 @@ export interface operations {
                     "text/event-stream": components["schemas"]["SSEEvent"];
                 };
             };
+            /** @description `conversation_busy`: the previous message is still being handled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1262,6 +1272,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description `rate_limited` (see `Retry-After`). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `maintenance` (daily spend cap reached) or `unavailable`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

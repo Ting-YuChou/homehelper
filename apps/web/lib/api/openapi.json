@@ -1915,6 +1915,7 @@
     },
     "/v1/conversations/{conversation_id}/messages": {
       "post": {
+        "description": "Stream one turn. Guard failures are a single `error` event with a matching status.",
         "operationId": "send_message_v1_conversations__conversation_id__messages_post",
         "parameters": [
           {
@@ -1950,6 +1951,9 @@
             },
             "description": "A `text/event-stream` of agent events."
           },
+          "409": {
+            "description": "`conversation_busy`: the previous message is still being handled."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1959,6 +1963,12 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "`rate_limited` (see `Retry-After`)."
+          },
+          "503": {
+            "description": "`maintenance` (daily spend cap reached) or `unavailable`."
           }
         },
         "summary": "Send Message",

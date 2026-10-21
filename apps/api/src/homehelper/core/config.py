@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     admin_token: SecretStr = SecretStr("")
     # Browser origins allowed to call the API (CORS) and to send write requests (Origin check).
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Turn guards (spec §18.1): messages per IP and per user, and the daily LLM spend cap in USD
+    # (spec Q7; 0 disables it). Over the cap the API answers in maintenance mode.
+    rate_limit_per_hour: int = 30
+    rate_limit_per_day: int = 100
+    daily_spend_cap_usd: float = 5.0
 
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")

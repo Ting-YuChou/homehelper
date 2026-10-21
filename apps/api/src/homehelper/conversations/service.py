@@ -38,7 +38,7 @@ AGENT_ERROR = ErrorEvent(
     code="agent_error", message="Something went wrong on our side. Please try again."
 )
 
-# Called once the turn has finished and been persisted, with its total LLM cost.
+# Called once the turn has been persisted, before its stream ends, with its total LLM cost.
 TurnHook = Callable[[float], Awaitable[None]]
 
 
@@ -116,12 +116,13 @@ class ConversationService:
             log.exception("turn_failed", conversation_id=inbound.conversation_id)
             await queue.put(AGENT_ERROR)
         finally:
-            await queue.put(None)
+            # Before the stream ends, so a client may send its next message right away.
             if on_finish is not None:
                 try:
                     await on_finish(cost_usd)
                 except Exception:
                     log.exception("turn_hook_failed", conversation_id=inbound.conversation_id)
+            await queue.put(None)
 
     async def _stream(
         self,

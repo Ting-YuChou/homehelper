@@ -18,6 +18,7 @@ from homehelper.core.tracing import Tracer
 from homehelper.db.engine import create_engine, create_sessionmaker
 from homehelper.db.redis import create_redis
 from homehelper.mcp_servers.factory import build_mcp_servers
+from homehelper.ratelimit import TurnGuards
 
 log = get_logger(__name__)
 
@@ -58,6 +59,7 @@ def create_app(
     app.state.session_signer = SessionSigner(settings)
     app.state.web_channel = WebChannelAdapter()
     app.state.conversations = ConversationService(app.state.db_sessionmaker, app.state.agent)
+    app.state.turn_guards = TurnGuards.from_settings(app.state.redis, settings)
 
     app.add_middleware(
         CORSMiddleware,
