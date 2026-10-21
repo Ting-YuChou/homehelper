@@ -38,3 +38,18 @@ async def test_case_web_allows_the_mock_hosts_and_reaches_extraction() -> None:
     (call,) = llm.calls_for("extract")
     assert "CANARY" in str(call.messages[-1].content)
     assert WHITELIST.general == ["ifixit.com"]  # the shared whitelist is not mutated
+
+
+def test_builders_load_through_the_runner_plugin_path(tmp_path) -> None:
+    from homehelper.agent.baseline import BaselineAgent
+    from homehelper.agent.runtime import JourneyAgent
+    from homehelper.core.config import Settings
+    from homehelper_evals.agents import AgentContext, load_agent_factory
+
+    settings = Settings(_env_file=None, app_env="test")  # type: ignore[call-arg]
+    context = AgentContext(settings=settings, usage_sink=lambda usage: None)
+    case = _case([POISONED])
+    baseline = load_agent_factory("homehelper_evals.builders:baseline", context)(case)
+    journey = load_agent_factory("homehelper_evals.builders:journey", context)(case)
+    assert isinstance(baseline, BaselineAgent)
+    assert isinstance(journey, JourneyAgent)

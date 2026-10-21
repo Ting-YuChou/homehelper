@@ -14,6 +14,9 @@ import asyncio
 from urllib.parse import urlparse
 
 from homehelper.agent.baseline import BaselineAgent
+from homehelper.agent.deps import AgentDeps
+from homehelper.agent.engine import default_catalog
+from homehelper.agent.runtime import JourneyAgent
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine
 from homehelper.knowledge.backends import build_retriever
@@ -83,5 +86,22 @@ def baseline(context: AgentContext) -> AgentFactory:
 
     def factory(case: EvalCase) -> BaselineAgent:
         return BaselineAgent(llm, CaseRetriever(shared, case_web(case, llm, whitelist)))
+
+    return factory
+
+
+def journey(context: AgentContext) -> AgentFactory:
+    """The M3 journey agent, with an in-memory checkpointer per case."""
+    llm = build_llm_client(
+        context.settings, registry=context.registry, usage_sink=context.usage_sink
+    )
+    shared = SharedRetriever(context.settings, context.registry)
+    whitelist = Whitelist.load(context.settings.web_whitelist_path)
+    catalog = default_catalog()
+    release_id = context.settings.release_id
+
+    def factory(case: EvalCase) -> JourneyAgent:
+        retriever = CaseRetriever(shared, case_web(case, llm, whitelist))
+        return JourneyAgent(AgentDeps(llm, retriever, catalog, release_id=release_id))
 
     return factory
