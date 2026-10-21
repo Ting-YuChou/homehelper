@@ -30,14 +30,22 @@ docs/            SPEC.md, adr/
 ## Commands
 
 ```bash
-make up          # start postgres, redis, api, web via docker compose
+uv sync                 # Python deps (uv workspace at repo root)
+pnpm install            # web deps (pnpm workspace at repo root)
+make up                 # docker compose: postgres :5432, redis :6379, api :8000 (reload), web :3000
 make down
-make test        # pytest
-make lint        # ruff + pyright + eslint + tsc
+make test               # unit tests (pytest, from repo root)
+make test-integration   # + integration tests against the running stack (RUN_INTEGRATION=1)
+make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
-uv sync          # Python deps (uv workspace at repo root)
-pnpm install     # web deps (pnpm workspace at repo root)
+pnpm --filter web build
 ```
+
+- Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
+- Tests build the app with `create_app(make_settings(...))` from `apps/api/tests/conftest.py`; settings never read `.env` in tests.
+- Integration tests are marked `@pytest.mark.integration` and skipped unless `RUN_INTEGRATION=1` (CI sets it, with Postgres/Redis service containers).
+- `apps/web` uses Next.js 16, which differs from older versions: read `apps/web/AGENTS.md` and the docs in `apps/web/node_modules/next/dist/docs/` before writing web code. `pnpm typecheck` runs `next typegen` first (needed for `LayoutProps` and similar types).
+- ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
 ## Conventions
 
