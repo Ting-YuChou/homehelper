@@ -15,25 +15,50 @@ _ALL_HAZARDS: tuple[HazardSignal, ...] = get_args(HazardSignal)
 
 _DISASSEMBLE = (
     r"(open(ing)?|remov(e|ing)|unscrew\w*|take\s+(it\s+|the\s+\w+\s+)?apart|taking\s+\w*\s*apart"
-    r"|disassembl\w*|pry\w*|tak(e|ing)\s+off)"
+    r"|disassembl\w*|dismantl\w*|pry\w*|tak(e|ing)\s+off|crack\w*\s+(it\s+)?open"
+    r"|get(ting)?\s+(inside|into))"
 )
-_CASING = r"(cover|casing|case|housing|panel|back|shell|enclosure)"
+# Verbs that mean disassembly on their own, with no casing noun needed.
+_DISMANTLE = (
+    r"(disassembl\w*|dismantl\w*|take\s+(it\s+)?apart|taking\s+(it\s+)?apart"
+    r"|crack\w*\s+(it\s+)?open|get(ting)?\s+inside)"
+)
+# Doors, trays and turntables are not casing: "the microwave door won't open" is not a hazard.
+_CASING = r"(cover|casing|housing|panel|shell|enclosure|back\s+(panel|cover|plate))"
+_OPEN_CASING = (
+    r"(\b" + _DISASSEMBLE + r"\b.{0,30}\b" + _CASING + r"\b"
+    r"|\btak(e|ing)\s+(\w+\s+){0,2}(cover|casing|housing|panel|shell|back)\s+off\b)"
+)
+_ELECTRIC = (
+    r"(outlet|socket|(?<!drain\s)plug|power\s+cord|cord|wiring|wires?|electrical|electricity"
+    r"|power\s+strip|breaker|fuse\s*box|electric(al)?\s+panel|extension\s+(lead|cord))"
+)
+_WET = r"(water|leak\w*|wet|puddle|flood\w*|spill\w*|drip\w*)"
+_GAS = r"(gas|propane|lpg|butane)"
 
 KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
     "gas_smell": (
-        r"\bsmell\w*\s+(of\s+|like\s+)?(natural\s+|propane\s+)?gas\b",
-        r"\bgas\s+(smell|odou?r|leak\w*)",
-        r"\bgas\b.{0,30}\bleak\w*",
-        r"\bleak\w*\s+gas\b",
+        r"\bsmell\w*\b[^.?!]{0,25}\b" + _GAS + r"\b",
+        r"\b" + _GAS + r"\s+(smell\w*|odou?r|fumes?|stink\w*)",
+        r"\b" + _GAS + r"\s+leak\w*",
+        r"\bleak\w*\s+(\w+\s+)?" + _GAS + r"\b(?!\s+(dryer|stove|oven|range|heater|appliance))",
+        r"\b(propane|lpg|butane)\b.{0,20}\bleak\w*",
+        r"\bgas\s+(in|inside|filling)\s+(the|my|our)\s+"
+        r"(room|house|home|kitchen|basement|garage|apartment|flat|air|laundry)",
         r"\brotten\s+eggs?\b",
         r"\bsulf(u|ph)ur\w*\s+smell",
     ),
     "smoke_or_burning": (
         r"\bsmok(e|es|ed|ing|y)\b",
         r"\bburn(ing|t|ed)?\s+(smell|odou?r|plastic|rubber|wire|wires|wiring)\b",
-        r"\bsmell\w*\s+(of\s+|like\s+)?(something\s+)?(burn\w*|melt\w*|scorch\w*|electrical)",
+        r"\bsmell\w*\b[^.?!]{0,30}\b(burn\w*|scorch\w*|electrical|melt\w*|hot\s+plastic)",
+        r"\b(something|it|that)('s|\s+is|\s+was)?\s+(burn(ing|t)|smoking|melting)\b",
+        r"\boverheat\w*",
+        r"\bhot\s+(plastic|rubber|wire|wiring|electrical)\b",
+        r"\belectrical\s+(smell|odou?r|burn\w*)",
         r"\bscorch\w*",
-        r"\bmelt(ed|ing|s)?\b",
+        r"\b(plastic|wires?|wiring|cord|plug|insulation|cable)\b.{0,15}\bmelt\w*",
+        r"\bmelt\w*\b.{0,15}\b(plastic|wires?|wiring|cord|plug|insulation|cable)\b",
         r"\b(on\s+fire|caught\s+fire|flames?|fire(?!\s+up))\b",
     ),
     "sparks": (
@@ -43,11 +68,8 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
         r"\bzap(s|ped|ping)?\b",
     ),
     "water_near_electric": (
-        r"\b(water|leak\w*|wet|puddle|flood\w*|spill\w*|drip\w*)\b.{0,60}"
-        r"\b(outlet|socket|(?<!drain\s)plug|power\s+cord|cord|wiring|wires?|electrical"
-        r"|power\s+strip|breaker|extension\s+lead|extension\s+cord)\b",
-        r"\b(outlet|socket|(?<!drain\s)plug|power\s+cord|cord|wiring|wires?|electrical"
-        r"|power\s+strip|extension\s+lead|extension\s+cord)\b.{0,60}\b(water|wet|puddle|flood\w*|leak\w*)\b",
+        r"\b" + _WET + r"\b.{0,60}\b" + _ELECTRIC + r"\b",
+        r"\b" + _ELECTRIC + r"\b.{0,60}\b" + _WET + r"\b",
     ),
     "refrigerant": (
         r"\brefrigerant\b",
@@ -61,8 +83,11 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
         r"\bmagnetron\b",
         r"\bhigh[\s-]?voltage\b",
         r"\bcapacitor\b",
-        r"\bmicrowave\b.{0,40}\b" + _DISASSEMBLE + r"\b",
-        r"\b" + _DISASSEMBLE + r"\b.{0,40}\bmicrowave\b",
+        r"\bmicrowave\b.{0,40}" + _OPEN_CASING,
+        r"\b" + _DISASSEMBLE + r"\b.{0,30}\bmicrowave('?s)?\s+" + _CASING + r"\b",
+        _OPEN_CASING + r".{0,40}\bmicrowave\b",
+        r"\bmicrowave\b.{0,40}\b" + _DISMANTLE + r"\b",
+        r"\b" + _DISMANTLE + r"\b.{0,40}\bmicrowave\b",
     ),
     "injury": (
         r"\bhurt\s+(my|myself)\b",
@@ -76,13 +101,13 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
 
 # Opening the casing of these appliances exposes high-voltage parts (G-SAFE-03).
 HIGH_VOLTAGE_CATEGORIES = frozenset({"microwave", "television"})
-_HV_CATEGORY_RULE = r"\b" + _DISASSEMBLE + r"\b.{0,30}\b" + _CASING + r"\b"
 
+# DOTALL: `.{0,N}` windows must also span line breaks in multi-line messages.
+_FLAGS = re.IGNORECASE | re.DOTALL
 _COMPILED = {
-    hazard: [re.compile(p, re.IGNORECASE) for p in patterns]
-    for hazard, patterns in KEYWORD_RULES.items()
+    hazard: [re.compile(p, _FLAGS) for p in patterns] for hazard, patterns in KEYWORD_RULES.items()
 }
-_HV_CATEGORY = re.compile(_HV_CATEGORY_RULE, re.IGNORECASE)
+_HV_CATEGORY = re.compile(_OPEN_CASING + "|" + r"\b" + _DISMANTLE + r"\b", _FLAGS)
 
 
 class HazardHit(BaseModel):
