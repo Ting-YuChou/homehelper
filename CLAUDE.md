@@ -39,6 +39,8 @@ make test-integration   # + integration tests against the running stack (RUN_INT
 make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
 make migrate            # alembic upgrade head (needs `make up`)
+uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
+uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
 pnpm --filter web build
 
 # Knowledge base (M1) â€” needs PDFs in data/manuals/pdfs/ (main checkout only) and keys in .env
@@ -68,6 +70,7 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + Ï
 | `InboundMessage`, `StructuredAction`, cards, `AgentEvent` | `homehelper.channels.events` |
 | `AgentRuntime` protocol, `AgentSnapshot`, `Outcome` | `homehelper.agent.protocol` |
 | dev/test split | `data/scenarios/splits.json` via `homehelper_evals.splits` (`--check` verifies it is current) |
+| Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext`, returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.
 

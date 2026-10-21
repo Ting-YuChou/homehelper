@@ -37,5 +37,5 @@ migrate: ## Apply DB migrations (needs `make up`)
 ingest: ## Build a new kb_version from the reviewed manifest (needs `make up migrate`)
 	uv run homehelper ingest
 
-eval-smoke:
-	@echo "Not implemented yet (M2-05)"
+eval-smoke: ## Smoke suite against the stub agent (LLM simulator + judge, about USD 0.16)
+	uv run evals run --suite smoke
