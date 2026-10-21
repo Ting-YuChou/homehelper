@@ -1,0 +1,48 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.pnpm-store/
+*.tsbuildinfo
+next-env.d.ts
+
+# Data that never goes into git (copyright / size) — see docs/SPEC.md §18.1
+data/manuals/pdfs/
+data/parsed/
+data/media/
+*.pdf
+*.mp4
+*.mov
+*.webm
+*.log
+
+# Local uploads
+uploads/
+
+# Eval outputs (reports are published elsewhere)
+evals/reports/*.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
