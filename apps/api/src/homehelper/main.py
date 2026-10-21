@@ -2,18 +2,23 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from homehelper import __version__
 from homehelper.agent.protocol import AgentRuntime
 from homehelper.agent.stub import StubAgent
-from homehelper.api import health, meta
+from homehelper.api import health, meta, v1
+from homehelper.api.deps import SessionSigner
+from homehelper.channels.web import WebChannelAdapter
+from homehelper.conversations.service import ConversationService
 from homehelper.core.config import Settings, get_settings
 from homehelper.core.logging import configure_logging, get_logger
 from homehelper.core.middleware import TraceMiddleware
 from homehelper.core.tracing import Tracer
-from homehelper.db.engine import create_engine
+from homehelper.db.engine import create_engine, create_sessionmaker
 from homehelper.db.redis import create_redis
 from homehelper.mcp_servers.factory import build_mcp_servers
+from homehelper.ratelimit import TurnGuards
 
 log = get_logger(__name__)
 
@@ -33,6 +38,8 @@ def create_app(
         log.info("startup", environment=settings.app_env, tracing=tracer.enabled)
         async with app.state.mcp.run():
             yield
+            # Turns still running may call MCP tools, so they finish before the servers stop.
+            await app.state.conversations.wait_idle()
         await app.state.redis.aclose()
         await app.state.db_engine.dispose()
         tracer.shutdown()
@@ -48,8 +55,22 @@ def create_app(
     # MCP servers as sub-apps at /mcp/<server>/ (spec §12.1); their session managers run above.
     app.state.mcp = build_mcp_servers(settings, engine=app.state.db_engine)
     app.state.mcp.mount(app.router, auth_token=settings.mcp_auth_token.get_secret_value())
+    app.state.db_sessionmaker = create_sessionmaker(app.state.db_engine)
+    app.state.session_signer = SessionSigner(settings)
+    app.state.web_channel = WebChannelAdapter()
+    app.state.conversations = ConversationService(app.state.db_sessionmaker, app.state.agent)
+    app.state.turn_guards = TurnGuards.from_settings(app.state.redis, settings)
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "Retry-After"],
+    )
     app.add_middleware(TraceMiddleware, tracer=tracer)
     app.include_router(health.router)
     app.include_router(meta.router)
+    app.include_router(v1.router)
     return app

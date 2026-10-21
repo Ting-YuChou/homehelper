@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from llama_index.core.embeddings import MockEmbedding
 from sqlalchemy import delete, text
 
@@ -19,13 +18,13 @@ from homehelper.knowledge.retriever import KnowledgeRetriever
 from homehelper.knowledge.schemas import CategoryId, RetrievalQuery
 from homehelper.knowledge.store import open_store, table_for
 from tests.conftest import make_settings
+from tests.integration.conftest import alembic_config
 
 pytestmark = pytest.mark.integration
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
 )
-ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 DIM = 1536
 
 
@@ -35,7 +34,7 @@ class ConstantEmbedder:
 
 
 async def test_ingest_then_retrieve_against_postgres(tmp_path: Path) -> None:
-    await asyncio.to_thread(command.upgrade, Config(str(ALEMBIC_INI)), "head")
+    await asyncio.to_thread(command.upgrade, alembic_config(), "head")
     entry = ManualEntry(
         doc_id="acme-wm100",
         file="washing_machine/Acme/wm100.pdf",
