@@ -7,7 +7,9 @@ import typer
 
 from homehelper.core.config import get_settings
 from homehelper.core.logging import configure_logging
+from homehelper.db.engine import create_engine
 from homehelper.ingestion import manifest as manifest_lib
+from homehelper.ingestion import pipeline
 from homehelper.ingestion.parse import ManualParser
 from homehelper.llm import build_llm_client
 
@@ -68,6 +70,28 @@ def parse_manuals(
     typer.echo(f"{len(results)} manuals ({fresh} parsed, {len(results) - fresh} cached)")
     if failed:
         typer.echo(f"pages that failed to parse: {failed}")
+
+
+@app.command("ingest")
+def ingest_manuals(
+    parse_concurrency: Annotated[int, typer.Option(help="Parallel LlamaParse jobs.")] = 6,
+) -> None:
+    """Build a new frozen kb_version from the reviewed manifest (M1-04). Needs `make migrate`."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    async def run() -> pipeline.IngestResult:
+        engine = create_engine(settings.database_url)
+        try:
+            return await pipeline.ingest(settings, engine, parse_concurrency=parse_concurrency)
+        finally:
+            await engine.dispose()
+
+    result = asyncio.run(run())
+    typer.echo(
+        f"{result.kb_version}: {result.chunk_count} chunks from {result.manuals} manuals "
+        f"({result.parsed_now} newly parsed)"
+    )
 
 
 if __name__ == "__main__":

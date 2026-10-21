@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Repo-relative by default (commands run from the repo root); a mounted volume in containers.
     data_dir: Path = Path("data")
+    releases_dir: Path = Path("releases")
 
     database_url: str = "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
     redis_url: str = "redis://localhost:6379/0"
