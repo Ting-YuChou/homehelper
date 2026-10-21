@@ -1,0 +1,21 @@
+# Extends the default gitleaks rules with key formats used by providers in this project's history.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "openai-compatible-key"
+description = "OpenAI-compatible API key (sk-...)"
+regex = '''\bsk-[A-Za-z0-9_\-]{20,}'''
+tags = ["key"]
+
+[[rules]]
+id = "brave-search-key"
+description = "Brave Search API key"
+regex = '''\bBSA[A-Za-z0-9_\-]{20,}'''
+tags = ["key"]
+
+[[rules]]
+id = "tavily-key"
+description = "Tavily API key"
+regex = '''\btvly-[A-Za-z0-9_\-]{20,}'''
+tags = ["key"]

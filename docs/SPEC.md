@@ -85,7 +85,7 @@
 |---|---|---|---|
 | `dishwasher` | 洗碗機 | 11 | 330 |
 | `washing_machine` | 洗衣機 | 9 | 300 |
-| `dryer` | 乾衣機 | 9 | 300 |
+| `dryer` | 乾衣機 | 10 | 300 |
 | `refrigerator` | 冰箱 | 10 | 300 |
 | `microwave` | 微波爐 | 10 | 300 |
 | `coffee_maker` | 咖啡機 | 10 | 300 |
@@ -94,7 +94,7 @@
 | `television` | 電視 | 9 | 270 |
 | `water_purifier` | 淨水器 | 8 | 240 |
 
-手冊數為去除重複 PDF 後的數量（共 96 本；v1 有 98 個檔案，其中 2 個是 hash 相同的 `(1).pdf`）。v1 評估資料的正解標籤引用了重複檔名，manifest 以 `aliases` 對照（§10.1）。
+手冊數為去除重複 PDF 後的數量（共 97 本）。v1 有 98 個檔案：Samsung `WD5100D...(1).pdf` 與原檔 hash 相同，已刪除；LG 乾衣機 `DR_ELF_MFL71712132...PRINT (1).pdf` 與原檔是同型號的不同版本（48 頁純英文 vs. 94 頁含韓文工程圖），M1-01 決定保留哪一份。v1 評估資料的正解標籤引用了這些 `(1)` 檔名，manifest 以 `aliases` 對照（§10.1）。
 
 不在清單內的家電：允許以「網路備援」回答一般性問題，但回覆要標示「沒有對應的官方手冊」。
 
@@ -589,7 +589,7 @@ class LLMClient(Protocol):
   source_url: null                           # 有的話填官方下載網址
 ```
 
-- 修正 v1 的目錄拼字錯誤：`Diswasher` → `dishwasher`、`Bosh` → `Bosch`；移除重複的 PDF（2 份 `(1).pdf`，內容 hash 與原檔相同），舊檔名記到 `aliases`，讓評估標籤可以對照到 `doc_id`。
+- 修正 v1 的目錄拼字錯誤：`Diswasher` → `dishwasher`、`Bosh` → `Bosch`；移除重複的 PDF（見 §2.2），舊檔名記到 `aliases`，讓評估標籤可以對照到 `doc_id`。
 - `model_patterns` 由匯入腳本從封面與前幾頁用 regex 加 LLM 抽取，**人工確認後提交**。
 
 ### 10.2 匯入管線（`homehelper ingest`，在 Cloud Run Job 執行）
@@ -1216,4 +1216,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 
 | 版本 | 變更 |
 |---|---|
-| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正為 96 本，manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
+| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正為 97 本，manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
