@@ -28,6 +28,7 @@ from homehelper_evals.root_cause import LABEL_TASK, label_all, render_labels, wr
 from homehelper_evals.runner import (
     STRICT_JUDGE_SUITES,
     SUITES,
+    RunAborted,
     TrialLog,
     build_cases,
     build_report,
@@ -184,17 +185,24 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
 
     strict_judge = args.suite in STRICT_JUDGE_SUITES
     print(f"running {len(cases)} cases x {k} trials ({args.suite})", file=sys.stderr)
-    results = await run_cases(
-        cases,
-        k=k,
-        concurrency=args.concurrency,
-        agent_factory=factory,
-        simulator=simulator,
-        judge=judge,
-        recorder=recorder,
-        strict_judge=strict_judge,
-        on_trial_done=on_trial_done,
-    )
+    try:
+        results = await run_cases(
+            cases,
+            k=k,
+            concurrency=args.concurrency,
+            agent_factory=factory,
+            simulator=simulator,
+            judge=judge,
+            recorder=recorder,
+            strict_judge=strict_judge,
+            on_trial_done=on_trial_done,
+        )
+    except RunAborted as exc:
+        # No report: a mostly-broken run must never pass for a result. The trials that did
+        # finish stay in the trial log for debugging.
+        print(f"run aborted: {exc}", file=sys.stderr)
+        print(f"finished trials: {trial_log.path}", file=sys.stderr)
+        return 4
     report = build_report(
         results,
         release=release,

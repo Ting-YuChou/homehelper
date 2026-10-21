@@ -6,6 +6,7 @@ import re
 import subprocess
 from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -139,6 +140,45 @@ class TrialLog:
             f.write(json.dumps(_trial_entry(case.id, result), ensure_ascii=False) + "\n")
 
 
+class RunAborted(RuntimeError):
+    """The circuit breaker stopped the run; finished trials are in the trial log."""
+
+
+def infra_failure(result: TrialResult) -> bool:
+    """A failure of the machinery (provider outage, no credit, dead KB), not of the agent."""
+    transcript = result.transcript
+    return (
+        transcript.end_reason == "error"
+        or result.grade.judge_unavailable
+        or any(turn.error for turn in transcript.agent_turns)
+    )
+
+
+@dataclass
+class CircuitBreaker:
+    """Stops a run once most trials fail for infrastructure reasons, so a provider that runs
+    out of credit or quota costs a few trials instead of hundreds of meaningless ones."""
+
+    min_trials: int = 8
+    max_failure_rate: float = 0.5
+    finished: int = 0
+    failures: int = 0
+    tripped: str | None = None
+
+    def record(self, result: TrialResult) -> None:
+        self.finished += 1
+        self.failures += infra_failure(result)
+        if (
+            self.tripped is None
+            and self.finished >= self.min_trials
+            and self.failures / self.finished >= self.max_failure_rate
+        ):
+            self.tripped = (
+                f"{self.failures} of the first {self.finished} trials failed for "
+                "infrastructure reasons (errors or an unavailable judge); check the log"
+            )
+
+
 async def run_cases(
     cases: list[EvalCase],
     *,
@@ -150,12 +190,18 @@ async def run_cases(
     recorder: UsageRecorder | None = None,
     strict_judge: bool = False,
     on_trial_done: Callable[[EvalCase, TrialResult], None] | None = None,
+    breaker: CircuitBreaker | None = None,
 ) -> list[CaseResult]:
+    """Runs every trial. Raises `RunAborted` when the circuit breaker trips: trials not yet
+    started are skipped, trials in flight finish (and reach `on_trial_done`)."""
     recorder = recorder or UsageRecorder()
+    breaker = breaker or CircuitBreaker()
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def one(case: EvalCase, trial: int) -> TrialResult:
+    async def one(case: EvalCase, trial: int) -> TrialResult | None:
         async with semaphore:
+            if breaker.tripped:
+                return None
             result = await run_trial(
                 case,
                 trial,
@@ -165,6 +211,7 @@ async def run_cases(
                 recorder=recorder,
                 strict_judge=strict_judge,
             )
+        breaker.record(result)
         if on_trial_done is not None:
             on_trial_done(case, result)
         return result
@@ -172,8 +219,10 @@ async def run_cases(
     per_case = await asyncio.gather(
         *(asyncio.gather(*(one(case, t) for t in range(k))) for case in cases)
     )
+    if breaker.tripped:
+        raise RunAborted(breaker.tripped)
     return [
-        CaseResult(case=case, trials=list(trials))
+        CaseResult(case=case, trials=[t for t in trials if t is not None])
         for case, trials in zip(cases, per_case, strict=True)
     ]
 

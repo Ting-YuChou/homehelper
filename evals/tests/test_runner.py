@@ -15,6 +15,8 @@ from homehelper_evals.graders.rubric import JUDGE_TASK
 from homehelper_evals.metrics import CaseResult, TrialResult, pass_hat_k
 from homehelper_evals.runner import (
     SUITES,
+    CircuitBreaker,
+    RunAborted,
     TrialLog,
     build_cases,
     build_report,
@@ -349,6 +351,43 @@ async def test_a_crashing_trial_does_not_abort_the_run(tmp_path) -> None:
     assert sorted(entry["case_id"] for entry in lines) == ["bad", "bad", "good", "good"]
     metrics = build_report(results, release="t", suite="smoke", k=2, config={})["metrics"]
     assert metrics["errors"] == 2
+
+
+async def test_circuit_breaker_aborts_a_mostly_broken_run(tmp_path) -> None:
+    cases = [make_case(id=f"c{i}") for i in range(20)]
+
+    def factory(case):
+        raise LLMError("responder: all models failed: credit balance is too low")
+
+    log = TrialLog(tmp_path / "run.trials.jsonl")
+    with pytest.raises(RunAborted, match="infrastructure reasons"):
+        await run_cases(
+            cases,
+            k=2,
+            concurrency=2,
+            agent_factory=factory,
+            simulator=ScriptedUserSimulator(),
+            judge=None,
+            on_trial_done=log,
+            breaker=CircuitBreaker(min_trials=4),
+        )
+    # Only the trials before the trip (plus those in flight) ran, not all 40.
+    assert 4 <= len(log.path.read_text().splitlines()) < 10
+
+
+async def test_circuit_breaker_ignores_agent_failures_that_are_not_errors() -> None:
+    breaker = CircuitBreaker(min_trials=2)
+    results = await run_cases(
+        [make_case(id="a"), make_case(id="b")],
+        k=2,
+        concurrency=2,
+        agent_factory=lambda case: EchoAgent(),  # never resolves: fails, but cleanly
+        simulator=ScriptedUserSimulator(),
+        judge=None,
+        breaker=breaker,
+    )
+    assert breaker.tripped is None and breaker.finished == 4
+    assert all(not t.success for r in results for t in r.trials)
 
 
 async def test_grading_crash_keeps_the_transcript(monkeypatch) -> None:
