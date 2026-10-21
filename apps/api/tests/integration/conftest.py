@@ -23,23 +23,32 @@ from tests.conftest import make_settings
 
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 REDIS_TEST_DB = 15
+# Read at import: the autouse fixture in tests/conftest.py removes these from the environment
+# for every test, so reading them inside a test would silently fall back to the defaults.
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
+)
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 
 def database_url() -> str:
-    return os.environ.get(
-        "DATABASE_URL", "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
-    )
+    return DATABASE_URL
 
 
 def redis_test_url() -> str:
-    base = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    return f"{base.rsplit('/', 1)[0]}/{REDIS_TEST_DB}"
+    return f"{REDIS_URL.rsplit('/', 1)[0]}/{REDIS_TEST_DB}"
+
+
+def alembic_config() -> Config:
+    config = Config(str(ALEMBIC_INI))
+    config.attributes["database_url"] = DATABASE_URL
+    return config
 
 
 @pytest.fixture(scope="session")
 def migrated() -> Iterator[None]:
     # env.py runs its own event loop; a sync session fixture has none running.
-    command.upgrade(Config(str(ALEMBIC_INI)), "head")
+    command.upgrade(alembic_config(), "head")
     yield
 
 

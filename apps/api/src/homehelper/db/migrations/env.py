@@ -30,7 +30,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations() -> None:
-    engine = create_async_engine(get_settings().database_url, poolclass=pool.NullPool)
+    # Tests pass the database explicitly; otherwise it comes from the settings (env / .env).
+    url = context.config.attributes.get("database_url") or get_settings().database_url
+    engine = create_async_engine(url, poolclass=pool.NullPool)
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()
