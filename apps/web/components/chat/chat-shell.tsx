@@ -35,7 +35,7 @@ export function ChatShell() {
   const params = useParams<{ id?: string }>();
   const conversationId = params.id ?? null;
   const me = useQuery(meQuery);
-  const { turns, errors, send } = useChatTurns();
+  const { turns, errors, adopted, send } = useChatTurns();
   const [menuOpen, setMenuOpen] = useState(false);
   const conversation = useQuery({
     ...conversationQuery(conversationId ?? ""),
@@ -87,7 +87,7 @@ export function ChatShell() {
           </span>
         </header>
         <ConversationView
-          key={conversationId ?? "new"}
+          key={conversationId === null || conversationId === adopted ? "new" : conversationId}
           conversationId={conversationId}
           conversation={conversation}
           turn={turn}

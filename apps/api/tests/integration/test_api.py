@@ -3,6 +3,7 @@
 import httpx
 import pytest
 
+from homehelper.core.config import Settings
 from tests.integration.conftest import parse_sse
 
 pytestmark = pytest.mark.integration
@@ -39,6 +40,7 @@ async def test_guest_login_creates_an_anonymous_user(api: httpx.AsyncClient) -> 
     user = await _login(api)
     assert str(user["id"]).startswith("guest_")
     assert user["is_demo"] is False
+    assert await _login(api) == user  # a guest with a valid cookie stays the same user
     assert (await api.post("/v1/auth/logout")).status_code == 204
     assert (await api.get("/v1/auth/me")).status_code == 401
 
@@ -145,3 +147,13 @@ async def test_my_appliances_is_empty_until_the_profile_server_lands(
 ) -> None:
     await _login(api, "demo_alex")
     assert (await api.get("/v1/me/appliances")).json() == []
+
+
+async def test_demo_logins_are_rate_limited_per_ip(
+    api: httpx.AsyncClient, api_settings: Settings
+) -> None:
+    for _ in range(api_settings.login_rate_limit_per_hour):
+        await _login(api)
+    refused = await api.post("/v1/auth/demo-login", json={"user_id": None})
+    assert refused.status_code == 429
+    assert int(refused.headers["retry-after"]) > 0

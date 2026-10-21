@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # (spec Q7; 0 disables it). Over the cap the API answers in maintenance mode.
     rate_limit_per_hour: int = 30
     rate_limit_per_day: int = 100
+    login_rate_limit_per_hour: int = 20  # demo logins per IP (each guest login is a new user)
     daily_spend_cap_usd: float = 5.0
 
     langfuse_public_key: str = ""

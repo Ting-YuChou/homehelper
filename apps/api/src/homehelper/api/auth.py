@@ -9,6 +9,7 @@ from pydantic import BaseModel, TypeAdapter
 from homehelper.api.deps import SESSION_COOKIE, SessionDep, SessionSigner, SettingsDep, UserDep
 from homehelper.api.schemas import DemoLoginRequest, DemoUserOut, UserOut
 from homehelper.conversations import repository
+from homehelper.ratelimit import TurnGuards
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,16 +56,32 @@ async def demo_login(
     session: SessionDep,
     settings: SettingsDep,
 ) -> UserOut:
-    if body.user_id is None:
-        user = await repository.upsert_user(
-            session, repository.new_id("guest"), GUEST_NAME, is_demo=False
+    signer: SessionSigner = request.app.state.session_signer
+    guards: TurnGuards = request.app.state.turn_guards
+    client_ip = request.client.host if request.client else "unknown"
+    decision = await guards.login_limiter.hit(f"rl:login:{client_ip}")
+    if not decision.allowed:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many sign-ins. Please try again later.",
+            headers={"Retry-After": str(decision.retry_after_s)},
         )
+    if body.user_id is None:
+        # A guest who still has a valid cookie keeps their guest user (and its rate limits).
+        token = request.cookies.get(SESSION_COOKIE)
+        current_id = signer.loads(token) if token else None
+        current = await repository.get_user(session, current_id) if current_id else None
+        if current is not None and not current.is_demo:
+            user = current
+        else:
+            user = await repository.upsert_user(
+                session, repository.new_id("guest"), GUEST_NAME, is_demo=False
+            )
     else:
         demo = next((u for u in demo_users(settings.data_dir) if u.id == body.user_id), None)
         if demo is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown demo user")
         user = await repository.upsert_user(session, demo.id, demo.display_name, is_demo=True)
-    signer: SessionSigner = request.app.state.session_signer
     response.set_cookie(
         SESSION_COOKIE,
         signer.dumps(user.id),

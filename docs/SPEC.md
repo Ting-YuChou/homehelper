@@ -884,7 +884,7 @@ M4-01 補充：`mock_*` 表由 M5 的 migration 建立。`conversations.release_
 | `conv:lock:{id}` | 同一對話同一時間只處理一則訊息 |
 | `cache:retrieval:{hash}` | 檢索結果快取（TTL 1 小時，key 包含 kb_version） |
 
-M4-04 實作：限流是精確的 sliding window（每個主體一個 sorted set，在一段 Lua script 內原子地檢查所有視窗；被拒絕的請求不計入），預設每小時 30、每天 100，IP 與使用者各算一次。`spend:{YYYYMMDD}` 以 UTC 日期計，由每回合的 `track_usage()` 成本累加，TTL 2 天；上限 `DAILY_SPEND_CAP_USD`（預設 5，回覆 Q7；0 表示關閉）。`conv:lock:{id}` 帶擁有者 token、TTL 300 秒（Cloud Run timeout），在串流結束**前**釋放，使用者可以立刻送下一則。
+M4-04 實作：限流是精確的 sliding window（每個主體一個 sorted set，在一段 Lua script 內原子地檢查所有視窗；被拒絕的請求不計入），預設每小時 30、每天 100，IP 與使用者各算一次；demo-login 另有每 IP 每小時 20 次（`rl:login:{ip}`），已有有效 cookie 的訪客會沿用原本的 guest 使用者。失敗的回合也會記錄花費與結果。`spend:{YYYYMMDD}` 以 UTC 日期計，由每回合的 `track_usage()` 成本累加，TTL 2 天；上限 `DAILY_SPEND_CAP_USD`（預設 5，回覆 Q7；0 表示關閉）。`conv:lock:{id}` 帶擁有者 token、TTL 300 秒（Cloud Run timeout），在串流結束**前**釋放，使用者可以立刻送下一則。
 
 ---
 

@@ -49,6 +49,13 @@ class _Draft:
 
 
 @dataclass
+class _Progress:
+    started: float  # perf_counter at turn start
+    attributed: float = 0.0  # cost already stored on messages
+    last_id: str | None = None  # last stored assistant message
+
+
+@dataclass
 class MessageAssembler:
     """Collects the events of one turn into assistant messages, keyed by `message_id`."""
 
@@ -104,62 +111,60 @@ class ConversationService:
         queue: asyncio.Queue[AgentEvent | None],
         on_finish: TurnHook | None,
     ) -> None:
-        started = time.perf_counter()
-        cost_usd = 0.0
-        try:
-            with track_usage() as tally:
+        progress = _Progress(started=time.perf_counter())
+        with track_usage() as tally:
+            try:
                 await self._persist(_user_message(inbound, trace_id))
-                attributed, last_id = await self._stream(inbound, trace_id, queue, started, tally)
-                cost_usd = tally.cost_usd
-            await self._finish(inbound, last_id, cost_usd - attributed)
-        except Exception:
-            log.exception("turn_failed", conversation_id=inbound.conversation_id)
-            await queue.put(AGENT_ERROR)
-        finally:
-            # Before the stream ends, so a client may send its next message right away.
-            if on_finish is not None:
+                await self._stream(inbound, trace_id, queue, progress, tally)
+            except Exception:
+                log.exception("turn_failed", conversation_id=inbound.conversation_id)
+                await queue.put(AGENT_ERROR)
+            finally:
+                # Even a failed turn records its outcome and what it spent (the spend cap must
+                # see it), before the stream ends so the client may send its next message.
                 try:
-                    await on_finish(cost_usd)
+                    await self._finish(inbound, progress, tally.cost_usd - progress.attributed)
                 except Exception:
-                    log.exception("turn_hook_failed", conversation_id=inbound.conversation_id)
-            await queue.put(None)
+                    log.exception("turn_finish_failed", conversation_id=inbound.conversation_id)
+                if on_finish is not None:
+                    try:
+                        await on_finish(tally.cost_usd)
+                    except Exception:
+                        log.exception("turn_hook_failed", conversation_id=inbound.conversation_id)
+                await queue.put(None)
 
     async def _stream(
         self,
         inbound: InboundMessage,
         trace_id: str | None,
         queue: asyncio.Queue[AgentEvent | None],
-        started: float,
+        progress: _Progress,
         tally: UsageTally,
-    ) -> tuple[float, str | None]:
-        """Forward agent events, persisting each completed message. Returns the cost already
-        attributed to messages and the last message id."""
+    ) -> None:
+        """Forward agent events, persisting each completed message with the cost since the last."""
         assembler = MessageAssembler()
-        attributed = 0.0
-        last_id: str | None = None
         async for event in self._agent.handle(inbound):
             assembler.add(event)
             if isinstance(event, MessageCompletedEvent):
                 message = assembler.complete(event, inbound.conversation_id)
                 message.trace_id = trace_id
-                message.latency_ms = round((time.perf_counter() - started) * 1000)
-                message.cost_usd = tally.cost_usd - attributed
-                attributed = tally.cost_usd
+                message.latency_ms = round((time.perf_counter() - progress.started) * 1000)
+                message.cost_usd = tally.cost_usd - progress.attributed
                 await self._persist(message)
-                last_id = message.id
+                progress.attributed = tally.cost_usd
+                progress.last_id = message.id
             elif isinstance(event, ErrorEvent):
                 log.warning("agent_error_event", code=event.code)
             await queue.put(event)
-        return attributed, last_id
 
     async def _finish(
-        self, inbound: InboundMessage, last_id: str | None, unattributed_cost: float
+        self, inbound: InboundMessage, progress: _Progress, unattributed_cost: float
     ) -> None:
         snapshot = await self._agent.snapshot(inbound.conversation_id)
         async with self._sessionmaker.begin() as session:
-            if last_id is not None and unattributed_cost > 0:
-                # LLM calls after the last `message.completed` (e.g. a late supervisor check).
-                await repository.add_cost(session, last_id, unattributed_cost)
+            if progress.last_id is not None and unattributed_cost > 0:
+                # LLM calls after the last `message.completed` (a late check, or a failed turn).
+                await repository.add_cost(session, progress.last_id, unattributed_cost)
             await repository.finish_turn(
                 session,
                 inbound.conversation_id,

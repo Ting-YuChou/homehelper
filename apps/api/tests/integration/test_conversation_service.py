@@ -62,7 +62,19 @@ class CostlyAgent(StubAgent):
 
 
 class BrokenAgent(StubAgent):
+    """Spends money, then fails."""
+
     async def handle(self, message: InboundMessage) -> AsyncIterator[AgentEvent]:
+        record_usage(
+            LLMUsage(
+                task="understand",
+                model="fake",
+                input_tokens=1,
+                output_tokens=1,
+                cost_usd=0.01,
+                latency_ms=1.0,
+            )
+        )
         raise RuntimeError("boom")
         yield  # pragma: no cover
 
@@ -170,7 +182,9 @@ async def test_agent_failure_becomes_an_error_event(
 
     assert len(events) == 1
     assert isinstance(events[0], ErrorEvent) and events[0].code == "agent_error"
-    assert finished == [0.0]
+    assert finished == [pytest.approx(0.01)]  # the spend cap sees failed turns too
     async with sessionmaker() as session:
         messages = await repository.list_messages(session, conversation.id)
+        stored = await session.get(Conversation, conversation.id)
     assert [m.role for m in messages] == ["user"]
+    assert stored is not None and stored.title == "Hi"

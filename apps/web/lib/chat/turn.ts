@@ -19,14 +19,16 @@ export type DraftMessage = {
 
 export type PendingTurn = {
   request: SendMessageBody;
+  /** Stored messages before this turn; later ones belong to it and are shown as drafts. */
+  baseCount: number;
   status: StatusEvent | null;
   drafts: DraftMessage[];
   error: ErrorEvent | null;
   done: boolean;
 };
 
-export function startTurn(request: SendMessageBody): PendingTurn {
-  return { request, status: null, drafts: [], error: null, done: false };
+export function startTurn(request: SendMessageBody, baseCount = 0): PendingTurn {
+  return { request, baseCount, status: null, drafts: [], error: null, done: false };
 }
 
 function updateDraft(

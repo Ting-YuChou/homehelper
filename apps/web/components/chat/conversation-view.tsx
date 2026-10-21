@@ -42,7 +42,9 @@ export function ConversationView({
   onSend: (body: SendMessageBody) => Promise<ErrorEvent | null>;
 }) {
   const bottom = useRef<HTMLDivElement>(null);
-  const messages = conversation.data?.messages ?? [];
+  const stored = conversation.data?.messages ?? [];
+  // A refetch during the turn already holds its messages; the drafts show them instead.
+  const messages = turn ? stored.slice(0, turn.baseCount) : stored;
   const busy = turn !== undefined;
   // Card buttons work on the latest assistant message only, and not while a turn runs.
   const lastAssistantId = busy

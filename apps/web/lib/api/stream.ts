@@ -56,7 +56,13 @@ export async function streamMessage(
   }
   const isStream = response.headers.get("content-type")?.startsWith("text/event-stream");
   if (isStream && response.body) {
-    await readEvents(response.body, onEvent);
+    try {
+      await readEvents(response.body, onEvent);
+    } catch (error) {
+      if (signal?.aborted) return;
+      onEvent(NETWORK_ERROR); // the connection dropped mid-turn
+      throw error;
+    }
     return;
   }
   const detail = await response

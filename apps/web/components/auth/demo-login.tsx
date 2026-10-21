@@ -9,15 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, unwrap } from "@/lib/api/client";
 import { demoUsersQuery, queryKeys } from "@/lib/api/queries";
-
-function safeNext(next: string | null): string {
-  // Only same-app paths, never an open redirect.
-  return next?.startsWith("/") && !next.startsWith("//") ? next : "/chat";
-}
+import { safeNext } from "@/lib/safe-next";
 
 export function DemoLogin() {
   const router = useRouter();
-  const next = safeNext(useSearchParams().get("next"));
+  const next = useSearchParams().get("next");
   const queryClient = useQueryClient();
   const users = useQuery(demoUsersQuery);
   const login = useMutation({
@@ -26,7 +22,7 @@ export function DemoLogin() {
     onSuccess: (user) => {
       queryClient.clear();
       queryClient.setQueryData(queryKeys.me, user);
-      router.replace(next);
+      router.replace(safeNext(next, window.location.origin));
     },
     onError: () => toast.error("Couldn't sign in. Is the API running?"),
   });
