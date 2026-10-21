@@ -1,0 +1,835 @@
+{
+ "kb_version": "kb_20261021_03",
+ "labels": [
+  {
+   "case_id": "4",
+   "doc_id": "samsung-wd5100d",
+   "relevant_pages": [
+    55,
+    57
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "34",
+   "doc_id": "samsung-wd18db8995",
+   "relevant_pages": [
+    11,
+    78
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "58",
+   "doc_id": "samsung-wd18db8995",
+   "relevant_pages": [
+    15
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "85",
+   "doc_id": "samsung-ww1-b",
+   "relevant_pages": [
+    56
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "118",
+   "doc_id": "samsung-wd5100d",
+   "relevant_pages": [
+    29,
+    55,
+    57
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "142",
+   "doc_id": "samsung-wf9-f09c",
+   "relevant_pages": [
+    6,
+    8
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "169",
+   "doc_id": "lg-wm9900h-a",
+   "relevant_pages": [
+    4,
+    5,
+    53
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "196",
+   "doc_id": "lg-wm6998h-a",
+   "relevant_pages": [
+    4,
+    16,
+    59
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "220",
+   "doc_id": "lg-wm5500h-a",
+   "relevant_pages": [
+    53
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "247",
+   "doc_id": "lg-wm4000h-a",
+   "relevant_pages": [
+    33
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "271",
+   "doc_id": "lg-wm6700h-a",
+   "relevant_pages": [
+    40,
+    55
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "295",
+   "doc_id": "lg-wm6700h-a",
+   "relevant_pages": [
+    44
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "319",
+   "doc_id": "braun-kf6050",
+   "relevant_pages": [
+    11
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "346",
+   "doc_id": "cuisinart-ss-16",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "367",
+   "doc_id": "cuisinart-dcc-1170",
+   "relevant_pages": [
+    7
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "388",
+   "doc_id": "cuisinart-dcc-1170",
+   "relevant_pages": [
+    2
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "409",
+   "doc_id": "krups-km730",
+   "relevant_pages": [
+    5,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "439",
+   "doc_id": "mr-coffee-iced-hot",
+   "relevant_pages": [
+    3
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "463",
+   "doc_id": "mr-coffee-bvmc-knx",
+   "relevant_pages": [
+    10
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "490",
+   "doc_id": "mr-coffee-express-cold-brew",
+   "relevant_pages": [
+    5
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "526",
+   "doc_id": "mr-coffee-lm",
+   "relevant_pages": [
+    10
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "550",
+   "doc_id": "mr-coffee-bvmc-hc",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "571",
+   "doc_id": "myjo-single-cup",
+   "relevant_pages": [
+    3,
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "592",
+   "doc_id": "myjo-single-cup",
+   "relevant_pages": [
+    1,
+    2
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "619",
+   "doc_id": "samsung-dve45b6300",
+   "relevant_pages": [
+    6,
+    8,
+    39
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "646",
+   "doc_id": "samsung-dve54cg7550",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "673",
+   "doc_id": "samsung-dv50a8800",
+   "relevant_pages": [
+    41
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "706",
+   "doc_id": "samsung-dv53bb8900",
+   "relevant_pages": [
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "727",
+   "doc_id": "samsung-dv55cg7500",
+   "relevant_pages": [
+    8,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "754",
+   "doc_id": "lg-rc10v7-dk",
+   "relevant_pages": [
+    37
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "778",
+   "doc_id": "lg-rc10v7-dk",
+   "relevant_pages": [
+    27
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "805",
+   "doc_id": "lg-rh90v9pv8n",
+   "relevant_pages": [
+    20,
+    42
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "838",
+   "doc_id": "lg-rh90v9pv8n",
+   "relevant_pages": [
+    42
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "865",
+   "doc_id": "lg-rh1077-vk",
+   "relevant_pages": [
+    28
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "892",
+   "doc_id": "lg-rh16u8-vcw",
+   "relevant_pages": [
+    37
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "916",
+   "doc_id": "siemens-sn56p530eu",
+   "relevant_pages": [
+    29
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "940",
+   "doc_id": "siemens-sn258i06",
+   "relevant_pages": [
+    21,
+    22
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "970",
+   "doc_id": "siemens-sn636x03",
+   "relevant_pages": [
+    7,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "997",
+   "doc_id": "siemens-sn24d203",
+   "relevant_pages": [
+    20
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1018",
+   "doc_id": "siemens-sn24d203",
+   "relevant_pages": [
+    17,
+    22
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1054",
+   "doc_id": "criterion-cdw2fcm",
+   "relevant_pages": [
+    6
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1087",
+   "doc_id": "criterion-cdw2fcm",
+   "relevant_pages": [
+    6
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1108",
+   "doc_id": "criterion-cdw2fcm",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "1132",
+   "doc_id": "criterion-cdw5tcms",
+   "relevant_pages": [
+    18,
+    19
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1171",
+   "doc_id": "bosch-shx68t55",
+   "relevant_pages": [
+    22
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1198",
+   "doc_id": "bosch-shx68t55",
+   "relevant_pages": [
+    12,
+    13
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1228",
+   "doc_id": "bosch-sps4emi28e",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "1252",
+   "doc_id": "panasonic-nn-cd65ns",
+   "relevant_pages": [
+    4,
+    6
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1282",
+   "doc_id": "panasonic-nn-cs89",
+   "relevant_pages": [
+    59
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1309",
+   "doc_id": "lg-lmc1575",
+   "relevant_pages": [
+    12,
+    14,
+    15,
+    27
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1339",
+   "doc_id": "lg-mh6842b",
+   "relevant_pages": [
+    2,
+    24
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1360",
+   "doc_id": "lg-mc8088",
+   "relevant_pages": [
+    18
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1384",
+   "doc_id": "samsung-me21d-6700",
+   "relevant_pages": [
+    37
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1414",
+   "doc_id": "samsung-mc17t8000c",
+   "relevant_pages": [
+    23
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1441",
+   "doc_id": "samsung-me21d-6300",
+   "relevant_pages": [
+    37
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1462",
+   "doc_id": "samsung-me21d-6300",
+   "relevant_pages": [
+    36
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1483",
+   "doc_id": "samsung-mc17j8000c",
+   "relevant_pages": [
+    51
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1504",
+   "doc_id": "samsung-me11a7710d",
+   "relevant_pages": [
+    18
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1531",
+   "doc_id": "miele-vacuum",
+   "relevant_pages": [
+    22
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1558",
+   "doc_id": "miele-vacuum",
+   "relevant_pages": [
+    11
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1591",
+   "doc_id": "bissell-2254",
+   "relevant_pages": [
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1612",
+   "doc_id": "bissell-2254",
+   "relevant_pages": [
+    6
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1642",
+   "doc_id": "shark-nv351",
+   "relevant_pages": [
+    2
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1663",
+   "doc_id": "dyson-sv14",
+   "relevant_pages": [
+    12
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1690",
+   "doc_id": "kenmore-125-81714610",
+   "relevant_pages": [
+    8,
+    14
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1711",
+   "doc_id": "dirt-devil-ud70182",
+   "relevant_pages": [
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1735",
+   "doc_id": "dirt-devil-ud70182",
+   "relevant_pages": [
+    1,
+    3,
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1759",
+   "doc_id": "panasonic-mc-ul424",
+   "relevant_pages": [
+    37
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1786",
+   "doc_id": "hoover-bh53010",
+   "relevant_pages": [
+    17
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1816",
+   "doc_id": "eureka-neu180",
+   "relevant_pages": [
+    11,
+    13
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1843",
+   "doc_id": "tcl-android-tv",
+   "relevant_pages": [
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1867",
+   "doc_id": "lg-26ts30mf",
+   "relevant_pages": [
+    19
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1894",
+   "doc_id": "sony-x90ch",
+   "relevant_pages": [
+    4
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1927",
+   "doc_id": "sony-xbr-85x900h",
+   "relevant_pages": [
+    7,
+    8
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1948",
+   "doc_id": "sony-xbr-85x900h",
+   "relevant_pages": [
+    6,
+    7
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "1978",
+   "doc_id": "samsung-qef1",
+   "relevant_pages": [
+    245
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2008",
+   "doc_id": "samsung-tv-e-manual",
+   "relevant_pages": [
+    121
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2041",
+   "doc_id": "philips-pfl8007",
+   "relevant_pages": [
+    70
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2062",
+   "doc_id": "philips-pfl8007",
+   "relevant_pages": [
+    7,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2086",
+   "doc_id": "toshiba-32ft2u",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "2119",
+   "doc_id": "bosch-b36ct",
+   "relevant_pages": [
+    13,
+    31
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2143",
+   "doc_id": "whirlpool-w10439277c",
+   "relevant_pages": [
+    13,
+    14,
+    20,
+    21
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2167",
+   "doc_id": "lg-ls27t3230",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "2191",
+   "doc_id": "lg-lrsds2706",
+   "relevant_pages": [
+    18,
+    49
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2212",
+   "doc_id": "lg-lrsds2706",
+   "relevant_pages": [
+    54
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2242",
+   "doc_id": "samsung-rf23db",
+   "relevant_pages": [
+    71,
+    88
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2284",
+   "doc_id": "ge-bottom-freezer",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "2314",
+   "doc_id": "samsung-rz32",
+   "relevant_pages": [
+    15
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2341",
+   "doc_id": "samsung-side-by-side",
+   "relevant_pages": [],
+   "candidates": 15
+  },
+  {
+   "case_id": "2365",
+   "doc_id": "samsung-side-by-side",
+   "relevant_pages": [
+    91,
+    102
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2386",
+   "doc_id": "samsung-rf24bb6",
+   "relevant_pages": [
+    26
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2410",
+   "doc_id": "black-decker-bl2010",
+   "relevant_pages": [
+    3,
+    5,
+    10
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2437",
+   "doc_id": "hamilton-beach-food-processor",
+   "relevant_pages": [
+    6,
+    11
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2461",
+   "doc_id": "cuisinart-fp-14c",
+   "relevant_pages": [
+    5,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2488",
+   "doc_id": "cuisinart-fp-14c",
+   "relevant_pages": [
+    6,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2512",
+   "doc_id": "philips-hr3760",
+   "relevant_pages": [
+    3
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2536",
+   "doc_id": "kenwood-fdp65",
+   "relevant_pages": [
+    8,
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2560",
+   "doc_id": "vitamix-5200",
+   "relevant_pages": [
+    9
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2584",
+   "doc_id": "ninja-bl770",
+   "relevant_pages": [
+    8,
+    10
+   ],
+   "candidates": 15
+  },
+  {
+   "case_id": "2611",
+   "doc_id": "oster-fpstfp4253",
+   "relevant_pages": [
+    4
+   ],
+   "candidates": 15
+  }
+ ]
+}

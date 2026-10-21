@@ -20,9 +20,14 @@ class EmbeddingConfig(BaseModel):
     dimensions: int
 
 
+class RerankConfig(BaseModel):
+    model: str
+
+
 class ModelRegistry(BaseModel):
     tasks: dict[str, TaskConfig]
     embedding: EmbeddingConfig
+    rerank: RerankConfig
 
     @classmethod
     def load(

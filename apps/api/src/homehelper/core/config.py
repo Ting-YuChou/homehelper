@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -14,12 +15,22 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     release_id: str = "dev"
 
+    # Repo-relative by default (commands run from the repo root); a mounted volume in containers.
+    data_dir: Path = Path("data")
+    releases_dir: Path = Path("releases")
+    web_whitelist_path: Path = Path("config/web_whitelist.yaml")
+    # Knowledge-base snapshot to serve; None = the newest `ready` kb_version (spec §10.3, §17.3).
+    kb_version: str | None = None
+
     database_url: str = "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
     redis_url: str = "redis://localhost:6379/0"
 
     anthropic_api_key: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     gemini_api_key: SecretStr = SecretStr("")
+    llama_cloud_api_key: SecretStr = SecretStr("")
+    cohere_api_key: SecretStr = SecretStr("")
+    tavily_api_key: SecretStr = SecretStr("")
 
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
@@ -27,6 +38,10 @@ class Settings(BaseSettings):
         default="https://cloud.langfuse.com",
         validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST"),
     )
+
+    @property
+    def manuals_dir(self) -> Path:
+        return self.data_dir / "manuals"
 
     def provider_api_keys(self) -> dict[str, str]:
         """LiteLLM provider name → API key, for providers that are configured."""

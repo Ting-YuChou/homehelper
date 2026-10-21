@@ -1,9 +1,15 @@
 """LLMClient backed by the LiteLLM SDK (library mode, no proxy)."""
 
+import logging
+import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import nullcontext
 from typing import Any
+
+# LiteLLM loads `.env` into os.environ on import unless told otherwise; configuration comes only
+# from Settings, so keep secrets out of the process environment.
+os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
 
 import litellm
 from pydantic import ValidationError
@@ -17,6 +23,7 @@ log = get_logger(__name__)
 
 # Errors are logged by us; LiteLLM's multi-line help banners would only add noise to JSON logs.
 litellm.suppress_debug_info = True
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 CompletionFn = Callable[..., Awaitable[Any]]
 UsageSink = Callable[[LLMUsage], None]

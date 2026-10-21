@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 版本 | v0.3（草稿；變更見附錄 D） |
+| 版本 | v0.5（草稿；變更見附錄 D） |
 | 日期 | 2026-10-21 |
 | 定位 | B2C 家電維修客服 Agent · 個人作品集 |
 | 參考 | Sierra AI 的 Agent OS／Agent SDK 設計理念（見附錄 C） |
@@ -83,9 +83,9 @@
 
 | 類別 ID | 名稱 | 手冊數 | 評估情境數 |
 |---|---|---|---|
-| `dishwasher` | 洗碗機 | 11 | 330 |
+| `dishwasher` | 洗碗機 | 9 | 330 |
 | `washing_machine` | 洗衣機 | 9 | 300 |
-| `dryer` | 乾衣機 | 10 | 300 |
+| `dryer` | 乾衣機 | 9 | 300 |
 | `refrigerator` | 冰箱 | 10 | 300 |
 | `microwave` | 微波爐 | 10 | 300 |
 | `coffee_maker` | 咖啡機 | 10 | 300 |
@@ -94,7 +94,7 @@
 | `television` | 電視 | 9 | 270 |
 | `water_purifier` | 淨水器 | 8 | 240 |
 
-手冊數為去除重複 PDF 後的數量（共 97 本）。v1 有 98 個檔案：Samsung `WD5100D...(1).pdf` 與原檔 hash 相同，已刪除；LG 乾衣機 `DR_ELF_MFL71712132...PRINT (1).pdf` 與原檔是同型號的不同版本（48 頁純英文 vs. 94 頁含韓文工程圖），M1-01 決定保留哪一份。v1 評估資料的正解標籤引用了這些 `(1)` 檔名，manifest 以 `aliases` 對照（§10.1）。
+手冊數為去除重複後的數量（共 **94 本**，見 `data/manuals/manifest.yaml`）。v1 有 98 個檔案，排除 4 個：Samsung `WD5100D...(1).pdf`（與原檔 hash 相同）、LG 乾衣機 94 頁的 `...PRINT.pdf`（英文 + 另一語言，保留 48 頁純英文版 `...PRINT (1).pdf`）、Criterion `CDW2FCMS.pdf` 與 `CDW2FCMW.pdf`（與 `CDW2FCMB.pdf` 文字完全相同，只是顏色版本）。v1 評估資料的正解標籤引用了這些檔名，manifest 以 `aliases` 對照（§10.1）。另外 `refrigerator/LG/LG_French_Fridge.pdf` 其實是 Samsung 手冊（v1 放錯目錄，評估資料也標成 LG），manifest 記為 Samsung；檢索評估因此用類別過濾，不用品牌過濾。
 
 不在清單內的家電：允許以「網路備援」回答一般性問題，但回覆要標示「沒有對應的官方手冊」。
 
@@ -149,10 +149,10 @@
 | 主要模型 | 回覆與規劃：`claude-sonnet-5-5`；NLU 與 Supervisor：`claude-haiku-5-5` | 【預設】 | |
 | 影片理解 | **Gemini**（原生支援影片） | 【決定】 | |
 | RAG 框架 | **LlamaIndex**（只負責匯入與檢索，不負責生成答案） | 【決定】 | |
-| PDF 解析 | **LlamaParse** | 【決定】 | |
+| PDF 解析 | **LlamaParse**（`llama-cloud` 2.x SDK，`cost_effective` tier） | 【決定】 | 試解析後確認表格品質足夠；`llama-cloud-services` 已棄用 |
 | 向量庫 | **Postgres + pgvector**，混合檢索（向量 + 全文） | 【決定】 | |
 | Embedding | OpenAI `text-embedding-3-small` | 【預設】 | 便宜、LlamaIndex 原生支援 |
-| Reranker | Cohere Rerank（英文版本） | 【預設】 | LlamaIndex 原生支援 |
+| Reranker | Cohere `rerank-v5.0-fast` | 【決定】 | M1-07：Recall@5 0.79→0.90、足夠性 F1 0.87→0.96；直接用 Cohere SDK |
 | 網路備援 | Tavily（`include_domains` 白名單） | 【預設】 | 原專案已用過，支援網域限制 |
 | 外部整合 | **MCP**（官方 Python SDK／FastMCP）+ `langchain-mcp-adapters` | 【決定】 | |
 | 對話紀錄 | **Postgres** | 【決定】 | |
@@ -635,12 +635,13 @@ NLU.search_query_en + slots
 ③ Cohere rerank → top 5
    │
    ▼
-④ 足夠性判斷：最高分 ≥ τ（用檢索評估校準）且至少 1 個 chunk 屬於目標類別
+④ 足夠性判斷：最高分 ≥ τ（M1-07 校準：rerank 分數 τ=0.58；rerank 不可用時以 dense 相似度 τ=0.50）且至少 1 個 chunk 屬於目標類別
    ├─ 足夠 → 回傳（source = manual）
    └─ 不足 → ⑤ 網路備援（§10.6，source = web，回覆中標示）
 ```
 
 - 型號正規化：轉大寫，移除空白、`-`、`/`，用 prefix 或 glob 比對 `model_patterns`。
+- 實作說明（M1）：LlamaIndex `PGVectorStore` 的 HYBRID 模式只是把兩路結果串接（分數不可比），因此向量與全文分開查詢、由我們自己做加權 RRF；已知類別時**不會**放寬到其他類別；錯誤碼另跑一次 `chunk_type=error_code` 的全文檢索並加權。
 - 錯誤碼（例如 `OE`、`4C`）出現時，額外用全文檢索查 `chunk_type = error_code`，並提高權重。
 
 ### 10.5 引用
@@ -875,6 +876,7 @@ Next.js（App Router）· TypeScript · Tailwind · shadcn/ui · TanStack Query 
 - 每個情境的 `appliance_name` 就是正確答案的手冊（透過 manifest 的檔名與 `aliases` 對照到 `doc_id`） → 計算 **manual-level Recall@5、MRR**。
 - 另外抽 100 題人工標註「正確的 section」→ 計算 chunk-level Recall@5。
 - 用這組評估校準 §10.4 的足夠性門檻 τ。
+- M1 結果見 `docs/reports/m1-retrieval.md`：類別過濾 Recall@5 0.808、品牌+類別 0.953；chunk-level Recall@5 0.648（100 題 LLM 輔助標註、人工抽查）。
 
 ### 16.3 對話模擬（τ-bench 風格）
 
@@ -1224,5 +1226,7 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 
 | 版本 | 變更 |
 |---|---|
-| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正為 97 本，manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
+| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正（v0.4 再修正為 94 本），manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
 | v0.3 | Wave 0 + 三條平行開發線（§19）；M3-01 LLM 層與 dev/test 切分提前；新增 `extract` LLM 任務（§9.1）；`models.yaml` 移到 llm 套件內；evals 成為 workspace 套件 `homehelper_evals`（§6）；檢索評估接 CI 延到 M8（§16.5） |
+| v0.4 | M1-01：manifest 完成並人工審查（94 本；排除重複與變體、`aliases`、LG_French_Fridge 實為 Samsung，§2.2） |
+| v0.5 | M1 完成：LlamaParse 改用 `llama-cloud` SDK；reranker 定為 Cohere `rerank-v5.0-fast`；τ 校準值（§10.4）；自建 RRF 與不跨類別放寬（§10.4）；檢索評估結果（§16.2）；SQLAlchemy 固定 2.0.x（llama-index-vector-stores-postgres 需要 <2.1） |

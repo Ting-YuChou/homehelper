@@ -28,6 +28,8 @@ next-env.d.ts
 data/manuals/pdfs/
 data/parsed/
 data/media/
+data/manuals/excluded/
+data/manuals/manifest_review.md
 *.pdf
 *.mp4
 *.mov
