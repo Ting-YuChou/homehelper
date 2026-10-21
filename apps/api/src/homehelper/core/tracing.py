@@ -14,6 +14,7 @@ from langfuse.types import (
     OtelSpanIdentifier,
     OtelSpanPatch,
 )
+from opentelemetry.sdk.trace.export import SpanExporter
 
 from homehelper.core.config import Settings
 from homehelper.core.logging import get_logger, redact_pii
@@ -79,7 +80,8 @@ def mask_pii_spans(*, params: MaskOtelSpansParams) -> MaskOtelSpansResult:
 
 
 class Tracer:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, span_exporter: SpanExporter | None = None) -> None:
+        """`span_exporter` overrides the Langfuse OTLP exporter (tests use an in-memory one)."""
         self._client: Langfuse | None = None
         self._release = settings.release_id
         if settings.tracing_enabled:
@@ -90,6 +92,7 @@ class Tracer:
                 environment=settings.app_env,
                 release=settings.release_id,
                 mask_otel_spans=mask_pii_spans,
+                span_exporter=span_exporter,
             )
 
     @property
@@ -110,7 +113,7 @@ class Tracer:
         """Open the root span of a trace. Yields the Langfuse span, or None when disabled.
 
         `name` becomes the trace name, so it must be low-cardinality (a route template or a
-        journey name, never a raw path with ids).
+        journey name, never a raw path with ids). Use `rename` when it is only known later.
         """
         if self._client is None:
             with nullcontext(None) as span:
@@ -128,6 +131,15 @@ class Tracer:
             ),
         ):
             yield span
+
+    @staticmethod
+    def rename(span: Any, name: str) -> None:
+        """Rename the root span and its trace. Call while `span` is still the current span."""
+        if span is None:
+            return
+        span.update(name=name)
+        with propagate_attributes(trace_name=name):
+            pass  # sets the trace name on the current (root) span
 
     def flush(self) -> None:
         if self._client is not None:

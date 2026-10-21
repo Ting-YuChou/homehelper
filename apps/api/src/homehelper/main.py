@@ -15,10 +15,10 @@ from homehelper.db.redis import create_redis
 log = get_logger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, tracer: Tracer | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
-    tracer = Tracer(settings)
+    tracer = tracer or Tracer(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -35,7 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.db_engine = create_engine(settings.database_url)
     app.state.redis = create_redis(settings.redis_url)
 
-    app.add_middleware(TraceMiddleware, tracer=tracer, router=app.router)
+    app.add_middleware(TraceMiddleware, tracer=tracer)
     app.include_router(health.router)
     app.include_router(meta.router)
     return app

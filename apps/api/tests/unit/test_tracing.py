@@ -1,12 +1,18 @@
 import json
+import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
+import httpx
 import pytest
-from fastapi import FastAPI
+from langfuse import LangfuseOtelSpanAttributes
 from langfuse.types import MaskOtelSpansParams, OtelSpanData, OtelSpanIdentifier
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from homehelper.core.middleware import UNMATCHED_ROUTE, route_template
-from homehelper.core.tracing import mask_pii_spans
+from homehelper.core.middleware import UNMATCHED_ROUTE
+from homehelper.core.tracing import Tracer, mask_pii_spans
+from homehelper.main import create_app
+from tests.conftest import make_settings
 
 
 def _span(attributes: dict[str, Any]) -> tuple[OtelSpanIdentifier, OtelSpanData]:
@@ -67,28 +73,72 @@ def test_mask_never_raises() -> None:
 
 
 @pytest.fixture
-def router() -> Any:
-    app = FastAPI()
+async def traced() -> AsyncIterator[tuple[httpx.AsyncClient, InMemorySpanExporter, Tracer]]:
+    # Langfuse shares one tracer provider per public key, so each test gets a unique key.
+    settings = make_settings(
+        langfuse_public_key=f"pk-lf-test-{uuid.uuid4().hex}", langfuse_secret_key="sk-lf-test"
+    )
+    exporter = InMemorySpanExporter()
+    tracer = Tracer(settings, span_exporter=exporter)
+    app = create_app(settings, tracer=tracer)
 
-    @app.get("/v1/conversations/{conversation_id}")
-    async def get_conversation(conversation_id: str) -> None: ...
+    @app.get("/v1/things/{thing_id}")
+    async def get_thing(thing_id: str) -> dict[str, str]:
+        return {"id": thing_id}
 
-    return app.router
+    @app.get("/v1/boom")
+    async def boom() -> None:
+        raise RuntimeError("boom")
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, exporter, tracer
+    tracer.shutdown()
 
 
-def _scope(method: str, path: str) -> dict[str, Any]:
-    return {"type": "http", "method": method, "path": path, "root_path": "", "headers": []}
+async def _root_span(
+    traced: tuple[httpx.AsyncClient, InMemorySpanExporter, Tracer], method: str, path: str
+) -> dict[str, Any]:
+    client, exporter, tracer = traced
+    await client.request(method, path)
+    tracer.flush()
+    roots = [span for span in exporter.get_finished_spans() if span.name.startswith(method)]
+    assert len(roots) == 1
+    return {"name": roots[0].name, **dict(roots[0].attributes or {})}
 
 
 @pytest.mark.parametrize(
     ("method", "path", "expected"),
     [
-        ("GET", "/v1/conversations/abc123", "/v1/conversations/{conversation_id}"),
-        ("POST", "/v1/conversations/abc123", "/v1/conversations/{conversation_id}"),
-        ("GET", "/nope", UNMATCHED_ROUTE),
+        ("GET", "/v1/meta", "GET /v1/meta"),  # route registered via include_router
+        ("GET", "/v1/things/abc123", "GET /v1/things/{thing_id}"),
+        ("GET", "/nope", f"GET {UNMATCHED_ROUTE}"),
+        ("POST", "/v1/meta", "POST /v1/meta"),  # 405 keeps the template
     ],
 )
-def test_route_template_is_low_cardinality(
-    router: Any, method: str, path: str, expected: str
+async def test_trace_named_by_route_template(
+    traced: tuple[httpx.AsyncClient, InMemorySpanExporter, Tracer],
+    method: str,
+    path: str,
+    expected: str,
 ) -> None:
-    assert route_template(router, _scope(method, path)) == expected
+    span = await _root_span(traced, method, path)
+    assert span["name"] == expected
+    assert span[LangfuseOtelSpanAttributes.TRACE_NAME] == expected
+
+
+async def test_trace_marks_errors(
+    traced: tuple[httpx.AsyncClient, InMemorySpanExporter, Tracer],
+) -> None:
+    span = await _root_span(traced, "GET", "/v1/boom")
+    assert span[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] == "ERROR"
+    assert span[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] == "RuntimeError"
+
+
+async def test_health_checks_are_not_traced(
+    traced: tuple[httpx.AsyncClient, InMemorySpanExporter, Tracer],
+) -> None:
+    client, exporter, tracer = traced
+    await client.get("/healthz")
+    tracer.flush()
+    assert exporter.get_finished_spans() == ()
