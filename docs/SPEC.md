@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 版本 | v0.6（草稿；變更見附錄 D） |
+| 版本 | v0.8（草稿；變更見附錄 D） |
 | 日期 | 2026-10-21 |
 | 定位 | B2C 家電維修客服 Agent · 個人作品集 |
 | 參考 | Sierra AI 的 Agent OS／Agent SDK 設計理念（見附錄 C） |
@@ -225,7 +225,7 @@
 3. Agent Runtime 以 `thread_id = conversation_id` 從 checkpointer 載入狀態並執行圖。
 4. 執行過程透過 `AgentEvent` 即時發出狀態（「正在查 LG 洗衣機手冊…」）。
 5. 回覆通過 Supervisor 後才串流輸出文字與卡片（見 §8.3 的延遲取捨）。
-6. 寫入 `messages`、Langfuse trace，並更新 checkpointer。
+6. Agent 只更新 checkpointer 與 Langfuse trace；API 的 conversation service 依事件串流組出訊息寫入 `messages`，成本來自 `llm.track_usage()`（v0.8：agent 不碰應用程式資料表）。
 
 ---
 
@@ -255,6 +255,8 @@ homehelper/
 │   │   │   ├── ingestion/            # LlamaParse、chunking、建立 KB 快照（CLI）
 │   │   │   ├── media/                # 上傳驗證、影像理解、影片（Gemini）
 │   │   │   ├── integrations/         # MCP client、工具白名單
+│   │   │   ├── mcp_servers/          # user_profile、parts_catalog、tutorials、service_booking、web_search（掛載為 sub-app，§12.1）
+│   │   │   ├── conversations/        # conversation service：事件 → messages、成本、鎖
 │   │   │   ├── releases/             # release manifest 載入
 │   │   │   ├── ratelimit/            # Redis 限流、每日花費上限
 │   │   │   └── db/                   # SQLAlchemy models、repositories、alembic/
@@ -263,8 +265,6 @@ homehelper/
 │       ├── app/                      # (chat)/、appliances/、admin/
 │       ├── components/               # chat、cards、ui（shadcn）
 │       └── lib/                      # api client（由 OpenAPI 產生）、sse
-├── mcp_servers/
-│   ├── user_profile/  parts_catalog/  tutorials/  service_booking/  web_search/
 ├── evals/                            # uv workspace 成員，套件 homehelper_evals
 │   ├── homehelper_evals/
 │   │   ├── splits.py                 # dev/test 切分（輸出 data/scenarios/splits.json）
@@ -376,7 +376,7 @@ class AgentState(BaseModel):
 | `act` | 程式碼 + 工具 | 執行 actions：檢索、MCP 工具、`plan.build`（LLM：`planner`） |
 | `respond` | LLM（`responder`） | 依 step goal、slots、檢索內容產生結構化回覆（文字 + citations + cards）。可以在 step 的 `tools_allowed` 範圍內呼叫**讀取類**工具，最多 3 次，最後一次必須輸出結構化回覆 |
 | `supervise` | 程式碼 + LLM（`supervisor`） | 檢查；不通過時帶回饋重跑 `respond` 一次，仍不通過就用固定模板 |
-| `persist_and_emit` | 程式碼 | 寫入 DB、trace，輸出 `AgentEvent` |
+| `persist_and_emit` | 程式碼 | 更新 checkpointer 與 trace，輸出 `AgentEvent`；`messages` 由 API 依事件寫入（§5.2） |
 
 NLU 輸出 schema：
 
@@ -743,7 +743,7 @@ class VisionResult(BaseModel):
 | `web_search` | `search(query, domains)` | Tavily + 白名單 |
 
 - 用官方 Python MCP SDK（FastMCP）實作，每個 server 都有 `mode: real | mock`。
-- **部署方式**：本機與 Cloud Run 都以 streamable HTTP 的 ASGI sub-app 掛載在 API 服務內，只維護一條程式路徑，也減少服務數量與冷啟動；需要單獨除錯時可以獨立啟動某個 server。
+- **部署方式**：本機與 Cloud Run 都以 streamable HTTP 的 ASGI sub-app 掛載在 API 服務內，只維護一條程式路徑，也減少服務數量與冷啟動；需要單獨除錯時可以獨立啟動某個 server。程式碼放在 `homehelper/mcp_servers/`（v0.8；頂層獨立套件會和 API 互相依賴）。
 - Agent 透過 `langchain-mcp-adapters` 載入工具，**依 step 的 `tools_allowed` 白名單**提供給 LLM。
 - 寫入類工具（`book`、`add_*`）只能由程式碼在 step action 中呼叫，**LLM 不能直接呼叫**。
 
@@ -1099,6 +1099,8 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 > 任務 ID 格式 `M<里程碑>-<序號>`。每個里程碑都有**完成條件**。建議依序進行；M4 完成後可以先做 M8 的部分任務，讓 demo 早點上線。
 >
 > **平行開發（v0.3）**：先完成 Wave 0 共用介面（M3-01 LLM 層、知識層 schema、`InboundMessage`/`AgentEvent`、`AgentRuntime` protocol、M2-01 的 dev/test 切分），再分三條線：A = M1、B = M2-01～05、C = M3-04～06（含三個 journey YAML）。M2-06 baseline 等 M1-05；其餘 M3 等 A、C 完成。檔案所有權與衝突規則見 `CLAUDE.md`。
+>
+> **Wave 2（v0.8）**：先合併小型準備 PR（持久化邊界、`track_usage()`、`create_app(agent=...)` 與 stub agent、MCP 程式碼位置），再分三條線：A = M2-06 + M3 其餘任務（依序）、D = M4-01～08（以 stub agent 開發）、E = M5-01～06。M5-07/08、M4-06 端到端驗收、M6 之後屬於 Wave 3。
 
 ### M0 基礎建設
 
@@ -1276,3 +1278,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.5 | M1 完成：LlamaParse 改用 `llama-cloud` SDK；reranker 定為 Cohere `rerank-v5.0-fast`；τ 校準值（§10.4）；自建 RRF 與不跨類別放寬（§10.4）；檢索評估結果（§16.2）；SQLAlchemy 固定 2.0.x（llama-index-vector-stores-postgres 需要 <2.1） |
 | v0.6 | M2 Track B：`root_cause_step` 標註加 `user_fixable`／`troubleshootable` 並凍結為 v1、對話模擬改分層抽樣（smoke 20、full 100，回覆 Q9 的提案）、三個新資料集的實際內容、模擬使用者的按鈕與結束規則、安全題「第一則回覆」的判定方式、CLI 與 Langfuse dataset／experiment 的做法（§16） |
 | v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |
+| v0.8 | Wave 2 準備：agent 只寫 checkpointer，`messages` 由 API 依事件寫入（§5.2、§7.3）；每則訊息成本用 `llm.track_usage()`；MCP servers 移到 `homehelper/mcp_servers/`（§6、§12.1）；Wave 2 分線（§19） |

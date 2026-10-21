@@ -16,9 +16,8 @@ HomeHelper v2 — a B2C home-appliance repair support agent (portfolio project),
 ## Repo layout
 
 ```
-apps/api/        Python 3.12 · FastAPI · package `homehelper` (src layout)
+apps/api/        Python 3.12 · FastAPI · package `homehelper` (src layout); MCP servers live in `homehelper/mcp_servers/`
 apps/web/        TypeScript · Next.js (App Router)
-mcp_servers/     MCP servers (FastMCP), each with real|mock mode
 evals/           uv workspace member, package `homehelper_evals`: splits, retrieval eval, simulator, graders, runner
 data/            manifest, scenarios, mock data (PDFs/media are git-ignored)
 releases/        release manifests
@@ -60,7 +59,7 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + �
 - `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a trial key (10 rerank calls/min, 1000/month) until upgraded.
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
-## Shared contracts (Wave 0) — import these, don't redefine them
+## Shared contracts — import these, don't redefine them
 
 | Contract | Module |
 |---|---|
@@ -71,19 +70,26 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + �
 | `InboundMessage`, `StructuredAction`, cards, `AgentEvent` | `homehelper.channels.events` |
 | `AgentRuntime` protocol, `AgentSnapshot`, `Outcome` | `homehelper.agent.protocol` |
 | dev/test split | `data/scenarios/splits.json` via `homehelper_evals.splits` (`--check` verifies it is current) |
+| Per-turn LLM cost: `with track_usage() as tally:` collects every call in scope (contextvar, follows tasks) | `homehelper.llm` (`usage.py`) |
+| Agent injection: `create_app(settings, agent=...)` → `app.state.agent`; defaults to the scripted `StubAgent` | `homehelper.main`, `homehelper.agent.stub` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext`, returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.
 
 ## Parallel development (spec §19)
 
-Several sessions may work at once, each in its own worktree and branch. Stay inside your track's directories:
+Several sessions may work at once, each in its own worktree and branch. Stay inside your track's directories. Wave 2 tracks:
 
 | Track | Branch | Owns |
 |---|---|---|
-| A — M1 knowledge base | `m1-knowledge-base` | `homehelper/knowledge/`, `homehelper/ingestion/`, `homehelper/db/` (Alembic), `homehelper/cli.py`, `evals/homehelper_evals/retrieval/`, `data/manuals/`, `config/web_whitelist.yaml` |
-| B — M2 eval framework | `m2-eval-framework` | `evals/` except `homehelper_evals/retrieval/` and `splits.py`; `data/scenarios/` except `splits.json` |
-| C — M3 journey engine & guardrails | `m3-journey-engine` | `homehelper/agent/engine/`, `homehelper/agent/guardrails/`, `homehelper/agent/journeys/`, `homehelper/agent/state.py` |
+| A — M2-06 baseline + M3 agent runtime | `m2-baseline`, then `m3-agent-runtime` | `homehelper/agent/` except `stub.py`; `homehelper/knowledge/`; `evals/` (new datasets and agent builders); `docs/reports/` |
+| D — M4 API, channel, web | `m4-api-web` | `homehelper/api/`, `homehelper/channels/` (`events.py`: additive only), `homehelper/conversations/`, `homehelper/ratelimit/`, `homehelper/db/` (app-table migrations), `homehelper/agent/stub.py`, `apps/web/` |
+| E — M5 MCP servers & mock data | `m5-mcp-servers` | `homehelper/mcp_servers/`, `data/mock/`, the mock-table migration |
+
+Boundaries that keep the tracks apart (spec v0.8):
+- The agent writes only its LangGraph checkpointer. The API's conversation service builds `messages` rows from the `AgentEvent` stream and fills `cost_usd` from `track_usage()`.
+- D and E both add Alembic migrations. Whoever merges second points its `down_revision` at the other's head, so there is always exactly one head (`alembic heads`).
+- `main.py` gets additive edits only: D mounts routers, E mounts the MCP sub-apps.
 
 - Shared files (`pyproject.toml`, `uv.lock`, `Makefile`, `.github/workflows/ci.yml`, `CLAUDE.md`, `docs/SPEC.md`) get additive edits only. On a `uv.lock` conflict, take either side and rerun `uv lock`.
 - Only edit the spec sections for your track, plus one Appendix D change-log line.
