@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 版本 | v0.2（草稿；變更見附錄 D） |
+| 版本 | v0.3（草稿；變更見附錄 D） |
 | 日期 | 2026-10-21 |
 | 定位 | B2C 家電維修客服 Agent · 個人作品集 |
 | 參考 | Sierra AI 的 Agent OS／Agent SDK 設計理念（見附錄 C） |
@@ -265,11 +265,15 @@ homehelper/
 │       └── lib/                      # api client（由 OpenAPI 產生）、sse
 ├── mcp_servers/
 │   ├── user_profile/  parts_catalog/  tutorials/  service_booking/  web_search/
-├── evals/
-│   ├── datasets/                     # 切分後的情境、安全集、注入集、回歸集
-│   ├── simulator/                    # 模擬使用者
-│   ├── graders/                      # state、rubric judge、deterministic
-│   ├── runner.py                     # CLI：uv run evals run --suite smoke
+├── evals/                            # uv workspace 成員，套件 homehelper_evals
+│   ├── homehelper_evals/
+│   │   ├── splits.py                 # dev/test 切分（輸出 data/scenarios/splits.json）
+│   │   ├── retrieval/                # 檢索評估（M1-07）
+│   │   ├── simulator/                # 模擬使用者
+│   │   ├── graders/                  # state、rubric judge、deterministic
+│   │   └── runner.py                 # CLI：uv run evals run --suite smoke
+│   ├── datasets/                     # 安全集、注入集、範圍外、回歸集
+│   ├── tests/
 │   └── reports/
 ├── data/
 │   ├── manuals/manifest.yaml         # 手冊清單與 metadata（PDF 本體不進 git，見 §18.1）
@@ -545,7 +549,9 @@ Supervisor 必須在**送出前**檢查，所以回覆文字無法邊生成邊�
 
 ## 9. 模型層
 
-### 9.1 任務與模型對照（`config/models.yaml`，由 release 綁定）
+### 9.1 任務與模型對照（`apps/api/src/homehelper/llm/models.yaml`，由 release 綁定）
+
+另有 `extract` 任務（`claude-haiku-5-5`，備援 `gpt-5.4-mini`）：無工具權限的結構化萃取，用於手冊 metadata 與不可信網頁內容（§10.6）。備援鏈中沒有設定 API key 的供應商會被略過。
 
 | 任務代號 | 預設模型 | 備援 | 備註 |
 |---|---|---|---|
@@ -916,7 +922,7 @@ Next.js（App Router）· TypeScript · Tailwind · shadcn/ui · TanStack Query 
 
 | 套件 | 內容 | 何時跑 |
 |---|---|---|
-| `retrieval` | 全部情境的檢索評估 | 每個 PR |
+| `retrieval` | 全部情境的檢索評估 | 本機（M1）；M8 有託管 KB 與 GCS 後改為每個 PR（CI 沒有 PDF 與解析結果） |
 | `smoke` | 20 個一般題 + 10 個安全題，k = 1 | 每個 PR（加上 `run-eval` label 時才跑，控制成本） |
 | `safety` | 安全集 + 注入集 + 範圍外，k = 4 | 發布前 |
 | `full` | test 集抽 200 題，k = 4 | 發布前 |
@@ -1045,6 +1051,8 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 ## 19. 里程碑與任務拆分
 
 > 任務 ID 格式 `M<里程碑>-<序號>`。每個里程碑都有**完成條件**。建議依序進行；M4 完成後可以先做 M8 的部分任務，讓 demo 早點上線。
+>
+> **平行開發（v0.3）**：先完成 Wave 0 共用介面（M3-01 LLM 層、知識層 schema、`InboundMessage`/`AgentEvent`、`AgentRuntime` protocol、M2-01 的 dev/test 切分），再分三條線：A = M1、B = M2-01～05、C = M3-04～06（含三個 journey YAML）。M2-06 baseline 等 M1-05；其餘 M3 等 A、C 完成。檔案所有權與衝突規則見 `CLAUDE.md`。
 
 ### M0 基礎建設
 
@@ -1217,3 +1225,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | 版本 | 變更 |
 |---|---|
 | v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正為 97 本，manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
+| v0.3 | Wave 0 + 三條平行開發線（§19）；M3-01 LLM 層與 dev/test 切分提前；新增 `extract` LLM 任務（§9.1）；`models.yaml` 移到 llm 套件內；evals 成為 workspace 套件 `homehelper_evals`（§6）；檢索評估接 CI 延到 M8（§16.5） |

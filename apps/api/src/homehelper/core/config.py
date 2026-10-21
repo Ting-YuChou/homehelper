@@ -17,12 +17,26 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
     redis_url: str = "redis://localhost:6379/0"
 
+    anthropic_api_key: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
+    gemini_api_key: SecretStr = SecretStr("")
+
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
     langfuse_base_url: str = Field(
         default="https://cloud.langfuse.com",
         validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST"),
     )
+
+    def provider_api_keys(self) -> dict[str, str]:
+        """LiteLLM provider name → API key, for providers that are configured."""
+        keys = {
+            "anthropic": self.anthropic_api_key,
+            "openai": self.openai_api_key,
+            "gemini": self.gemini_api_key,
+        }
+        values = {provider: key.get_secret_value() for provider, key in keys.items()}
+        return {provider: value for provider, value in values.items() if value}
 
     @property
     def tracing_enabled(self) -> bool:

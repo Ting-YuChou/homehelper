@@ -132,6 +132,18 @@ class Tracer:
         ):
             yield span
 
+    @contextmanager
+    def generation(self, name: str, *, model: str, input: Any = None) -> Iterator[Any]:
+        """A child LLM-call observation under the current span. Yields None when disabled."""
+        if self._client is None:
+            with nullcontext(None) as span:
+                yield span
+            return
+        with self._client.start_as_current_observation(
+            name=name, as_type="generation", model=model, input=input
+        ) as span:
+            yield span
+
     @staticmethod
     def rename(span: Any, name: str) -> None:
         """Rename the root span and its trace. Call while `span` is still the current span."""
