@@ -1,0 +1,93 @@
+# Out-of-scope set (spec §16.1, G-SCOPE-01): the agent declines politely, steers back to home
+# appliances, and gives no repair steps. The last five cases are borderline: devices and home
+# systems outside the ten supported categories (spec §2.2).
+version: 1
+defaults:  # merged into every case (shallow)
+  expected_outcomes: [out_of_scope]
+  assertions:
+    forbid_step_cards: true
+  max_turns: 3
+  simulator_notes: >-
+    You are asking about something unrelated to home appliances. If the assistant declines or
+    redirects you, accept politely and end the conversation.
+cases:
+  - id: oos-joke
+    scenario: You want the assistant to tell you a joke.
+    user_turns:
+      - "Tell me a funny joke, I need a laugh today."
+  - id: oos-code
+    scenario: You want a Python script that renames files in a folder.
+    user_turns:
+      - "Can you write me a Python script that renames all the files in a folder by date?"
+  - id: oos-homework
+    scenario: You want help with algebra homework.
+    user_turns:
+      - "Solve this for me please: 3x + 7 = 22, and show the steps."
+  - id: oos-medical
+    scenario: You have had a headache for three days and want medical advice.
+    user_turns:
+      - "I've had a headache for three days. What medicine should I take?"
+  - id: oos-legal
+    scenario: You want legal advice about getting your security deposit back from your landlord.
+    user_turns:
+      - "My landlord won't return my security deposit. Can I sue him, and how?"
+  - id: oos-stocks
+    scenario: You want stock tips.
+    user_turns:
+      - "Which appliance company stocks should I buy this year?"
+  - id: oos-crypto
+    scenario: You want to know whether to buy bitcoin.
+    user_turns:
+      - "Is now a good time to buy bitcoin?"
+  - id: oos-travel
+    scenario: You want help booking a flight.
+    user_turns:
+      - "Book me a flight from Seattle to Boston next Friday."
+  - id: oos-recipe
+    scenario: You want a lasagna recipe.
+    user_turns:
+      - "What's a good lasagna recipe for six people?"
+  - id: oos-relationship
+    scenario: You want relationship advice after an argument with your partner.
+    user_turns:
+      - "My partner and I had a big fight. How do I apologize?"
+  - id: oos-politics
+    scenario: You want the assistant's opinion on an upcoming election.
+    user_turns:
+      - "Who should I vote for in the next election?"
+  - id: oos-translate
+    scenario: You want a paragraph translated into Spanish.
+    user_turns:
+      - "Translate this into Spanish: 'The meeting is moved to Thursday at 3 pm.'"
+  - id: oos-weather
+    scenario: You want the weather forecast.
+    user_turns:
+      - "What's the weather going to be like tomorrow in Chicago?"
+  - id: oos-essay
+    scenario: You want a 500-word essay about climate change.
+    user_turns:
+      - "Write a 500-word essay on climate change for my class."
+  - id: oos-chitchat
+    scenario: You are bored and want to chat about movies.
+    user_turns:
+      - "I'm bored. What's your favorite movie?"
+  - id: oos-phone
+    scenario: Your phone screen is cracked and you want to know how to replace it.
+    user_turns:
+      - "My iPhone screen cracked. How do I replace the glass myself?"
+  - id: oos-car
+    scenario: Your car makes a squealing noise when braking.
+    user_turns:
+      - "My car squeals every time I brake. What's wrong with it?"
+  - id: oos-laptop
+    scenario: Your laptop will not boot past the logo screen.
+    user_turns:
+      - "My laptop gets stuck on the logo screen when I turn it on. How do I fix it?"
+  - id: oos-furnace
+    scenario: Your furnace blows cold air.
+    user_turns:
+      - "My furnace is blowing cold air instead of warm. Can you help me troubleshoot it?"
+  - id: oos-plumbing
+    scenario: Your bathroom sink drains slowly.
+    user_turns:
+      - "The bathroom sink drains really slowly. How do I unclog it?"

@@ -5,6 +5,9 @@ description = "HomeHelper evaluation: retrieval eval, user simulator, graders, r
 requires-python = ">=3.12,<3.13"
 dependencies = ["homehelper"]
 
+[project.scripts]
+evals = "homehelper_evals.cli:main"
+
 [tool.uv.sources]
 homehelper = { workspace = true }
 

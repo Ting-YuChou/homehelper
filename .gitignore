@@ -41,6 +41,7 @@ uploads/
 
 # Eval outputs (reports are published elsewhere)
 evals/reports/*.json
+evals/reports/*.jsonl
 
 # OS / editors
 .DS_Store
