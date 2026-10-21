@@ -1,0 +1,90 @@
+[
+  {
+    "record_id": "rep_alex_washer_1",
+    "user_id": "demo_alex",
+    "appliance_id": "apl_alex_washer",
+    "date": "2025-08-14",
+    "issue": "Washer would not drain and showed the OE error code.",
+    "error_code": "OE",
+    "resolution": "Cleaned a clogged drain pump filter behind the lower front panel (a sock was stuck in it).",
+    "outcome": "resolved",
+    "performed_by": "self"
+  },
+  {
+    "record_id": "rep_alex_coffee_1",
+    "user_id": "demo_alex",
+    "appliance_id": "apl_alex_coffee",
+    "date": "2026-03-02",
+    "issue": "Brewing took much longer than usual.",
+    "error_code": null,
+    "resolution": "Ran a descaling cycle with a vinegar and water mix.",
+    "outcome": "resolved",
+    "performed_by": "self"
+  },
+  {
+    "record_id": "rep_jordan_dishwasher_1",
+    "user_id": "demo_jordan",
+    "appliance_id": "apl_jordan_dishwasher",
+    "date": "2024-02-11",
+    "issue": "Dishwasher stopped mid-cycle with the E15 error code.",
+    "error_code": "E15",
+    "resolution": "Found water in the base pan from a loose drain hose clamp; dried the base pan and re-tightened the clamp.",
+    "outcome": "resolved",
+    "performed_by": "self"
+  },
+  {
+    "record_id": "rep_jordan_dishwasher_2",
+    "user_id": "demo_jordan",
+    "appliance_id": "apl_jordan_dishwasher",
+    "date": "2025-06-30",
+    "issue": "Standing water left at the bottom after cycles.",
+    "error_code": null,
+    "resolution": "Cleaned the filter assembly and the drain pump cover.",
+    "outcome": "resolved",
+    "performed_by": "self"
+  },
+  {
+    "record_id": "rep_jordan_vacuum_1",
+    "user_id": "demo_jordan",
+    "appliance_id": "apl_jordan_vacuum",
+    "date": "2025-11-05",
+    "issue": "Vacuum lost suction.",
+    "error_code": null,
+    "resolution": "Washed the foam and felt filters and cleared a blockage in the hose.",
+    "outcome": "resolved",
+    "performed_by": "self"
+  },
+  {
+    "record_id": "rep_sam_washer_1",
+    "user_id": "demo_sam",
+    "appliance_id": "apl_sam_washer",
+    "date": "2026-01-19",
+    "issue": "Washer shook violently during the spin cycle.",
+    "error_code": "UE",
+    "resolution": "Building maintenance re-leveled the washer and checked the shipping bolts.",
+    "outcome": "resolved",
+    "performed_by": "technician"
+  },
+  {
+    "record_id": "rep_maria_dryer_1",
+    "user_id": "demo_maria",
+    "appliance_id": "apl_maria_dryer",
+    "date": "2025-09-12",
+    "issue": "Dryer ran but clothes stayed damp after a full cycle.",
+    "error_code": null,
+    "resolution": "Technician cleared a lint blockage in the exhaust vent duct.",
+    "outcome": "resolved",
+    "performed_by": "technician"
+  },
+  {
+    "record_id": "rep_maria_fridge_1",
+    "user_id": "demo_maria",
+    "appliance_id": "apl_maria_fridge",
+    "date": "2026-05-20",
+    "issue": "Fridge section was warm while the freezer stayed cold.",
+    "error_code": null,
+    "resolution": "Defrosted the iced-over evaporator; the problem came back two weeks later.",
+    "outcome": "unresolved",
+    "performed_by": "self"
+  }
+]

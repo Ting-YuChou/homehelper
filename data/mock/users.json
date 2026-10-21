@@ -1,0 +1,38 @@
+[
+  {
+    "user_id": "demo_alex",
+    "display_name": "Alex Kim",
+    "persona": "novice",
+    "diy_skill": "beginner",
+    "housing": "homeowner",
+    "zip_code": "94110",
+    "notes": "First-time homeowner. Prefers short, simple steps and calls a technician for anything that needs tools."
+  },
+  {
+    "user_id": "demo_jordan",
+    "display_name": "Jordan Rivera",
+    "persona": "diy_enthusiast",
+    "diy_skill": "advanced",
+    "housing": "homeowner",
+    "zip_code": "94609",
+    "notes": "Owns a multimeter and a basic tool kit. Happy to replace parts if the manual allows it."
+  },
+  {
+    "user_id": "demo_sam",
+    "display_name": "Sam Patel",
+    "persona": "renter",
+    "diy_skill": "beginner",
+    "housing": "renter",
+    "zip_code": "10027",
+    "notes": "Rents an apartment; the washer and microwave belong to the landlord, so repairs beyond basic care go through the property manager."
+  },
+  {
+    "user_id": "demo_maria",
+    "display_name": "Maria Lopez",
+    "persona": "busy_parent",
+    "diy_skill": "intermediate",
+    "housing": "homeowner",
+    "zip_code": "94612",
+    "notes": "Family of five; laundry runs daily, so downtime matters more than cost."
+  }
+]
