@@ -128,3 +128,31 @@
     @apply font-sans;
   }
 }
+
+/* Markdown in assistant messages, without pulling in the typography plugin. */
+.prose-chat p,
+.prose-chat ul,
+.prose-chat ol {
+  margin-block: 0.5em;
+}
+.prose-chat ul {
+  list-style: disc;
+  padding-inline-start: 1.25em;
+}
+.prose-chat ol {
+  list-style: decimal;
+  padding-inline-start: 1.25em;
+}
+.prose-chat strong {
+  font-weight: 600;
+}
+.prose-chat a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-chat > :first-child {
+  margin-top: 0;
+}
+.prose-chat > :last-child {
+  margin-bottom: 0;
+}
