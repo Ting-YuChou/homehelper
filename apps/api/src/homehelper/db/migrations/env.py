@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from homehelper.core.config import get_settings
 from homehelper.db.models import Base
+from homehelper.mcp_servers import models as _mcp_models  # noqa: F401  (registers mock_* tables)
 
 target_metadata = Base.metadata
 

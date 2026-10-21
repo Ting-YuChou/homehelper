@@ -12,10 +12,12 @@ from homehelper.ingestion import manifest as manifest_lib
 from homehelper.ingestion import pipeline
 from homehelper.ingestion.parse import ManualParser
 from homehelper.llm import build_llm_client
+from homehelper.mcp_servers.cli import app as mcp_app
 
 app = typer.Typer(no_args_is_help=True, help="HomeHelper maintenance commands.")
 manifest_app = typer.Typer(no_args_is_help=True, help="Manual manifest (M1-01).")
 app.add_typer(manifest_app, name="manifest")
+app.add_typer(mcp_app, name="mcp")
 
 
 @manifest_app.command("draft")

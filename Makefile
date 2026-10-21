@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 
-.PHONY: up down logs ps test test-agent-cov test-integration lint fmt migrate ingest eval-smoke
+.PHONY: up down logs ps test test-agent-cov test-integration lint fmt migrate seed-mock ingest eval-smoke
 
 up: ## Start postgres, redis, api, web
 	$(COMPOSE) up -d --build --wait
@@ -37,6 +37,9 @@ fmt:
 
 migrate: ## Apply DB migrations (needs `make up`)
 	uv run alembic -c apps/api/alembic.ini upgrade head
+
+seed-mock: ## Reset the MCP mock tables to data/mock/ (needs `make migrate`)
+	uv run homehelper mcp seed
 
 ingest: ## Build a new kb_version from the reviewed manifest (needs `make up migrate`)
 	uv run homehelper ingest

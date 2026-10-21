@@ -13,6 +13,7 @@ from homehelper.core.middleware import TraceMiddleware
 from homehelper.core.tracing import Tracer
 from homehelper.db.engine import create_engine
 from homehelper.db.redis import create_redis
+from homehelper.mcp_servers.factory import build_mcp_servers
 
 log = get_logger(__name__)
 
@@ -30,7 +31,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("startup", environment=settings.app_env, tracing=tracer.enabled)
-        yield
+        async with app.state.mcp.run():
+            yield
         await app.state.redis.aclose()
         await app.state.db_engine.dispose()
         tracer.shutdown()
@@ -43,6 +45,9 @@ def create_app(
     app.state.agent = agent or StubAgent()
     app.state.db_engine = create_engine(settings.database_url)
     app.state.redis = create_redis(settings.redis_url)
+    # MCP servers as sub-apps at /mcp/<server>/ (spec §12.1); their session managers run above.
+    app.state.mcp = build_mcp_servers(settings, engine=app.state.db_engine)
+    app.state.mcp.mount(app.router, auth_token=settings.mcp_auth_token.get_secret_value())
 
     app.add_middleware(TraceMiddleware, tracer=tracer)
     app.include_router(health.router)
