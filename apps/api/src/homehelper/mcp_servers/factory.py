@@ -20,6 +20,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from homehelper.core.config import Settings
 from homehelper.mcp_servers.common import Clock, utc_now
 from homehelper.mcp_servers.mock_data import MockData, load_mock_data
+from homehelper.mcp_servers.parts_catalog import build_parts_catalog_server
 from homehelper.mcp_servers.stores import (
     InMemoryProfileStore,
     PostgresProfileStore,
@@ -94,5 +95,6 @@ def build_mcp_servers(
     return McpServers(
         {
             "user_profile": build_user_profile_server(data, profiles, clock=clock),
+            "parts_catalog": build_parts_catalog_server(data.parts),
         }
     )
