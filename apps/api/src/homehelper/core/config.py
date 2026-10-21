@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     gemini_api_key: SecretStr = SecretStr("")
+    llama_cloud_api_key: SecretStr = SecretStr("")
+    cohere_api_key: SecretStr = SecretStr("")
+    tavily_api_key: SecretStr = SecretStr("")
 
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
