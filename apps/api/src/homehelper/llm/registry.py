@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -13,6 +13,10 @@ class TaskConfig(BaseModel):
     fallbacks: list[str] = Field(default_factory=list)
     timeout_s: float = 30
     max_tokens: int = 1024
+    # How structured output is requested: the provider's JSON-schema mode, or plain JSON mode
+    # with the schema in the prompt (for gateways whose upstreams lack JSON-schema support).
+    # Either way the reply is validated with Pydantic and retried once on errors.
+    structured_output: Literal["json_schema", "json_object"] = "json_schema"
 
 
 class EmbeddingConfig(BaseModel):

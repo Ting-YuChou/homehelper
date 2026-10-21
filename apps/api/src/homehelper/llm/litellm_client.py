@@ -1,5 +1,6 @@
 """LLMClient backed by the LiteLLM SDK (library mode, no proxy)."""
 
+import json
 import logging
 import os
 import time
@@ -13,7 +14,7 @@ from typing import Any
 os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
 
 import litellm
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from homehelper.core.logging import get_logger
 from homehelper.core.tracing import Tracer
@@ -37,6 +38,33 @@ OPENCODE_GO = "opencode_go"
 OPENCODE_GO_PATHS = {"openai": "/openai/v1", "anthropic": "/anthropic"}
 # Go asks clients to name themselves and send a stable `x-opencode-session`.
 OPENCODE_GO_USER_AGENT = "homehelper-evals/1.0"
+
+
+def _schema_instruction(schema: type[BaseModel]) -> Message:
+    return Message(
+        role="user",
+        content=(
+            "Reply with only a JSON object, no prose and no code fences, that validates against "
+            f"this JSON schema:\n{json.dumps(schema.model_json_schema())}"
+        ),
+    )
+
+
+def _strip_fences(content: str) -> str:
+    """JSON mode replies sometimes arrive wrapped in a Markdown code fence."""
+    text = content.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+        text = text.removesuffix("```").strip()
+    return text
+
+
+def _response_format(config: TaskConfig, schema: type[BaseModel] | None) -> Any:
+    if schema is None:
+        return None
+    if config.structured_output == "json_object":
+        return {"type": "json_object"}
+    return schema
 
 
 def provider_of(model: str) -> str:
@@ -74,9 +102,11 @@ class LiteLLMClient:
         return content
 
     async def structured(self, task: str, messages: list[Message], schema: type[T]) -> T:
+        if self._registry.for_task(task).structured_output == "json_object":
+            messages = [*messages, _schema_instruction(schema)]
         content, model = await self._complete(task, messages, response_format=schema)
         try:
-            return schema.model_validate_json(content)
+            return schema.model_validate_json(_strip_fences(content))
         except ValidationError as exc:
             log.warning("llm_structured_invalid", task=task, model=model, errors=exc.error_count())
             retry_messages = [
@@ -92,7 +122,7 @@ class LiteLLMClient:
             ]
         content, model = await self._complete(task, retry_messages, response_format=schema)
         try:
-            return schema.model_validate_json(content)
+            return schema.model_validate_json(_strip_fences(content))
         except ValidationError as exc:
             raise LLMError(f"{task}: structured output invalid after retry ({model})") from exc
 
@@ -134,7 +164,7 @@ class LiteLLMClient:
                     response = await self._completion_fn(
                         model=litellm_model,
                         messages=payload,
-                        response_format=response_format,
+                        response_format=_response_format(config, response_format),
                         timeout=config.timeout_s,
                         max_tokens=config.max_tokens,
                         num_retries=self._num_retries,

@@ -122,6 +122,18 @@ async def test_structured_output_fails_after_second_invalid_reply() -> None:
         await _client(completion).structured("nlu", MESSAGES, Answer)
 
 
+async def test_json_object_mode_puts_the_schema_in_the_prompt() -> None:
+    override = {"model": "openai/m", "fallbacks": [], "structured_output": "json_object"}
+    registry = ModelRegistry.load(overrides={"nlu": override})
+    completion = ScriptedCompletion({"openai/m": ['```json\n{"value": 5}\n```']})
+    client = LiteLLMClient(registry, {"openai": "o"}, completion_fn=completion)
+    assert await client.structured("nlu", MESSAGES, Answer) == Answer(value=5)
+    call = completion.calls[0]
+    assert call["response_format"] == {"type": "json_object"}
+    assert '"value"' in call["messages"][-1]["content"]  # the JSON schema
+    assert call["messages"][:-1] == [m.model_dump() for m in MESSAGES]
+
+
 def test_registry_rejects_unknown_tasks() -> None:
     with pytest.raises(ValueError, match="unknown task"):
         ModelRegistry.load(overrides={"nope": {"model": "x/y"}})

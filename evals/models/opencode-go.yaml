@@ -1,0 +1,13 @@
+# Eval-only model overrides on the OpenCode Go subscription (`evals run --models`, spec §16.4).
+# Same mapping for the baseline and the journey agent, so their comparison stays fair; absolute
+# numbers differ from the production models in models.yaml (responder/planner/judge are Sonnet
+# there). A bare id clears the task's fallbacks, so a run never silently switches models.
+nlu: opencode_go/anthropic/claude-haiku-5-5
+supervisor: opencode_go/anthropic/claude-haiku-5-5
+extract: opencode_go/anthropic/claude-haiku-5-5
+user_simulator: opencode_go/anthropic/claude-haiku-5-5
+# Some of Go's DeepSeek upstreams reject JSON-schema mode, so ask for plain JSON mode with the
+# schema in the prompt (still Pydantic-validated, one corrective retry).
+responder: { model: opencode_go/openai/deepseek-v4.1-flash, fallbacks: [], structured_output: json_object }
+planner: { model: opencode_go/openai/deepseek-v4.1-flash, fallbacks: [], structured_output: json_object }
+judge: opencode_go/anthropic/minimax-m3
