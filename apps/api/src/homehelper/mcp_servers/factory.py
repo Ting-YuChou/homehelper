@@ -26,6 +26,12 @@ from homehelper.mcp_servers.stores import (
     PostgresProfileStore,
     ProfileStore,
 )
+from homehelper.mcp_servers.tutorials import (
+    MockVideoSearch,
+    VideoSearch,
+    YouTubeVideoSearch,
+    build_tutorials_server,
+)
 from homehelper.mcp_servers.user_profile import build_user_profile_server
 
 MOUNT_PREFIX = "/mcp"
@@ -37,6 +43,7 @@ class McpOverrides:
 
     data: MockData | None = None
     profile_store: ProfileStore | None = None
+    video_search: VideoSearch | None = None
     clock: Clock | None = None
 
 
@@ -82,6 +89,14 @@ class McpServers:
             yield
 
 
+def video_search_for(settings: Settings, data: MockData) -> VideoSearch:
+    """YouTube in real mode when a key is set; otherwise the mock videos (spec §12.1)."""
+    key = settings.youtube_api_key.get_secret_value()
+    if settings.mcp_mode == "real" and key:
+        return YouTubeVideoSearch(key)
+    return MockVideoSearch(data.videos)
+
+
 def build_mcp_servers(
     settings: Settings, *, engine: AsyncEngine, overrides: McpOverrides | None = None
 ) -> McpServers:
@@ -92,9 +107,11 @@ def build_mcp_servers(
     profiles = o.profile_store or (
         InMemoryProfileStore(data) if mock else PostgresProfileStore(engine)
     )
+    videos = o.video_search or video_search_for(settings, data)
     return McpServers(
         {
             "user_profile": build_user_profile_server(data, profiles, clock=clock),
             "parts_catalog": build_parts_catalog_server(data.parts),
+            "tutorials": build_tutorials_server(videos),
         }
     )

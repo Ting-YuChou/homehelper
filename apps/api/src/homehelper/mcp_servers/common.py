@@ -1,5 +1,6 @@
 """Shared FastMCP setup for the HomeHelper servers."""
 
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Literal
@@ -12,6 +13,13 @@ from homehelper.mcp_servers.registry import META_KEY, TOOL_SPECS, ToolAccess
 
 Mode = Literal["real", "mock"]
 Clock = Callable[[], datetime]
+
+_STOPWORDS = frozenset({"a", "an", "and", "the", "is", "my", "of", "on", "in", "to", "it", "with"})
+
+
+def words(text: str) -> set[str]:
+    """Lowercase content words, for the mock servers' keyword matching."""
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1} - _STOPWORDS
 
 
 def utc_now() -> datetime:

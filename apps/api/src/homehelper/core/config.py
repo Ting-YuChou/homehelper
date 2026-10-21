@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     llama_cloud_api_key: SecretStr = SecretStr("")
     cohere_api_key: SecretStr = SecretStr("")
     tavily_api_key: SecretStr = SecretStr("")
+    youtube_api_key: SecretStr = SecretStr("")  # `tutorials` uses mock videos when empty
 
     # MCP servers (spec §12.1). "mock" serves `data/mock/` from memory with no external calls;
     # "real" uses Postgres mock tables and external APIs where a key is configured.

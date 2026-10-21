@@ -4,7 +4,6 @@ JSON-backed in both modes; nothing is scraped. Compatibility uses the same model
 as retrieval (`knowledge.model_numbers`).
 """
 
-import re
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
@@ -13,7 +12,7 @@ from pydantic import Field
 
 from homehelper.knowledge.model_numbers import matches_any
 from homehelper.knowledge.schemas import CategoryId
-from homehelper.mcp_servers.common import mcp_tool, new_server
+from homehelper.mcp_servers.common import mcp_tool, new_server, words
 from homehelper.mcp_servers.schemas import Part
 
 INSTRUCTIONS = (
@@ -21,21 +20,15 @@ INSTRUCTIONS = (
     "number and symptom, with price and image. Prices are from a demo catalog."
 )
 
-_STOPWORDS = frozenset({"a", "an", "and", "the", "is", "my", "of", "on", "in", "to", "it", "with"})
-
-
-def _words(text: str) -> set[str]:
-    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1} - _STOPWORDS
-
 
 def symptom_score(part: Part, symptom: str) -> float:
     """Best fraction of one of the part's symptom phrases that the user's words cover."""
-    said = _words(symptom)
+    said = words(symptom)
     best = 0.0
     for phrase in part.symptoms:
-        words = _words(phrase)
-        if words:
-            best = max(best, len(words & said) / len(words))
+        wanted = words(phrase)
+        if wanted:
+            best = max(best, len(wanted & said) / len(wanted))
     return best
 
 
