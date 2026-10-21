@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from homehelper import __version__
+from homehelper.agent.protocol import AgentRuntime
+from homehelper.agent.stub import StubAgent
 from homehelper.api import health, meta
 from homehelper.core.config import Settings, get_settings
 from homehelper.core.logging import configure_logging, get_logger
@@ -15,7 +17,12 @@ from homehelper.db.redis import create_redis
 log = get_logger(__name__)
 
 
-def create_app(settings: Settings | None = None, *, tracer: Tracer | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    tracer: Tracer | None = None,
+    agent: AgentRuntime | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
     tracer = tracer or Tracer(settings)
@@ -32,6 +39,8 @@ def create_app(settings: Settings | None = None, *, tracer: Tracer | None = None
     # Clients connect lazily, so creating them here keeps the app usable without running lifespan.
     app.state.settings = settings
     app.state.tracer = tracer
+    # The scripted stub until the journey agent lands (M3); tests and evals inject their own.
+    app.state.agent = agent or StubAgent()
     app.state.db_engine = create_engine(settings.database_url)
     app.state.redis = create_redis(settings.redis_url)
 
