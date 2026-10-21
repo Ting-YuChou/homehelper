@@ -8,11 +8,12 @@ conversation is over. The journey agent's scores are reported against this one.
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from homehelper.agent import prompts
+from homehelper.agent.deps import Retriever
 from homehelper.agent.protocol import AgentSnapshot, Outcome
 from homehelper.channels.events import (
     AgentEvent,
@@ -54,12 +55,6 @@ class BaselineReply(BaseModel):
     outcome: Literal["resolved", "escalated", "out_of_scope"] | None = Field(
         default=None, description="Set only when the conversation should end."
     )
-
-
-class Retriever(Protocol):
-    """`KnowledgeRetriever.search`, or anything shaped like it."""
-
-    async def search(self, query: RetrievalQuery) -> RetrievalResult: ...
 
 
 @dataclass

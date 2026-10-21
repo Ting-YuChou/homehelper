@@ -1,0 +1,197 @@
+"""`step_executor` + `act` (spec §7.3): run the journey engine, then the step's actions, and keep
+going while the engine is at a `system` step (e.g. diagnose → knowledge.search, plan.build).
+
+`plan.build` is M3-07: the planner drafts items from the retrieved excerpts, and code applies
+the §7.6 rules (`postprocess_plan`). MCP actions need the M5 tool client and are logged as
+skipped until then.
+"""
+
+from collections.abc import Callable
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from homehelper.agent import prompts
+from homehelper.agent.deps import AgentDeps
+from homehelper.agent.engine import TurnInput, transition
+from homehelper.agent.guardrails import postprocess_plan
+from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
+from homehelper.agent.state import AgentState, Decision, PlanItem
+from homehelper.agent.turn import GraphState
+from homehelper.channels.events import StatusEvent
+from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalQuery, RetrievalResult
+from homehelper.llm import Message
+
+MAX_ACTION_ROUNDS = 4  # system steps chained in one turn; the catalog needs at most two
+Emit = Callable[[object], None]
+
+
+class PlanDraftItem(BaseModel):
+    instruction: str
+    citation_ids: list[str] = Field(default_factory=list)
+    requires_disassembly: bool = False
+    requires_tools: list[str] = Field(default_factory=list)
+    risk_level: Literal["low", "medium", "high"] = "low"
+
+
+class PlanDraft(BaseModel):
+    items: list[PlanDraftItem] = Field(default_factory=list)
+
+
+def _slot(state: AgentState, name: str) -> str | None:
+    slot = state.slots.get(name)
+    return slot.value if slot else None
+
+
+def _category(state: AgentState) -> CategoryId | None:
+    value = _slot(state, "appliance_category")
+    return CategoryId(value) if value in {c.value for c in CategoryId} else None
+
+
+def retrieval_query(state: AgentState, text: str) -> RetrievalQuery:
+    return RetrievalQuery(
+        query_en=text,
+        category=_category(state),
+        brand=_slot(state, "brand"),
+        model_number=_slot(state, "model_number"),
+        error_code=_slot(state, "error_code"),
+    )
+
+
+def retrieval_label(state: AgentState) -> str:
+    category = _slot(state, "appliance_category")
+    what = " ".join(p for p in (_slot(state, "brand"), category) if p).replace("_", " ")
+    return f"Checking the {what} manual…" if what else "Checking the manuals…"
+
+
+def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
+    return [
+        {
+            "id": chunk.chunk_id,
+            "manual": chunk.metadata.doc_id,
+            "page": chunk.metadata.page_start,
+            "text": chunk.text,
+        }
+        for chunk in retrieval.chunks
+    ]
+
+
+async def build_plan(deps: AgentDeps, state: AgentState) -> tuple[list[PlanItem], list[Decision]]:
+    retrieval = state.last_retrieval
+    if retrieval is None or not retrieval.chunks:
+        return [], [
+            Decision(kind="plan", journey=state.active_journey, reason="no manual excerpts")
+        ]
+    category = _slot(state, "appliance_category") or "appliance"
+    prompt = prompts.render(
+        "planner",
+        category=category.replace("_", " "),
+        brand=_slot(state, "brand"),
+        model_number=_slot(state, "model_number"),
+        symptom=_slot(state, "symptom") or retrieval.query.query_en,
+        error_code=_slot(state, "error_code"),
+        excerpts=_excerpts(retrieval),
+        max_items=MAX_PLAN_ITEMS,
+    )
+    draft = await deps.llm.structured("planner", [Message(role="user", content=prompt)], PlanDraft)
+    retrieved = retrieval.chunk_ids()
+    items = [
+        PlanItem(
+            id=f"p{index}",
+            instruction=item.instruction,
+            # An id the planner invented is not a citation (spec P3).
+            citation_ids=[cid for cid in dict.fromkeys(item.citation_ids) if cid in retrieved],
+            requires_disassembly=item.requires_disassembly,
+            requires_tools=item.requires_tools,
+            risk_level=item.risk_level,
+        )
+        for index, item in enumerate(draft.items, start=1)
+    ]
+    # Warranty status comes from the user profile (M5); until then nothing is under warranty.
+    edit = postprocess_plan(items, category=_slot(state, "appliance_category"))
+    decisions = [
+        Decision(
+            kind="plan",
+            journey=state.active_journey,
+            reason=f"planner drafted {len(items)} items; {len(edit.items)} kept",
+        ),
+        *edit.decisions,
+    ]
+    return edit.items, decisions
+
+
+async def run_action(
+    action: str, graph: GraphState, state: AgentState, deps: AgentDeps, emit: Emit
+) -> AgentState:
+    """Run one step action against `state` (mutated and returned)."""
+    if action == "knowledge.search":
+        text = graph.search_query or _slot(state, "symptom") or _slot(state, "question") or ""
+        emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
+        state.last_retrieval = await deps.retriever.search(retrieval_query(state, text))
+        state.decision_log.append(
+            Decision(
+                kind="plan",
+                journey=state.active_journey,
+                reason=(
+                    f"retrieved {len(state.last_retrieval.chunks)} chunks "
+                    f"(source={state.last_retrieval.source}, "
+                    f"level={state.last_retrieval.filter_level}, "
+                    f"sufficient={state.last_retrieval.sufficient})"
+                ),
+            )
+        )
+    elif action == "plan.build":
+        emit(StatusEvent(stage="planning", label="Putting together the steps…"))
+        state.plan, decisions = await build_plan(deps, state)
+        state.plan_cursor = 0
+        state.decision_log.extend(decisions)
+    else:
+        state.decision_log.append(
+            Decision(
+                kind="plan",
+                journey=state.active_journey,
+                reason=f"skipped {action}: MCP tools are not connected yet (M5)",
+            )
+        )
+    return state
+
+
+def _remember_citations(graph: GraphState, retrieval: RetrievalResult | None) -> None:
+    if retrieval is not None:
+        for chunk in retrieval.chunks:
+            graph.citations[chunk.chunk_id] = Citation.from_chunk(chunk)
+
+
+async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[str, object]:
+    message = graph.turn.message
+    assert message is not None
+    result = transition(deps.catalog, graph.state, TurnInput.from_message(message, graph.turn.nlu))
+    state = result.state
+    turn = graph.turn.model_copy(
+        update={
+            "fixed_replies": list(result.fixed_replies),
+            "notices": list(result.notices),
+            "side_question": result.side_question,
+        }
+    )
+    graph = graph.model_copy(update={"citations": dict(graph.citations)})
+    if not result.skip_respond:
+        for _ in range(MAX_ACTION_ROUNDS):
+            for action in result.actions:
+                state = await run_action(action, graph, state, deps, emit)
+            _remember_citations(graph, state.last_retrieval)
+            if not result.continue_after_actions:
+                break
+            result = transition(deps.catalog, state, None)
+            state = result.state
+            turn.fixed_replies.extend(result.fixed_replies)
+            turn.notices.extend(result.notices)
+        turn.retrieval = state.last_retrieval
+
+    if turn.side_question and turn.nlu and turn.nlu.search_query_en:
+        # Answer a how-to question during another journey without touching its step (§7.4).
+        emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
+        side = await deps.retriever.search(retrieval_query(state, turn.nlu.search_query_en))
+        _remember_citations(graph, side)
+        turn.retrieval = side
+    return {"agent": state, "turn": turn, "citations": graph.citations}
