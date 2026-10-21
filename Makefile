@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 
-.PHONY: up down logs ps test test-agent-cov test-integration lint fmt migrate seed-mock ingest eval-smoke
+.PHONY: up down logs ps test test-agent-cov test-integration lint fmt migrate seed-mock ingest eval-smoke openapi
 
 up: ## Start postgres, redis, api, web
 	$(COMPOSE) up -d --build --wait
@@ -46,3 +46,7 @@ ingest: ## Build a new kb_version from the reviewed manifest (needs `make up mig
 
 eval-smoke: ## Smoke suite against the stub agent (LLM simulator + judge, about USD 0.16)
 	uv run evals run --suite smoke
+
+openapi: ## Regenerate the OpenAPI schema and the web app's TS types (contract check, spec §18.5)
+	uv run python -m homehelper.api.openapi apps/web/lib/api/openapi.json
+	pnpm --filter web gen:api

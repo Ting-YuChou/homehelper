@@ -8,6 +8,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "fastapi>=0.157.0",
     "httpx>=0.28.1",
+    "itsdangerous>=2.2.0",
     "langfuse>=5.0.4",
     "litellm>=1.106.2",
     "llama-cloud>=1.0",

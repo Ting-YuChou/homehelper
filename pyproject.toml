@@ -16,6 +16,7 @@ homehelper-evals = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "fakeredis[lua]>=2.40.0",
     "httpx>=0.28.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",

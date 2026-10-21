@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # When set, the mounted `/mcp/*` endpoints require `Authorization: Bearer <token>`.
     mcp_auth_token: SecretStr = SecretStr("")
 
+    # Web API (spec §13.2, §18.1). An empty session secret is only allowed locally and in tests.
+    session_secret: SecretStr = SecretStr("")
+    session_max_age_s: int = 7 * 24 * 3600
+    admin_token: SecretStr = SecretStr("")
+    # Browser origins allowed to call the API (CORS) and to send write requests (Origin check).
+    cors_origins: list[str] = ["http://localhost:3000"]
+
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
     langfuse_base_url: str = Field(

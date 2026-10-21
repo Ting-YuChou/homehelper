@@ -8,8 +8,9 @@ the connection open; buffering is disabled with `X-Accel-Buffering: no`.
 import asyncio
 from collections.abc import AsyncIterator, Mapping
 
-from fastapi.sse import KEEPALIVE_COMMENT, EventSourceResponse, format_sse_event
+from fastapi.sse import KEEPALIVE_COMMENT, format_sse_event
 from pydantic import BaseModel, Field, model_validator
+from starlette.responses import StreamingResponse
 
 from homehelper.channels.events import AgentEvent, Channel, InboundMessage, StructuredAction
 
@@ -17,6 +18,13 @@ HEARTBEAT_S = 15.0
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 MAX_TEXT_CHARS = 4000
 MAX_ATTACHMENTS = 4
+
+
+class SSEResponse(StreamingResponse):
+    """`text/event-stream` for a stream we encode ourselves. (FastAPI's `EventSourceResponse` as a
+    route's `response_class` expects the endpoint itself to be a generator.)"""
+
+    media_type = "text/event-stream"
 
 
 class SendMessageRequest(BaseModel):
@@ -92,8 +100,8 @@ class WebChannelAdapter:
         *,
         status_code: int = 200,
         headers: Mapping[str, str] | None = None,
-    ) -> EventSourceResponse:
-        return EventSourceResponse(
+    ) -> SSEResponse:
+        return SSEResponse(
             with_heartbeat(events, interval_s=self.heartbeat_s),
             status_code=status_code,
             headers={**SSE_HEADERS, **(headers or {})},
