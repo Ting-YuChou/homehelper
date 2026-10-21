@@ -36,6 +36,7 @@ make up                 # docker compose: postgres :5432, redis :6379, api :8000
 make down
 make test               # unit tests (pytest, from repo root)
 make test-integration   # + integration tests against the running stack (RUN_INTEGRATION=1)
+make test-agent-cov     # journey engine + guardrail tests with the >= 90% coverage gate
 make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
 make migrate            # alembic upgrade head (needs `make up`)

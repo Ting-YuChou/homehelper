@@ -325,19 +325,39 @@ class PlanItem(BaseModel):
     requires_tools: list[str]
     risk_level: Literal["low", "medium", "high"]
     status: Literal["pending", "presented", "done_not_fixed", "fixed", "skipped"] = "pending"
+    warranty_warning: bool = False         # G-WARR-01
+    safety_rule: str | None = None         # 程式碼插入的項目，例如 "G-SAFE-06" 斷電步驟
+
+class Decision(BaseModel):
+    kind: Literal["route", "transition", "skip", "guardrail", "slot", "plan", "supervisor"]
+    journey: str | None
+    from_step: str | None
+    to_step: str | None
+    predicate: str | None
+    rule_id: str | None                    # 護欄規則，例如 "G-SAFE-01"
+    reason: str
+
+class PausedJourney(BaseModel):            # 暫停時保存的 journey 進度
+    journey: str
+    step_id: str | None
+    slots: dict[str, SlotValue]
+    plan: list[PlanItem]
+    plan_cursor: int
 
 class AgentState(BaseModel):
     conversation_id: str
     release_id: str
     user_id: str | None
     active_journey: str | None
-    paused_journey: str | None             # 只支援一層暫停（話題切換後可以回來）
+    paused_journey: PausedJourney | None   # 只支援一層暫停（話題切換後可以回來）
     step_id: str | None
     slots: dict[str, SlotValue]
     plan: list[PlanItem]
     plan_cursor: int
     step_attempts: dict[str, int]
     hazard_flags: list[str]
+    frustrated_turns: int                  # 連續 frustrated 的回合數（G-LOOP-01）
+    selected_booking_slot: str | None      # BookingSlots 卡片選的時段，給 `book` action 用
     last_retrieval: RetrievalResult | None # chunk ids、分數、來源（manual / web）
     outcome: Literal["resolved", "escalated", "abandoned", "out_of_scope"] | None
     decision_log: list[Decision]           # 每次轉移、護欄、監督的原因（P7）
@@ -365,7 +385,7 @@ class NLUResult(BaseModel):
     intent: Literal["report_problem", "ask_how_to", "step_feedback", "ask_parts",
                     "my_appliances", "book_technician", "confirm", "deny",
                     "small_talk", "out_of_scope", "other"]
-    slot_updates: dict[str, str]
+    slot_updates: list[SlotUpdate]        # SlotUpdate(name, value)；不用 dict，strict JSON schema 不接受任意 key
     step_feedback: Literal["fixed", "not_fixed", "cannot_do", "unclear"] | None
     hazard_signals: list[Literal["gas_smell", "smoke_or_burning", "sparks", "water_near_electric",
                                  "refrigerant", "high_voltage_internal", "injury"]]
@@ -409,6 +429,8 @@ guardrails:                       # 在每次轉移前評估；命中即覆寫�
     to: escalate
   - when: max_failed_steps_reached     # 預設 4 個步驟都沒用
     to: escalate
+  - when: user_requested_technician   # 使用者主動要求師傅
+    to: escalate
 
 steps:
   - id: gather
@@ -422,11 +444,14 @@ steps:
     type: confirm
     goal: 確認低信心的家電資訊（例如影像辨識結果）
     skip_when: no_unconfirmed_low_confidence_slots
+    skip_to: diagnose
     transitions:
       - when: user_confirmed
         to: diagnose
       - when: user_denied
         to: gather
+      - when: no_unconfirmed_low_confidence_slots   # 使用者直接更正
+        to: diagnose
 
   - id: diagnose
     type: system
@@ -434,7 +459,7 @@ steps:
     transitions:
       - when: plan_available
         to: guide
-      - when: no_relevant_knowledge
+      - when: plan_unavailable      # 沒有相關知識，或後處理把項目全部移除
         to: escalate
 
   - id: guide
@@ -457,6 +482,7 @@ steps:
   - id: escalate
     type: handoff
     goal: 說明為什麼建議專業協助，提供預約選項
+    outcome: escalated              # 進入即設定；使用者沒預約就離開也算 escalated
     tools_allowed: [mcp:service_booking.list_slots]   # 只放讀取類工具
     transitions:
       - when: booking_confirmed   # 使用者在 BookingSlots 卡片選時段 → action → 程式碼呼叫 service_booking.book
@@ -467,12 +493,20 @@ steps:
     outcome: escalated
 ```
 
+Step 欄位補充：`outcome` 必填於 `end`，也可以放在 `handoff`、`inform`（進入時設定的暫定 outcome）；`template` 指定固定模板回覆（不經 LLM，例如 `out_of_scope`）；`entry` 可省略，預設第一個 step。
+
 Journey Engine 規則：
 
-- `transition(journey, state, nlu) -> TransitionResult` 是**純函式**，必須有完整的單元測試。
-- 載入時驗證：所有 `to` 都存在、所有 predicate 都已註冊、從 entry 能到達某個 `end`、沒有無出口的 step。
-- 每次轉移寫一筆 `Decision(from, to, predicate, reason)`。
-- 使用者在 `guide` 中途問其他問題時（`intent = ask_how_to`），先以 `inform` 回答但**不改變 step**；如果換了另一台家電，就把目前的 journey 移到 `paused_journey`。
+- `transition(catalog, state, turn: TurnInput | None) -> TransitionResult` 是**純函式**，必須有完整的單元測試。`TurnInput` 包含原始文字（給關鍵字護欄）、`NLUResult` 或卡片 `StructuredAction`（兩者都轉成同一組 signals；有 action 時忽略 NLU）。
+- 每回合順序：危險偵測 → `route()`（維持／開始／切換／恢復 journey，或旁支問題）→ 套用輸入（slot 更新、確認／否認、步驟回饋、預約時段）→ journey 護欄（命中即覆寫）→ 目前 step 的轉移（第一個成立的）。
+- 進入 step 後會繼續評估**只依狀態**的轉移（本回合輸入已被消耗），直到遇到等待使用者的 step、`end`，或有 actions 的 step。actions 交給 `act` 執行；`system` step 的 actions 執行完後，以 `transition(catalog, state, None)` 繼續。
+- 進入 step 時 `skip_when` 成立，就跳到 `skip_to`（兩者必須同時出現）。
+- `guide` 每次進入時呈現下一個 `pending` 項目（`plan_cursor` 前進）。
+- 載入時驗證：schema 不允許多餘欄位；所有 `to` 都存在、所有 predicate 都已註冊、從 entry 能到達某個 `end`、每個 step 不靠護欄也能經由自己的轉移到達 `end`（護欄只算進「可到達」檢查）、沒有無法到達的 step、沒有無出口的 step、`tools_allowed` 是讀取類工具的白名單（§12.1 的讀取工具，不含 `web_search`），寫入類工具（`book`、`cancel`、`add_*`、`update_*`、`delete_*` 等）一律拒絕、actions 只能是 `knowledge.search`、`plan.build` 或 §12.1 列出的 MCP 工具；跨 journey 的 `entry_intents` 不可重複。任何錯誤都在啟動時拋出 `JourneyValidationError`。
+- 每次轉移寫一筆 `Decision(from_step, to_step, predicate, reason)`；護欄另記 `rule_id`。
+- 使用者在進行中的 journey 問操作問題（`intent = ask_how_to`），先以 `inform` 回答但**不改變 step**；離題訊息回固定的 G-SCOPE-01 短句，也不改變 step。
+- 在 `guide`／`inform`／`handoff` 換了另一台家電，或意圖屬於另一個 journey，就把目前的 journey（含 slots、plan、cursor）移到 `paused_journey`（只保留一層，新的覆蓋舊的）。換家電時不帶 slots；同一台家電開始新 journey 時帶入 `appliance_category`、`brand`、`model_number`。在收集階段改家電視為更正，不暫停。新家電不在支援類別內時不切換，維持目前 step，並回固定的「沒有對應手冊」短句（G-SCOPE-01）。
+- Journey 結束且有暫停的 journey 時，回傳 `resume_paused` 提示；使用者 `confirm` 就恢復。
 
 ### 7.5 MVP Journeys
 
@@ -510,17 +544,20 @@ Journey Engine 規則：
 |---|---|---|---|
 | G-SAFE-01 | 瓦斯味 | 固定模板：不要開關電器、開窗、離開現場、聯絡瓦斯公司；結束 DIY | 硬性 |
 | G-SAFE-02 | 冒煙、燒焦味、火花 | 固定模板：若安全就拔插頭／關斷路器，停止使用，轉專業 | 硬性 |
-| G-SAFE-03 | 微波爐內部（磁控管、高壓電容）、需要拆開高壓部件 | 拒絕提供拆機步驟，轉專業 | 硬性 |
+| G-SAFE-03 | 微波爐、電視內部（磁控管、高壓電容）、需要拆開高壓部件 | 拒絕提供拆機步驟（計畫中這兩類的拆機項目一律移除），轉專業 | 硬性 |
 | G-SAFE-04 | 冷媒、密封系統 | 轉專業 | 硬性 |
-| G-SAFE-05 | 水與電同時出現 | 先關斷路器，再繼續 | 硬性前置 |
+| G-SAFE-05 | 水與電同時出現 | 先關斷路器，再繼續（模板放在 LLM 回覆前，不轉介） | 硬性前置 |
 | G-SAFE-06 | 任何拆機步驟 | 前面必須有斷電步驟（§7.6 自動插入） | 結構性 |
+| G-SAFE-07 | 有人受傷（割傷、燙傷、觸電） | 固定模板：先處理傷勢、必要時叫救護；停止使用，轉專業 | 硬性 |
 | G-WARR-01 | 保固內 + 拆機步驟 | 先提醒保固可能失效，並提供保固維修選項 | 軟性 |
 | G-SCOPE-01 | 非家電話題 | 禮貌拒絕並引導回主題 | 硬性 |
 | G-LOOP-01 | 4 個步驟失敗，或使用者連續 2 回合 `frustrated` | 主動提供轉介 | 軟性 |
 | G-INJ-01 | 網路內容或使用者訊息中出現指令型文字 | 視為資料，不執行；記錄到 trace | 結構性（§10.6） |
 | G-PRIV-01 | 不主動詢問地址、電話等個資（預約流程除外） | Supervisor 檢查 | 軟性 |
 
-危險偵測採兩層：英文關鍵字規則，**或** NLU 的 `hazard_signals`，任一命中就觸發。寧可誤報，不可漏報。危險情境的回覆是**預先寫好的模板**，不交給 LLM 生成。
+危險偵測採兩層：英文關鍵字規則，**或** NLU 的 `hazard_signals`，任一命中就觸發。寧可誤報，不可漏報（關鍵字規則不處理否定句）。危險情境的回覆是**預先寫好的模板**（文字 + `SafetyCard`），不交給 LLM 生成；除 G-SAFE-05 外，模板就是整個回覆，`respond` 不執行。
+
+實作位置：規則表 `agent/guardrails/rules.py`；危險偵測 `hazards.py`；固定模板 `templates.py`；§7.6 計畫後處理 `plan.py`（純函式，給 `plan.build` 用）；G-PRIV-01 檢查 `privacy.py`（給 Supervisor 用）。
 
 ### 8.2 LLM Supervisor
 
@@ -1238,3 +1275,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.4 | M1-01：manifest 完成並人工審查（94 本；排除重複與變體、`aliases`、LG_French_Fridge 實為 Samsung，§2.2） |
 | v0.5 | M1 完成：LlamaParse 改用 `llama-cloud` SDK；reranker 定為 Cohere `rerank-v5.0-fast`；τ 校準值（§10.4）；自建 RRF 與不跨類別放寬（§10.4）；檢索評估結果（§16.2）；SQLAlchemy 固定 2.0.x（llama-index-vector-stores-postgres 需要 <2.1） |
 | v0.6 | M2 Track B：`root_cause_step` 標註加 `user_fixable`／`troubleshootable` 並凍結為 v1、對話模擬改分層抽樣（smoke 20、full 100，回覆 Q9 的提案）、三個新資料集的實際內容、模擬使用者的按鈕與結束規則、安全題「第一則回覆」的判定方式、CLI 與 Langfuse dataset／experiment 的做法（§16） |
+| v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |

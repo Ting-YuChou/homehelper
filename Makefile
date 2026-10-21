@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 
-.PHONY: up down logs ps test test-integration lint fmt migrate ingest eval-smoke
+.PHONY: up down logs ps test test-agent-cov test-integration lint fmt migrate ingest eval-smoke
 
 up: ## Start postgres, redis, api, web
 	$(COMPOSE) up -d --build --wait
@@ -16,6 +16,10 @@ ps:
 
 test: ## Unit tests
 	uv run pytest
+
+test-agent-cov: ## Journey engine + guardrail tests with the >= 90% coverage gate (spec M3-05)
+	uv run pytest apps/api/tests/unit/agent --cov=homehelper.agent.engine \
+		--cov=homehelper.agent.guardrails --cov-report=term-missing --cov-fail-under=90
 
 test-integration: ## Unit + integration tests (needs `make up`)
 	RUN_INTEGRATION=1 uv run pytest

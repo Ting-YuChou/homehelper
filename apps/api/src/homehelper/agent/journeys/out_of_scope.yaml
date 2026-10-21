@@ -1,0 +1,12 @@
+# G-SCOPE-01: a fixed, polite decline that steers back to appliances (spec §7.5, §8.1).
+# Mid-journey off-topic messages get a side reply instead and keep the current step.
+id: out_of_scope
+version: 1
+goal: Decline topics unrelated to home appliances and steer the user back.
+entry_intents: [out_of_scope]
+
+steps:
+  - id: decline
+    type: end
+    outcome: out_of_scope
+    template: out_of_scope
