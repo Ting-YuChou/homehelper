@@ -36,6 +36,8 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper
       REDIS_URL: redis://localhost:6379/0
       RUN_INTEGRATION: "1"
+      # NLTK (via LlamaIndex) refuses hardlinked data files; uv hardlinks from its cache by default.
+      UV_LINK_MODE: copy
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
