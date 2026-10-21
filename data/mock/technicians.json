@@ -1,0 +1,50 @@
+[
+  {
+    "technician_id": "tech_dana",
+    "name": "Dana Whitfield",
+    "company": "Bay Appliance Care",
+    "categories": ["washing_machine", "dryer", "dishwasher"],
+    "service_zip_prefixes": ["941", "946"],
+    "timezone": "America/Los_Angeles",
+    "rating": 4.8,
+    "visit_fee_usd": 89.0,
+    "weekly_slots": {"mon": ["09:00", "13:00"], "tue": ["09:00", "13:00", "15:00"], "thu": ["10:00", "14:00"], "sat": ["10:00"]},
+    "slot_minutes": 120
+  },
+  {
+    "technician_id": "tech_luis",
+    "name": "Luis Ortega",
+    "company": "CoolFix Refrigeration",
+    "categories": ["refrigerator", "water_purifier"],
+    "service_zip_prefixes": ["941", "946"],
+    "timezone": "America/Los_Angeles",
+    "rating": 4.6,
+    "visit_fee_usd": 99.0,
+    "weekly_slots": {"mon": ["08:00"], "wed": ["08:00", "12:00"], "fri": ["08:00", "12:00", "15:00"]},
+    "slot_minutes": 120
+  },
+  {
+    "technician_id": "tech_priya",
+    "name": "Priya Shah",
+    "company": "East Bay Small Appliance Repair",
+    "categories": ["microwave", "coffee_maker", "blender_food_processor", "vacuum", "television"],
+    "service_zip_prefixes": ["946", "941"],
+    "timezone": "America/Los_Angeles",
+    "rating": 4.9,
+    "visit_fee_usd": 69.0,
+    "weekly_slots": {"tue": ["11:00", "16:00"], "wed": ["11:00"], "sat": ["09:00", "12:00"]},
+    "slot_minutes": 90
+  },
+  {
+    "technician_id": "tech_marcus",
+    "name": "Marcus Bell",
+    "company": "Harlem Home Services",
+    "categories": ["washing_machine", "dryer", "dishwasher", "refrigerator", "microwave", "water_purifier"],
+    "service_zip_prefixes": ["100", "101", "102"],
+    "timezone": "America/New_York",
+    "rating": 4.7,
+    "visit_fee_usd": 95.0,
+    "weekly_slots": {"mon": ["09:00", "14:00"], "wed": ["09:00", "14:00"], "fri": ["10:00"], "sat": ["10:00"]},
+    "slot_minutes": 120
+  }
+]

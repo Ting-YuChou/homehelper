@@ -736,26 +736,34 @@ class VisionResult(BaseModel):
 
 | Server | 工具 | 實作 |
 |---|---|---|
-| `user_profile` | `get_profile`、`list_appliances`、`get_appliance`、`add_appliance`、`get_warranty_status`、`list_repair_history`、`add_repair_record` | mock（Postgres 中的 mock 表） |
-| `parts_catalog` | `search_parts(category, brand, model, symptom)`、`get_part` | mock 型錄（JSON）。**不爬 Amazon** |
-| `tutorials` | `search_videos(query, brand, category)` | YouTube Data API v3；沒有 API key 時自動切換到 mock |
-| `service_booking` | `list_slots(zip, category)`、`book(slot_id, appliance_id, issue)`、`cancel` | mock |
-| `web_search` | `search(query, domains)` | Tavily + 白名單 |
+| `user_profile` | `get_profile(user_id)`、`list_appliances(user_id)`、`get_appliance(user_id, appliance_id)`、`add_appliance(user_id, category, brand, model_number, …)`、`get_warranty_status(user_id, appliance_id)`、`list_repair_history(user_id, appliance_id?, limit)`、`add_repair_record(user_id, appliance_id, issue, resolution, outcome, …)` | real：Postgres mock 表；mock：記憶體中的 `data/mock/` |
+| `parts_catalog` | `search_parts(category, brand, model, symptom, limit)`、`get_part(part_id)` | mock 型錄（JSON，兩種模式相同）。**不爬 Amazon** |
+| `tutorials` | `search_videos(query, brand, category, max_results)` | YouTube Data API v3（`search.list`，快取 6 小時，配額約每日 100 次）；沒有 `YOUTUBE_API_KEY` 或 mock 模式時用 `videos.json` |
+| `service_booking` | `list_slots(zip_code, category, limit)`、`book(user_id, slot_id, appliance_id, issue)`、`cancel(user_id, booking_id)` | 時段由技師每週模板產生；預約存在 `mock_bookings`（real）或記憶體（mock） |
+| `web_search` | `search(query, domains, max_results)` → 原始搜尋結果 | Tavily + 白名單（real；沒有 key 時回傳空結果）；mock 用 `web_results.json` |
 
-- 用官方 Python MCP SDK（FastMCP）實作，每個 server 都有 `mode: real | mock`。
-- **部署方式**：本機與 Cloud Run 都以 streamable HTTP 的 ASGI sub-app 掛載在 API 服務內，只維護一條程式路徑，也減少服務數量與冷啟動；需要單獨除錯時可以獨立啟動某個 server。程式碼放在 `homehelper/mcp_servers/`（v0.8；頂層獨立套件會和 API 互相依賴）。
-- Agent 透過 `langchain-mcp-adapters` 載入工具，**依 step 的 `tools_allowed` 白名單**提供給 LLM。
-- 寫入類工具（`book`、`add_*`）只能由程式碼在 step action 中呼叫，**LLM 不能直接呼叫**。
+- 用官方 Python MCP SDK 的 FastMCP 實作。**固定 `mcp` 1.x**：SDK 2.x 把 FastMCP 改名為 `MCPServer`，但 `langchain-mcp-adapters` 需要 `mcp<2`（ADR-006）。
+- 模式由 `MCP_MODE=real | mock` 決定（v0.9）：mock 完全不連外部服務也不用 DB（單元測試、評估）；real 使用 Postgres mock 表，有 API key 時才呼叫 YouTube / Tavily。評估可以透過 `McpOverrides` 注入自己的資料（例如注入集的 `web_results`）。
+- **部署方式**：本機與 Cloud Run 都以 streamable HTTP 的 ASGI sub-app 掛載在 API 服務內（`/mcp/<server>/`），只維護一條程式路徑，也減少服務數量與冷啟動。servers 是 **stateless + JSON 回應**，任何 Cloud Run instance 都能處理；mounted sub-app 的 lifespan 不會被 Starlette 執行，所以由 API 的 lifespan 啟動各 server 的 session manager。設定 `MCP_AUTH_TOKEN` 時 `/mcp/*` 需要 bearer token。需要單獨除錯時用 `uv run homehelper mcp serve <server> --mode mock`。程式碼放在 `homehelper/mcp_servers/`（v0.8；頂層獨立套件會和 API 互相依賴）。
+- Agent 透過 `langchain-mcp-adapters` 載入工具，**依 step 的 `tools_allowed` 白名單**提供給 LLM。`user_id` 由 MCP client 從 session 綁定，不讓 LLM 填寫（M5-07）。
+- 寫入類工具（`book`、`cancel`、`add_*`）只能由程式碼在 step action 中呼叫，**LLM 不能直接呼叫**。`mcp_servers/registry.py` 是唯一來源：每個工具的 read / write 與是否可給 LLM；註冊時寫進 MCP `annotations`（`readOnlyHint`）與 `_meta.homehelper`，沒列在 registry 的工具無法註冊；測試確保它和 journey DSL 的 `MCP_READ_TOOLS` / `MCP_WRITE_TOOLS` 一致。
+- `web_search` 是讀取工具但**不給 LLM**：它只提供 `knowledge.web` 的搜尋（`WebSearchClient`），結果仍要經過 §10.6 的無工具 LLM 萃取與程式過濾；白名單同時套用在要求的網域與回傳的 URL 上。
 
 ### 12.2 Mock 資料（`data/mock/`）—— 簡化版 Agent Data Platform
 
 | 檔案 | 內容 |
 |---|---|
-| `users.json` | 3–5 位 demo 使用者（例如新手、DIY 玩家、租屋族） |
-| `appliances.json` | 每位使用者 2–4 台家電：`category`、`brand`、`model_number`（**對應到 manifest 中的手冊**）、`purchase_date`、`warranty_until` |
-| `repair_history.json` | 過去的維修紀錄：日期、問題、處理方式、結果 |
-| `parts.json` | 依類別與品牌的常見零件與工具：名稱、相容型號、價格、圖片 URL |
-| `technicians.json` | 師傅與可預約時段 |
+| `users.json` | 4 位 demo 使用者：`demo_alex`（新手）、`demo_jordan`（DIY 玩家）、`demo_sam`（租屋族）、`demo_maria`（忙碌家長）；技能程度、屋主或租屋、ZIP |
+| `appliances.json` | 每位使用者 2–4 台家電：`category`、`brand`、`model_number`（**對應到 manifest 中同品牌同類別的唯一一本手冊**，有測試）、`purchase_date`、`warranty_until`（租屋族的家電為 `null` = 未知） |
+| `repair_history.json` | 過去的維修紀錄：日期、問題、錯誤碼、處理方式、結果、自己修或師傅修 |
+| `parts.json` | 依類別與品牌的常見零件與工具：名稱、相容型號（manifest 的 model pattern）、症狀關鍵字、價格、圖片 URL（placeholder） |
+| `technicians.json` | 師傅：服務類別、ZIP 前綴、時區、每週可預約時段模板 |
+| `videos.json`、`web_results.json` | `tutorials`、`web_search` 在 mock 模式的資料 |
+
+- Postgres mock 表（`mock_appliances`、`mock_repair_history`、`mock_bookings`）由 `make seed-mock`（`homehelper mcp seed`）重設為 `data/mock/` 的內容；同一時段只能有一筆有效預約（partial unique index）。
+- `list_slots` 從今天的下一天起產生 7 天的時段（技師當地時間），所以 demo 資料不會過期；`book` 會從 `slot_id` 重新推導時段並檢查家電擁有者與師傅服務範圍。
+- Demo 涵蓋：保固中的家電（`apl_alex_dryer`、`apl_maria_washer`）、保固未知（`demo_sam`）、可提及的同類維修紀錄（`apl_alex_washer` 上次是排水濾網堵塞）。
+- API 映像檔會包含 `data/mock/` 與 `config/`（啟動時讀取）。
 
 個人化行為：
 
@@ -1279,3 +1287,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.6 | M2 Track B：`root_cause_step` 標註加 `user_fixable`／`troubleshootable` 並凍結為 v1、對話模擬改分層抽樣（smoke 20、full 100，回覆 Q9 的提案）、三個新資料集的實際內容、模擬使用者的按鈕與結束規則、安全題「第一則回覆」的判定方式、CLI 與 Langfuse dataset／experiment 的做法（§16） |
 | v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |
 | v0.8 | Wave 2 準備：agent 只寫 checkpointer，`messages` 由 API 依事件寫入（§5.2、§7.3）；每則訊息成本用 `llm.track_usage()`；MCP servers 移到 `homehelper/mcp_servers/`（§6、§12.1）；Wave 2 分線（§19） |
+| v0.9 | M5 Track E：MCP SDK 固定 1.x（ADR-006）、`MCP_MODE`、stateless 掛載於 `/mcp/<server>/` 與 `MCP_AUTH_TOKEN`、工具 registry 標記寫入工具（含 `cancel`）、工具簽名加上 `user_id`、`web_search` 回傳原始結果且不給 LLM、mock 資料內容與時段產生方式、`make seed-mock`（§12） |

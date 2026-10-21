@@ -39,6 +39,8 @@ make test-agent-cov     # journey engine + guardrail tests with the >= 90% cover
 make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
 make migrate            # alembic upgrade head (needs `make up`)
+make seed-mock          # reset the MCP mock tables to data/mock/ (needs `make migrate`)
+uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalone (MCP Inspector)
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
 pnpm --filter web build
@@ -57,6 +59,7 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + Ï
 - LiteLLM would `load_dotenv()` on import; `llm/litellm_client.py` sets `LITELLM_MODE=PRODUCTION` first so secrets only flow through `Settings`. Tests clear all Settings env vars (autouse fixture in `apps/api/tests/conftest.py`).
 - LlamaIndex gotchas: `PGVectorStore` HYBRID mode just concatenates dense + full-text results (we fuse with our own RRF in `knowledge/retriever.py`); stored `doc_id` comes from the node's SOURCE relationship (`ingestion/pipeline.py:to_node`); filter values are interpolated into SQL, so `knowledge/backends.py` whitelists them.
 - `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a trial key (10 rerank calls/min, 1000/month) until upgraded.
+- MCP: `mcp` is pinned `<2` (FastMCP; `langchain-mcp-adapters` needs it, ADR-006). Mounted servers only answer once the app lifespan has run (`async with app.router.lifespan_context(app)` in tests). Open the in-memory MCP client (`mcp.shared.memory`) inside the test, not in an async fixture: pytest-asyncio tears fixtures down in another task, which anyio rejects.
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
 ## Shared contracts â€” import these, don't redefine them
@@ -72,6 +75,8 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + Ï
 | dev/test split | `data/scenarios/splits.json` via `homehelper_evals.splits` (`--check` verifies it is current) |
 | Per-turn LLM cost: `with track_usage() as tally:` collects every call in scope (contextvar, follows tasks) | `homehelper.llm` (`usage.py`) |
 | Agent injection: `create_app(settings, agent=...)` â†’ `app.state.agent`; defaults to the scripted `StubAgent` | `homehelper.main`, `homehelper.agent.stub` |
+| MCP tool registry: read/write, LLM-callable (`LLM_CALLABLE_TOOLS`, `WRITE_TOOLS`) | `homehelper.mcp_servers.registry` |
+| MCP servers: `build_mcp_servers(settings, engine=..., overrides=McpOverrides(...))`, mounted at `/mcp/<server>/` | `homehelper.mcp_servers.factory`; records in `homehelper.mcp_servers.schemas` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext`, returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.

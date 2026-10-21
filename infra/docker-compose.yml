@@ -38,6 +38,8 @@ services:
     ports: ["8000:8000"]
     volumes:
       - ../apps/api:/app/apps/api
+      - ../config:/app/config:ro
+      - ../data/mock:/app/data/mock:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

@@ -1,0 +1,142 @@
+[
+  {
+    "appliance_id": "apl_alex_washer",
+    "user_id": "demo_alex",
+    "category": "washing_machine",
+    "brand": "LG",
+    "model_number": "WM4000HWA",
+    "nickname": "Laundry room washer",
+    "purchase_date": "2022-06-04",
+    "warranty_until": "2023-06-04"
+  },
+  {
+    "appliance_id": "apl_alex_dryer",
+    "user_id": "demo_alex",
+    "category": "dryer",
+    "brand": "Samsung",
+    "model_number": "DVE45B6300W",
+    "nickname": "Laundry room dryer",
+    "purchase_date": "2026-02-10",
+    "warranty_until": "2027-02-10"
+  },
+  {
+    "appliance_id": "apl_alex_coffee",
+    "user_id": "demo_alex",
+    "category": "coffee_maker",
+    "brand": "Mr. Coffee",
+    "model_number": "BVMC-KNX26",
+    "nickname": "Kitchen coffee maker",
+    "purchase_date": "2024-11-29",
+    "warranty_until": "2025-11-29"
+  },
+  {
+    "appliance_id": "apl_jordan_dishwasher",
+    "user_id": "demo_jordan",
+    "category": "dishwasher",
+    "brand": "Bosch",
+    "model_number": "SHE3AR76UC",
+    "nickname": "Kitchen dishwasher",
+    "purchase_date": "2021-09-18",
+    "warranty_until": "2022-09-18"
+  },
+  {
+    "appliance_id": "apl_jordan_fridge",
+    "user_id": "demo_jordan",
+    "category": "refrigerator",
+    "brand": "Samsung",
+    "model_number": "RF23DB9700QL",
+    "nickname": "Kitchen fridge",
+    "purchase_date": "2025-05-03",
+    "warranty_until": "2026-05-03"
+  },
+  {
+    "appliance_id": "apl_jordan_vacuum",
+    "user_id": "demo_jordan",
+    "category": "vacuum",
+    "brand": "Shark",
+    "model_number": "NV352",
+    "nickname": "Upright vacuum",
+    "purchase_date": "2020-01-12",
+    "warranty_until": "2025-01-12"
+  },
+  {
+    "appliance_id": "apl_jordan_blender",
+    "user_id": "demo_jordan",
+    "category": "blender_food_processor",
+    "brand": "Vitamix",
+    "model_number": "5200",
+    "nickname": "Blender",
+    "purchase_date": "2019-07-21",
+    "warranty_until": "2026-07-21"
+  },
+  {
+    "appliance_id": "apl_sam_washer",
+    "user_id": "demo_sam",
+    "category": "washing_machine",
+    "brand": "LG",
+    "model_number": "WM6700HBA",
+    "nickname": "Apartment washer (landlord's)",
+    "purchase_date": null,
+    "warranty_until": null
+  },
+  {
+    "appliance_id": "apl_sam_microwave",
+    "user_id": "demo_sam",
+    "category": "microwave",
+    "brand": "LG",
+    "model_number": "LMC1575ST",
+    "nickname": "Over-the-range microwave (landlord's)",
+    "purchase_date": null,
+    "warranty_until": null
+  },
+  {
+    "appliance_id": "apl_sam_purifier",
+    "user_id": "demo_sam",
+    "category": "water_purifier",
+    "brand": "Brondell",
+    "model_number": "UC300",
+    "nickname": "Under-sink water filter",
+    "purchase_date": "2025-08-15",
+    "warranty_until": "2026-08-15"
+  },
+  {
+    "appliance_id": "apl_maria_washer",
+    "user_id": "demo_maria",
+    "category": "washing_machine",
+    "brand": "LG",
+    "model_number": "WM9900HBA",
+    "nickname": "Family washer",
+    "purchase_date": "2025-12-01",
+    "warranty_until": "2026-12-01"
+  },
+  {
+    "appliance_id": "apl_maria_dryer",
+    "user_id": "demo_maria",
+    "category": "dryer",
+    "brand": "Samsung",
+    "model_number": "DVE50A8800V",
+    "nickname": "Family dryer",
+    "purchase_date": "2023-04-22",
+    "warranty_until": "2024-04-22"
+  },
+  {
+    "appliance_id": "apl_maria_fridge",
+    "user_id": "demo_maria",
+    "category": "refrigerator",
+    "brand": "LG",
+    "model_number": "LRSDS2706S",
+    "nickname": "Kitchen fridge",
+    "purchase_date": "2024-03-09",
+    "warranty_until": "2025-03-09"
+  },
+  {
+    "appliance_id": "apl_maria_microwave",
+    "user_id": "demo_maria",
+    "category": "microwave",
+    "brand": "Samsung",
+    "model_number": "ME21DG6300SR",
+    "nickname": "Kitchen microwave",
+    "purchase_date": "2025-10-30",
+    "warranty_until": "2026-10-30"
+  }
+]

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     llama_cloud_api_key: SecretStr = SecretStr("")
     cohere_api_key: SecretStr = SecretStr("")
     tavily_api_key: SecretStr = SecretStr("")
+    youtube_api_key: SecretStr = SecretStr("")  # `tutorials` uses mock videos when empty
+
+    # MCP servers (spec §12.1). "mock" serves `data/mock/` from memory with no external calls;
+    # "real" uses Postgres mock tables and external APIs where a key is configured.
+    mcp_mode: Literal["real", "mock"] = "real"
+    # When set, the mounted `/mcp/*` endpoints require `Authorization: Bearer <token>`.
+    mcp_auth_token: SecretStr = SecretStr("")
 
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
@@ -42,6 +49,10 @@ class Settings(BaseSettings):
     @property
     def manuals_dir(self) -> Path:
         return self.data_dir / "manuals"
+
+    @property
+    def mock_dir(self) -> Path:
+        return self.data_dir / "mock"
 
     def provider_api_keys(self) -> dict[str, str]:
         """LiteLLM provider name → API key, for providers that are configured."""
