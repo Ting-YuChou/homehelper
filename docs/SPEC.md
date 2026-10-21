@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 版本 | v0.8（草稿；變更見附錄 D） |
+| 版本 | v0.10（草稿；變更見附錄 D） |
 | 日期 | 2026-10-21 |
 | 定位 | B2C 家電維修客服 Agent · 個人作品集 |
 | 參考 | Sierra AI 的 Agent OS／Agent SDK 設計理念（見附錄 C） |
@@ -793,11 +793,15 @@ class ChannelAdapter(Protocol):
 
 Agent Runtime 只認得 `InboundMessage` 和 `AgentEvent`，完全不知道 HTTP 或 SSE 的存在。
 
+實作（M4）：`channels/base.py` 的 `ChannelAdapter` 以 route 已驗證的 payload 為輸入（web 是 `SendMessageRequest`：`text`、`attachments`、`action` 至少一項，text ≤ 4000 字）。`conversations/service.py` 的 `ConversationService` 在獨立 task 中執行一個回合（包在 `track_usage()` 內），透過 queue 把事件交給回應；client 中途斷線不會中斷回合。每則 assistant 訊息在轉送它的 `message.completed` **之前**寫入 `messages`（`latency_ms` 從回合開始算；`cost_usd` 是上一則完成後新增的花費，最後一則之後的花費補到最後一則），所以前端一收到事件就能送回饋。回合結束後以 `agent.snapshot()` 更新 `conversations.outcome`／`active_journey`，標題取第一則使用者訊息。
+
 ### 13.2 REST API（`/v1`，自動產生 OpenAPI）
 
 | 方法 | 路徑 | 說明 |
 |---|---|---|
-| POST | `/v1/auth/demo-login` | 選擇 demo 使用者，回傳簽章 cookie |
+| POST | `/v1/auth/demo-login` | 選擇 demo 使用者，回傳簽章 cookie（`user_id: null` = 匿名訪客） |
+| GET | `/v1/auth/demo-users`、`/v1/auth/me` | demo 使用者清單（讀 `data/mock/users.json` 的 `id`、`display_name`、`persona`）；目前使用者 |
+| POST | `/v1/auth/logout` | 清除 cookie |
 | GET | `/v1/conversations` | 列出我的對話 |
 | POST | `/v1/conversations` | 建立對話（綁定當前 `release_id`） |
 | GET | `/v1/conversations/{id}` | 對話詳情與訊息 |
@@ -807,12 +811,19 @@ Agent Runtime 只認得 `InboundMessage` 和 `AgentEvent`，完全不知道 HTTP
 | GET | `/v1/attachments/{id}` | 取得 signed URL |
 | POST | `/v1/messages/{id}/feedback` | 👍/👎 + 原因 |
 | GET | `/v1/me/appliances` | 我的家電（透過 MCP） |
-| GET | `/v1/manuals/{doc_id}` | 手冊 signed URL（供 citation 使用） |
+| GET | `/v1/manuals/{doc_id}` | 手冊 metadata 與 PDF URL（供 citation 使用；開啟時加 `#page=N`） |
+| GET | `/v1/manuals/{doc_id}/file` | 本機：從 `data/manuals/pdfs/<manifest file>` 提供 PDF（inline）。正式環境改回 signed URL，是否公開見 Q10 |
 | GET | `/v1/admin/conversations` | 審查列表（篩選：outcome、feedback、release） |
 | POST | `/v1/admin/annotations` | 標註 |
 | POST | `/v1/admin/annotations/{id}/export` | 轉成回歸測試 |
 | GET | `/v1/admin/evals` | 評估報告列表與詳情 |
 | GET | `/healthz`、`/readyz` | 健康檢查（readyz 會檢查 DB 與 Redis） |
+
+M4 實作說明：
+- Cookie `hh_session`：itsdangerous 簽章的 user id，httpOnly、`SameSite=Lax`、7 天；`SESSION_SECRET` 在 local／test 以外必填。所有 `/v1` 寫入請求若帶 `Origin` 而不在 `CORS_ORIGINS` 內就回 403。
+- 匿名使用也走 demo-login（建立 `guest_*` 使用者），所以每個對話都有 owner。
+- 尚未實作的路由先回 501，讓 OpenAPI 與前端型別完整：`/v1/uploads`、`/v1/attachments/{id}`（M6）、`/v1/admin/*`（M7，需要 `X-Admin-Token`）。`/v1/me/appliances` 在 `user_profile` MCP（M5）接上前回空陣列。
+- 合約：`make openapi` 產生 `apps/web/lib/api/openapi.json` 與 `schema.d.ts`（`openapi-typescript`）；CI 的 `contract` job 重新產生並比對 diff。
 
 ### 13.3 SSE 事件
 
@@ -833,6 +844,8 @@ data: {"message_id": "msg_123", "citations": [...], "journey": "troubleshoot", "
 event: error
 data: {"code": "rate_limited", "message": "..."}
 ```
+
+回合開始前的拒絕也是只有一個 `error` 事件的 SSE 回應，HTTP 狀態對應原因：`rate_limited` 429（附 `Retry-After`）、`conversation_busy` 409、`maintenance`（超過每日花費上限）503、`unavailable`（Redis 無法使用）503。回合中的錯誤是 `agent_error`。檢查順序：對話歸屬（404）→ 花費上限 → IP 限流 → 使用者限流 → 對話鎖。
 
 Card 類型：`step`、`citation`、`safety`、`appliance_confirm`、`part`、`video`、`booking_slots`、`handoff`。
 
@@ -860,6 +873,8 @@ LangGraph checkpointer 的表由 `AsyncPostgresSaver.setup()` 建立，與應用
 
 > `messages` 是 UI 與歷史紀錄的事實來源；checkpointer 存的是 agent 內部狀態。兩者分開是刻意的設計。
 
+M4-01 補充：`mock_*` 表由 M5 的 migration 建立。`conversations.release_id` 不設外鍵（release 先以 `releases/*.yaml` 存在，發布後才有資料列）。assistant 訊息的 `id` 沿用 agent 事件的 `message_id`。`feedback` 每則訊息一筆（`message_id` unique），再次評分會覆蓋；`rating` 為 `up`／`down`。Alembic 只能有一個 head，單元測試會檢查。
+
 ### 14.2 Redis
 
 | Key | 用途 |
@@ -869,13 +884,17 @@ LangGraph checkpointer 的表由 `AsyncPostgresSaver.setup()` 建立，與應用
 | `conv:lock:{id}` | 同一對話同一時間只處理一則訊息 |
 | `cache:retrieval:{hash}` | 檢索結果快取（TTL 1 小時，key 包含 kb_version） |
 
+M4-04 實作：限流是精確的 sliding window（每個主體一個 sorted set，在一段 Lua script 內原子地檢查所有視窗；被拒絕的請求不計入），預設每小時 30、每天 100，IP 與使用者各算一次。`spend:{YYYYMMDD}` 以 UTC 日期計，由每回合的 `track_usage()` 成本累加，TTL 2 天；上限 `DAILY_SPEND_CAP_USD`（預設 5，回覆 Q7；0 表示關閉）。`conv:lock:{id}` 帶擁有者 token、TTL 300 秒（Cloud Run timeout），在串流結束**前**釋放，使用者可以立刻送下一則。
+
 ---
 
 ## 15. 前端
 
 ### 15.1 技術
 
-Next.js（App Router）· TypeScript · Tailwind · shadcn/ui · TanStack Query · `eventsource-parser`（用 fetch 讀 POST 的 SSE）· `react-markdown` · API 型別由 `openapi-typescript` 產生。
+Next.js（App Router）· TypeScript · Tailwind · shadcn/ui · TanStack Query · `eventsource-parser`（用 fetch 讀 POST 的 SSE）· `react-markdown` · API 型別由 `openapi-typescript` 產生，以 `openapi-fetch` 呼叫 · 單元測試用 vitest。
+
+M4 實作：瀏覽器直接呼叫 API（`NEXT_PUBLIC_API_URL`，`credentials: "include"`）。聊天殼層放在 `app/chat/layout.tsx`，新對話從 `/chat` 換成 `/chat/{id}` 時串流不會中斷；進行中的回合由事件組成草稿（`lib/chat/turn.ts`，純函式），串流結束後改用 API 存好的訊息。卡片按鈕只在最新一則 assistant 訊息上可按。
 
 ### 15.2 頁面
 
@@ -1230,10 +1249,11 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | Q4 | 託管 DB 與 Redis 用 Neon + Upstash（幾乎免費），還是 Cloud SQL + Memorystore（全 GCP，但有固定成本）？ | Neon + Upstash |
 | Q5 | Embedding 與 rerank 的供應商 | OpenAI embedding + Cohere rerank |
 | Q6 | 網路備援用 Tavily 還是 Brave？白名單網域有哪些？ | Tavily；白名單在 M1-08 時列出 |
-| Q7 | 每日花費上限是多少？ | 待定（建議先設 USD 5，之後依 demo 流量調整） |
+| Q7 | 每日花費上限是多少？ | 預設 USD 5（`DAILY_SPEND_CAP_USD`，M4-04），之後依 demo 流量調整 |
 | Q8 | 介面語言：中英雙語，還是只做英文？ | 【已決定】系統一律英文（§2.4） |
 | Q9 | 對話模擬要縮減到多少情境？ | 待定（M2-01 時決定） |
 | Q10 | 手冊 PDF 是否透過 `/v1/manuals/{doc_id}` 提供給公開 demo？ | 待定；替代方案是只顯示引用段落文字與頁碼 |
+| Q11 | Cloud Run 上 web 與 API 分屬不同的 `*.run.app` 網站，`SameSite=Lax` 的 session cookie 不會隨跨站 fetch 送出 | 待定（M8）：同一網站的自訂網域（`app.` / `api.`），或由 Next.js 代理 `/v1`；本機（localhost 不同 port）不受影響 |
 
 ---
 
@@ -1288,3 +1308,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |
 | v0.8 | Wave 2 準備：agent 只寫 checkpointer，`messages` 由 API 依事件寫入（§5.2、§7.3）；每則訊息成本用 `llm.track_usage()`；MCP servers 移到 `homehelper/mcp_servers/`（§6、§12.1）；Wave 2 分線（§19） |
 | v0.9 | M5 Track E：MCP SDK 固定 1.x（ADR-006）、`MCP_MODE`、stateless 掛載於 `/mcp/<server>/` 與 `MCP_AUTH_TOKEN`、工具 registry 標記寫入工具（含 `cancel`）、工具簽名加上 `user_id`、`web_search` 回傳原始結果且不給 LLM、mock 資料內容與時段產生方式、`make seed-mock`（§12） |
+| v0.10 | M4 Track D：conversation service 的回合流程與成本歸屬（§13.1）；新增 demo-users／me／logout／manuals file 路由、匿名訪客、Origin 檢查、OpenAPI 合約檢查（§13.2）；拒絕時的 error 事件與 HTTP 狀態（§13.3）；app 資料表細節（§14.1）；sliding window、花費上限與對話鎖的實作（§14.2）；前端架構（§15.1）；Q7 預設 USD 5、新增 Q11（§20） |
