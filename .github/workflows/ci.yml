@@ -49,6 +49,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pytest
+      - run: make test-agent-cov
 
   web:
     runs-on: ubuntu-latest
