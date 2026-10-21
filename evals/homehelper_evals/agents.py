@@ -29,6 +29,7 @@ from homehelper.channels.events import (
     StepCard,
 )
 from homehelper.core.config import Settings
+from homehelper.knowledge.schemas import Citation
 from homehelper.llm.litellm_client import UsageSink
 from homehelper_evals.cases import EvalCase
 
@@ -195,6 +196,12 @@ class OracleStubAgent:
             index=state.next_step,
             total=len(steps),
             instruction=steps[state.next_step - 1],
+            # The oracle knows the right manual; page 1 stands in for a real chunk.
+            citations=(
+                [Citation(chunk_id="stub", doc_id=self._case.expected_doc_id, page=1)]
+                if self._case.expected_doc_id
+                else []
+            ),
         )
         cards = [c for c in (safety_card, card) if c is not None]
         return _reply("Let's try this next.", *cards, journey="troubleshoot")

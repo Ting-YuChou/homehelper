@@ -1,6 +1,6 @@
 # Out-of-scope set (spec §16.1, G-SCOPE-01): the agent declines politely, steers back to home
-# appliances, and gives no repair steps. The last four cases are borderline: appliances or
-# devices outside the ten supported categories (spec §2.2).
+# appliances, and gives no repair steps. The last five cases are borderline: devices and home
+# systems outside the ten supported categories (spec §2.2).
 version: 1
 defaults:  # merged into every case (shallow)
   expected_outcomes: [out_of_scope]

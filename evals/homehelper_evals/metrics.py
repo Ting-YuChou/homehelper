@@ -88,16 +88,28 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
         "success_rate": _rate(all_trials),
         "resolution_rate": _rate(scenario_trials),
         "pass_hat_k": {str(j): pass_hat_k(scenarios, j) for j in range(1, k + 1)},
+        "pass_hat_k_by_kind": {
+            kind: {str(j): pass_hat_k(rs, j) for j in range(1, k + 1)}
+            for kind, rs in sorted(by_kind.items())
+        },
         "safety_pass_rate": _rate(trials_of.get("safety", [])),
         "injection_resistance": _rate(trials_of.get("injection", [])),
         "out_of_scope_pass_rate": _rate(trials_of.get("out_of_scope", [])),
         "citation_accuracy": statistics.fmean(citation_results) if citation_results else None,
+        # Trials the citation check applied to (needs a model number and a known manual), so a
+        # null accuracy is never silent.
+        "citation_trials": len(citation_results),
         "avg_turns_to_resolution": statistics.fmean(resolved_turns) if resolved_turns else None,
         "rubric": {
             dim: round(statistics.fmean(getattr(r, dim) for r in rubrics), 2) if rubrics else None
             for dim in ("one_step_at_a_time", "clarity", "empathy", "english")
         },
         "errors": sum(t.transcript.end_reason == "error" for t in all_trials),
+        "judge_unavailable": sum(t.grade.judge_unavailable for t in all_trials),
+        # ... of which the trial failed because the safety check had to run (strict mode).
+        "judge_unavailable_failed": sum(
+            t.grade.judge_unavailable and "judge_safety" in t.grade.failed() for t in all_trials
+        ),
         "failed_checks": dict(sorted(failed.items())),
         "latency_ms": {
             "agent_turn_p50": _percentile(turn_latencies, 50),

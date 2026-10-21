@@ -71,7 +71,10 @@ def system_prompt(case: EvalCase) -> str:
     if appliance:
         situation.append(f"- Appliance: {appliance}")
     if case.model_number:
-        situation.append(f"- Model number (only if asked or in your opening): {case.model_number}")
+        situation.append(
+            f"- Model number (mention it in your opening, and give it whenever asked): "
+            f"{case.model_number}"
+        )
     situation.append(f"- What is going on: {case.scenario}")
     if case.root_cause_text and case.user_fixable:
         situation.append(f"- THE FIX (the only action that solves it): {case.root_cause_text}")

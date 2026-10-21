@@ -22,7 +22,17 @@ from homehelper_evals.graders import Grade, RubricJudge
 from homehelper_evals.metrics import TrialResult
 from homehelper_evals.render import render_markdown
 from homehelper_evals.root_cause import LABEL_TASK, label_all, render_labels, write_labels
-from homehelper_evals.runner import SUITES, build_cases, build_report, run_cases, write_report
+from homehelper_evals.runner import (
+    STRICT_JUDGE_SUITES,
+    SUITES,
+    TrialLog,
+    build_cases,
+    build_report,
+    is_run_report,
+    report_path,
+    run_cases,
+    write_report,
+)
 from homehelper_evals.scenarios import load_variants
 from homehelper_evals.simulator import LLMUserSimulator, ScriptedUserSimulator, UserSimulator
 from homehelper_evals.transcript import Transcript
@@ -66,8 +76,8 @@ def _parser() -> argparse.ArgumentParser:
     label.add_argument("--concurrency", type=int, default=8)
     label.add_argument("--out", type=Path, default=ROOT_CAUSES_PATH)
 
-    render = commands.add_parser("render", help="Markdown transcripts from a report")
-    render.add_argument("report", type=Path)
+    render = commands.add_parser("render", help="Markdown transcripts from run reports")
+    render.add_argument("reports", type=Path, nargs="+", help="report files or directories")
     render.add_argument("--limit", type=int)
     render.add_argument("--out", type=Path)
     return parser
@@ -86,11 +96,17 @@ def _summary(report: dict) -> str:
 
     lines = [
         f"suite={report['suite']} release={report['release']} cases={m['cases']} "
-        f"trials={m['trials']} errors={m['errors']}",
+        f"trials={m['trials']} errors={m['errors']} judge_unavailable={m['judge_unavailable']} "
+        f"(failing {m['judge_unavailable_failed']})",
         f"success {pct(m['success_rate'])} | resolution {pct(m['resolution_rate'])} | "
         f"safety {pct(m['safety_pass_rate'])} | injection {pct(m['injection_resistance'])} | "
         f"out-of-scope {pct(m['out_of_scope_pass_rate'])}",
-        "pass^k " + " ".join(f"{k}:{pct(v)}" for k, v in m["pass_hat_k"].items()),
+        "pass^k "
+        + " | ".join(
+            f"{kind} " + " ".join(f"{k}:{pct(v)}" for k, v in values.items())
+            for kind, values in m["pass_hat_k_by_kind"].items()
+        ),
+        f"citation accuracy {pct(m['citation_accuracy'])} over {m['citation_trials']} trials",
         f"rubric {m['rubric']}",
         f"failed checks {m['failed_checks']}",
         f"latency {m['latency_ms']}",
@@ -119,6 +135,16 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     release = args.release or settings.release_id
     registry = ModelRegistry.load()
 
+    created_at = datetime.now(UTC)
+    trial_log = TrialLog(
+        report_path(release, args.suite, created_at, args.out_dir).with_suffix(".trials.jsonl")
+    )
+
+    def on_trial_done(case: EvalCase, result: TrialResult) -> None:
+        trial_log(case, result)
+        _progress(case, result)
+
+    strict_judge = args.suite in STRICT_JUDGE_SUITES
     print(f"running {len(cases)} cases x {k} trials ({args.suite})", file=sys.stderr)
     results = await run_cases(
         cases,
@@ -128,7 +154,8 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
         simulator=simulator,
         judge=judge,
         recorder=recorder,
-        on_trial_done=_progress,
+        strict_judge=strict_judge,
+        on_trial_done=on_trial_done,
     )
     report = build_report(
         results,
@@ -147,9 +174,12 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
             "scenario_split": config.scenario_split,
             "scenarios_per_category": config.scenarios_per_category,
             "limit": args.limit,
+            "strict_judge": strict_judge,
         },
+        created_at=created_at,
     )
     path = write_report(report, args.out_dir)
+    trial_log.path.unlink(missing_ok=True)
     print(_summary(report))
     print(f"report: {path}")
 
@@ -159,6 +189,9 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
 
         url = await asyncio.to_thread(publish_run, report, settings, run_name=path.stem)
         print(f"langfuse: {url}")
+    if report["metrics"]["judge_unavailable_failed"]:
+        print("the judge was unavailable for safety-critical trials", file=sys.stderr)
+        return 3
     return 0
 
 
@@ -175,10 +208,37 @@ async def _label(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def _run_reports(paths: list[Path]) -> list[dict]:
+    files = [f for p in paths for f in (sorted(p.glob("*.json")) if p.is_dir() else [p])]
+    reports = []
+    for file in files:
+        try:
+            report = json.loads(file.read_text())
+        except ValueError:
+            report = None
+        if is_run_report(report):
+            reports.append(report)
+        else:
+            print(f"skipping {file}: not a conversation-simulation report", file=sys.stderr)
+    return reports
+
+
 def _render(args: argparse.Namespace) -> int:
-    report = json.loads(args.report.read_text())
+    reports = _run_reports(args.reports)
+    blocks = []
+    for report in reports:
+        blocks.append(_render_report(report, args.limit))
+    text = "\n".join(blocks)
+    if args.out:
+        args.out.write_text(text)
+    else:
+        print(text)
+    return 0 if reports else 1
+
+
+def _render_report(report: dict, limit: int | None) -> str:
     blocks = [f"# {report['release']} / {report['suite']} ({report['created_at']})\n"]
-    for entry in report["cases"][: args.limit]:
+    for entry in report["cases"][:limit]:
         case = EvalCase.model_validate(entry["case"])
         for trial in entry["trials"]:
             transcript = Transcript.model_validate(trial["transcript"])
@@ -187,12 +247,7 @@ def _render(args: argparse.Namespace) -> int:
             if grade.rubric:
                 summary["rubric"] = grade.rubric.model_dump(exclude={"rationale"})
             blocks.append(render_markdown(case, transcript, summary))
-    text = "\n".join(blocks)
-    if args.out:
-        args.out.write_text(text)
-    else:
-        print(text)
-    return 0
+    return "\n".join(blocks)
 
 
 def main(argv: list[str] | None = None, settings: Settings | None = None) -> int:

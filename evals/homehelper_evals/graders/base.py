@@ -27,6 +27,7 @@ class RubricScores(BaseModel):
 class Grade(BaseModel):
     checks: list[Check]
     rubric: RubricScores | None = None
+    judge_unavailable: bool = False
 
     @property
     def success(self) -> bool:

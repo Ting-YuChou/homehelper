@@ -1,16 +1,26 @@
 import json
+from datetime import UTC, datetime
 
 import pytest
+from langfuse.api import NotFoundError
 
 from homehelper.agent.protocol import AgentSnapshot
 from homehelper.core.config import Settings
-from homehelper.llm import LLMUsage
-from homehelper_evals import cli, langfuse_export
+from homehelper.llm import FakeLLMClient, LLMError, LLMUsage
+from homehelper_evals import cli, langfuse_export, runner
 from homehelper_evals.agents import EchoAgent, OracleStubAgent
 from homehelper_evals.conversation import UsageRecorder, run_conversation
-from homehelper_evals.graders import Grade
+from homehelper_evals.graders import Grade, RubricJudge
+from homehelper_evals.graders.rubric import JUDGE_TASK
 from homehelper_evals.metrics import CaseResult, TrialResult, pass_hat_k
-from homehelper_evals.runner import SUITES, build_cases, build_report, run_cases
+from homehelper_evals.runner import (
+    SUITES,
+    TrialLog,
+    build_cases,
+    build_report,
+    report_path,
+    run_cases,
+)
 from homehelper_evals.simulator import ScriptedUserSimulator
 from homehelper_evals.testing import make_case
 
@@ -190,21 +200,27 @@ async def test_langfuse_publish_records_dataset_run(monkeypatch) -> None:
         def __init__(self, id: str) -> None:
             self.id = id
 
+    class Datasets:
+        def get(self, dataset_name: str):
+            calls["lookups"] = calls.get("lookups", 0) + 1
+            raise NotFoundError(body="missing")
+
     class FakeLangfuse:
+        api = type("Api", (), {"datasets": Datasets()})()
+
         def __init__(self, **kwargs) -> None:
             calls["init"] = kwargs
+            calls["items"] = []
 
         def get_dataset(self, name, **_):
-            if "items" not in calls:
-                calls["items"] = []
-                raise RuntimeError("not found")
-            return type("D", (), {"items": [FakeItem(i) for i in calls["items"]]})()
+            raise AssertionError("must not page through dataset items")
 
         def create_dataset(self, **kwargs):
             calls["dataset"] = kwargs
 
         def create_dataset_item(self, **kwargs):
             calls["items"].append(kwargs["id"])
+            return FakeItem(kwargs["id"])
 
         def run_experiment(self, **kwargs):
             calls["experiment"] = kwargs
@@ -223,4 +239,83 @@ async def test_langfuse_publish_records_dataset_run(monkeypatch) -> None:
     assert calls["items"] == [f"smoke-{case.id}"]
     assert calls["experiment"]["run_name"] == "r1_smoke_x"
     assert calls["scores"][0].value == 1.0
-    assert {e.name for e in calls["run_scores"]} >= {"resolution_rate", "pass^2", "cost_usd_total"}
+    assert calls["lookups"] == 1
+    names = {e.name for e in calls["run_scores"]}
+    assert names >= {"resolution_rate", "scenario pass^2", "cost_usd_total", "citation_trials"}
+
+
+async def test_a_crashing_trial_does_not_abort_the_run(tmp_path) -> None:
+    good, bad = make_case(id="good"), make_case(id="bad")
+
+    def factory(case):
+        if case.id == "bad":
+            raise RuntimeError("factory exploded")
+        return OracleStubAgent(case)
+
+    log = TrialLog(tmp_path / "run.trials.jsonl")
+    results = await run_cases(
+        [good, bad],
+        k=2,
+        concurrency=2,
+        agent_factory=factory,
+        simulator=ScriptedUserSimulator(),
+        judge=None,
+        on_trial_done=log,
+    )
+    assert [r.successes for r in results] == [2, 0]
+    crashed = results[1].trials[0]
+    assert crashed.transcript.end_reason == "error"
+    assert crashed.grade.failed() == ["completed"]
+    assert "factory exploded" in (crashed.transcript.error or "")
+    lines = [json.loads(line) for line in log.path.read_text().splitlines()]
+    assert sorted(entry["case_id"] for entry in lines) == ["bad", "bad", "good", "good"]
+    metrics = build_report(results, release="t", suite="smoke", k=2, config={})["metrics"]
+    assert metrics["errors"] == 2
+
+
+async def test_grading_crash_keeps_the_transcript(monkeypatch) -> None:
+    async def broken_grade(*args, **kwargs):
+        raise ValueError("grader bug")
+
+    monkeypatch.setattr(runner, "grade", broken_grade)
+    case = make_case()
+    result = await runner.run_trial(
+        case,
+        0,
+        agent_factory=OracleStubAgent,
+        simulator=ScriptedUserSimulator(),
+        judge=None,
+        recorder=UsageRecorder(),
+    )
+    assert result.transcript.agent_turns and result.transcript.end_reason == "error"
+    assert "grading: ValueError: grader bug" in (result.transcript.error or "")
+
+
+async def test_metrics_count_judge_outages_and_pass_hat_k_per_kind() -> None:
+    judge = RubricJudge(FakeLLMClient({JUDGE_TASK: [LLMError("down")] * 4}))
+    cases = [make_case(id="s"), make_case(id="x", kind="safety", expected_outcomes=["resolved"])]
+    results = await run_cases(
+        cases,
+        k=2,
+        concurrency=2,
+        agent_factory=OracleStubAgent,
+        simulator=ScriptedUserSimulator(),
+        judge=judge,
+    )
+    metrics = build_report(results, release="t", suite="smoke", k=2, config={})["metrics"]
+    assert metrics["judge_unavailable"] == 4
+    assert metrics["judge_unavailable_failed"] == 2  # only the safety case is strict in smoke
+    assert metrics["pass_hat_k_by_kind"]["scenario"]["2"] == 1.0
+    assert metrics["pass_hat_k_by_kind"]["safety"]["2"] == 0.0
+
+
+def test_report_path_sanitizes_the_release(tmp_path) -> None:
+    created = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
+    path = report_path("../r1 beta/x", "smoke", created, tmp_path)
+    assert path.parent == tmp_path and path.name == "_r1_beta_x_smoke_20261021T120000Z.json"
+
+
+def test_render_skips_reports_of_other_kinds(tmp_path, capsys) -> None:
+    (tmp_path / "retrieval_dev_1.json").write_text(json.dumps({"recall_at_5": 0.9}))
+    assert cli.main(["render", str(tmp_path)]) == 1
+    assert "not a conversation-simulation report" in capsys.readouterr().err

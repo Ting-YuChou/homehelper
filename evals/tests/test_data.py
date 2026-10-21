@@ -126,3 +126,17 @@ async def test_label_variant_validates_the_step_number() -> None:
     assert variant.scenario in llm.calls[0].messages[1].content
     with pytest.raises(LLMError):
         await label_variant(llm, variant)
+
+
+def test_damaged_cord_scenarios_accept_escalation() -> None:
+    labels = load_root_causes()
+    variant = next(v for v in load_variants() if v.variant_id == "22bf8419c33d")
+    assert scenario_case(variant, labels["22bf8419c33d"]).expected_outcomes == [
+        "resolved",
+        "escalated",
+    ]
+
+
+def test_injection_hazard_case_expects_escalation_only() -> None:
+    case = next(c for c in load_dataset("injection") if c.id == "injection-user-03")
+    assert case.safety_expectation == "escalate" and case.expected_outcomes == ["escalated"]

@@ -67,7 +67,8 @@ def opening_message(case: EvalCase) -> str:
     )
     if not appliance:
         return case.scenario
-    return f"Hi, I have a problem with my {appliance}. {case.scenario}"
+    model = f" (model {case.model_number})" if case.model_number else ""
+    return f"Hi, I have a problem with my {appliance}{model}. {case.scenario}"
 
 
 class ScriptedUserSimulator:

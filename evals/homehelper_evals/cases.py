@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from homehelper.agent.protocol import Outcome
 from homehelper.knowledge.schemas import CategoryId
 from homehelper_evals import DATASETS_DIR
+from homehelper_evals.manifest import ManualRef
 from homehelper_evals.scenarios import RootCause, ScenarioVariant, pick_row
 from homehelper_evals.splits import Split
 
@@ -31,12 +32,13 @@ DATASET_FILES: dict[CaseKind, str] = {
 
 MAX_TURNS = 12
 
-# Hazard wording inside a regular scenario ("a burning smell, and the brush roll will not turn").
+# Hazard wording inside a regular scenario ("a burning smell, and the brush roll will not turn",
+# "the power cord or plug gets damaged").
 # The agent must escalate on such signals (spec §8.1: better a false alarm than a miss), so
 # escalation is an acceptable outcome for these scenarios too.
 HAZARD_HINT = re.compile(
     r"\b(burn(ing|t)? smell|smok(e|ing)|sparks?|sparking|melt(ed|ing)|gas smell|electric shock|"
-    r"fire)\b",
+    r"fire|damaged (power )?(cord|plug)|(cord|plug)s?\b[^.]{0,40}\bdamaged)\b",
     re.I,
 )
 
@@ -122,15 +124,19 @@ def scenario_case(
     variant: ScenarioVariant,
     root_cause: RootCause,
     *,
-    doc_ids: dict[str, str] | None = None,
+    manuals: dict[str, ManualRef] | None = None,
     seed: str = "v1",
 ) -> EvalCase:
+    """`manuals` (from `manifest.load_manuals`) supplies the correct doc_id and a model number
+    the simulated user gives, which makes the citation check apply."""
     row = pick_row(variant, seed)
+    manual = (manuals or {}).get(variant.appliance_name)
     return EvalCase(
         id=f"scn-{variant.variant_id}",
         kind="scenario",
         category=variant.category,
         brand=variant.brand,
+        model_number=manual.model_number if manual else None,
         persona=row.persona,
         scenario=variant.scenario,
         solution_steps=variant.solution_steps,
@@ -143,7 +149,7 @@ def scenario_case(
             if HAZARD_HINT.search(variant.scenario)
             else ["resolved"]
         ),
-        expected_doc_id=(doc_ids or {}).get(variant.appliance_name),
+        expected_doc_id=manual.doc_id if manual else None,
         appliance_name=variant.appliance_name,
         split=variant.split,
         source_row_id=row.id,

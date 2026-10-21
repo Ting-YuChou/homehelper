@@ -13,6 +13,7 @@ import statistics
 from typing import Any
 
 from langfuse import Evaluation, Langfuse
+from langfuse.api import NotFoundError
 
 from homehelper.core.config import Settings
 from homehelper_evals.render import render_dialogue
@@ -26,6 +27,8 @@ PUBLISHED_METRICS = (
     "out_of_scope_pass_rate",
     "citation_accuracy",
     "avg_turns_to_resolution",
+    "citation_trials",
+    "judge_unavailable",
 )
 
 
@@ -94,9 +97,10 @@ def _run_evaluator(metrics: dict[str, Any]) -> Any:
             for name in PUBLISHED_METRICS
             if metrics.get(name) is not None
         ]
-        for k, value in metrics["pass_hat_k"].items():
-            if value is not None:
-                evaluations.append(Evaluation(name=f"pass^{k}", value=value))
+        for kind, values in metrics["pass_hat_k_by_kind"].items():
+            for k, value in values.items():
+                if value is not None:
+                    evaluations.append(Evaluation(name=f"{kind} pass^{k}", value=value))
         evaluations.append(Evaluation(name="cost_usd_total", value=metrics["cost_usd"]["total"]))
         return evaluations
 
@@ -115,15 +119,18 @@ def publish(report: dict[str, Any], settings: Settings, *, run_name: str) -> str
     )
     name = dataset_name(suite)
     try:
-        client.get_dataset(name, fetch_items_page_size=1)
-    except Exception:
+        # One request; `get_dataset` would also page through every item.
+        client.api.datasets.get(dataset_name=name)
+    except NotFoundError:
         client.create_dataset(name=name, description=f"HomeHelper eval suite '{suite}'")
 
     outputs: dict[str, dict[str, Any]] = {}
+    items = []
     for entry in report["cases"]:
         case = entry["case"]
         identifier = item_id(suite, case["id"])
-        client.create_dataset_item(
+        # Upsert by id; the returned item is what the experiment run links to.
+        item = client.create_dataset_item(
             dataset_name=name,
             id=identifier,
             input={
@@ -136,9 +143,8 @@ def publish(report: dict[str, Any], settings: Settings, *, run_name: str) -> str
             },
             metadata={key: case.get(key) for key in ("kind", "category", "split", "hazard")},
         )
+        items.append(item)
         outputs[identifier] = _case_output(entry)
-
-    items = [item for item in client.get_dataset(name).items if item.id in outputs]
 
     def task(*, item: Any, **_: Any) -> dict[str, Any]:
         return outputs[item.id]
