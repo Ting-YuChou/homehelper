@@ -73,3 +73,27 @@ async def test_user_profile_reads_and_writes_postgres(settings: Settings) -> Non
             "OE error again",
             "Washer would not drain and showed the OE error code.",
         ]
+
+
+async def test_service_booking_round_trip_on_postgres(settings: Settings) -> None:
+    async with running(settings) as app, mcp_session(app, "service_booking") as session:
+        slots = await session.call_tool(
+            "list_slots", {"zip_code": "94110", "category": "washing_machine"}
+        )
+        assert slots.structuredContent is not None
+        slot_id = slots.structuredContent["result"][0]["slot_id"]
+        args = {"user_id": "demo_alex", "slot_id": slot_id, "appliance_id": "apl_alex_washer"}
+
+        booked = await session.call_tool("book", {**args, "issue": "Won't drain"})
+        assert booked.structuredContent is not None, booked.content
+        twice = await session.call_tool("book", {**args, "issue": "Again"})
+        assert twice.isError  # uq_mock_bookings_active_slot
+
+        booking_id = booked.structuredContent["booking_id"]
+        cancelled = await session.call_tool(
+            "cancel", {"user_id": "demo_alex", "booking_id": booking_id}
+        )
+        assert cancelled.structuredContent is not None, cancelled.content
+        assert cancelled.structuredContent["status"] == "cancelled"
+        rebooked = await session.call_tool("book", {**args, "issue": "Rebook"})
+        assert not rebooked.isError, rebooked.content

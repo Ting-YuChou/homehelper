@@ -21,8 +21,12 @@ from homehelper.core.config import Settings
 from homehelper.mcp_servers.common import Clock, utc_now
 from homehelper.mcp_servers.mock_data import MockData, load_mock_data
 from homehelper.mcp_servers.parts_catalog import build_parts_catalog_server
+from homehelper.mcp_servers.service_booking import build_service_booking_server
 from homehelper.mcp_servers.stores import (
+    BookingStore,
+    InMemoryBookingStore,
     InMemoryProfileStore,
+    PostgresBookingStore,
     PostgresProfileStore,
     ProfileStore,
 )
@@ -43,6 +47,7 @@ class McpOverrides:
 
     data: MockData | None = None
     profile_store: ProfileStore | None = None
+    booking_store: BookingStore | None = None
     video_search: VideoSearch | None = None
     clock: Clock | None = None
 
@@ -107,11 +112,13 @@ def build_mcp_servers(
     profiles = o.profile_store or (
         InMemoryProfileStore(data) if mock else PostgresProfileStore(engine)
     )
+    bookings = o.booking_store or (InMemoryBookingStore() if mock else PostgresBookingStore(engine))
     videos = o.video_search or video_search_for(settings, data)
     return McpServers(
         {
             "user_profile": build_user_profile_server(data, profiles, clock=clock),
             "parts_catalog": build_parts_catalog_server(data.parts),
             "tutorials": build_tutorials_server(videos),
+            "service_booking": build_service_booking_server(data, bookings, profiles, clock=clock),
         }
     )

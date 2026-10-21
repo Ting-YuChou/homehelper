@@ -44,7 +44,7 @@ def new_server(name: str, instructions: str) -> FastMCP:
 
 
 def mcp_tool[F: Callable[..., object]](
-    server: FastMCP, *, title: str, open_world: bool = False
+    server: FastMCP, *, title: str, open_world: bool = False, destructive: bool = False
 ) -> Callable[[F], F]:
     """Register a tool whose access level comes from the registry (KeyError if it is missing)."""
 
@@ -54,7 +54,7 @@ def mcp_tool[F: Callable[..., object]](
         annotations = ToolAnnotations(
             title=title,
             readOnlyHint=not write,
-            destructiveHint=False if write else None,
+            destructiveHint=destructive if write else None,
             idempotentHint=False if write else None,
             openWorldHint=open_world,
         )
