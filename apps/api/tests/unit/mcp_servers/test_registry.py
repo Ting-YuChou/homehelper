@@ -6,6 +6,7 @@ from homehelper.mcp_servers.factory import build_mcp_servers
 from homehelper.mcp_servers.registry import (
     LLM_CALLABLE_TOOLS,
     META_KEY,
+    SERVER_NAMES,
     TOOL_SPECS,
     WRITE_TOOLS,
     is_llm_callable,
@@ -28,7 +29,8 @@ async def test_live_tool_annotations_and_meta_match_the_registry() -> None:
                 META_KEY: {"access": spec.access.value, "llm_callable": spec.llm_callable}
             }
             assert tool.outputSchema is not None, "every tool returns a typed, structured result"
-    assert seen == {q for q, t in TOOL_SPECS.items() if t.server in servers.servers}
+    assert seen == set(TOOL_SPECS)
+    assert tuple(servers.servers) == SERVER_NAMES
 
 
 def test_registry_agrees_with_the_journey_dsl_tool_lists() -> None:

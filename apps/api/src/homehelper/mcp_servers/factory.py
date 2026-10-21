@@ -18,6 +18,7 @@ from starlette.routing import Router
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from homehelper.core.config import Settings
+from homehelper.knowledge.web import TavilySearchClient, WebSearchClient, Whitelist
 from homehelper.mcp_servers.common import Clock, utc_now
 from homehelper.mcp_servers.mock_data import MockData, load_mock_data
 from homehelper.mcp_servers.parts_catalog import build_parts_catalog_server
@@ -37,6 +38,11 @@ from homehelper.mcp_servers.tutorials import (
     build_tutorials_server,
 )
 from homehelper.mcp_servers.user_profile import build_user_profile_server
+from homehelper.mcp_servers.web_search import (
+    StaticSearchClient,
+    UnconfiguredSearchClient,
+    build_web_search_server,
+)
 
 MOUNT_PREFIX = "/mcp"
 
@@ -49,6 +55,8 @@ class McpOverrides:
     profile_store: ProfileStore | None = None
     booking_store: BookingStore | None = None
     video_search: VideoSearch | None = None
+    # e.g. `StaticSearchClient(case_hits, require_match=False)` for injection evals
+    web_search_client: WebSearchClient | None = None
     clock: Clock | None = None
 
 
@@ -102,6 +110,14 @@ def video_search_for(settings: Settings, data: MockData) -> VideoSearch:
     return MockVideoSearch(data.videos)
 
 
+def web_search_client_for(settings: Settings, data: MockData) -> WebSearchClient:
+    """Tavily in real mode (no results without a key); canned `web_results.json` in mock mode."""
+    if settings.mcp_mode == "mock":
+        return StaticSearchClient(data.web_results)
+    key = settings.tavily_api_key.get_secret_value()
+    return TavilySearchClient(key) if key else UnconfiguredSearchClient()
+
+
 def build_mcp_servers(
     settings: Settings, *, engine: AsyncEngine, overrides: McpOverrides | None = None
 ) -> McpServers:
@@ -114,11 +130,13 @@ def build_mcp_servers(
     )
     bookings = o.booking_store or (InMemoryBookingStore() if mock else PostgresBookingStore(engine))
     videos = o.video_search or video_search_for(settings, data)
+    web = o.web_search_client or web_search_client_for(settings, data)
     return McpServers(
         {
             "user_profile": build_user_profile_server(data, profiles, clock=clock),
             "parts_catalog": build_parts_catalog_server(data.parts),
             "tutorials": build_tutorials_server(videos),
             "service_booking": build_service_booking_server(data, bookings, profiles, clock=clock),
+            "web_search": build_web_search_server(web, Whitelist.load(settings.web_whitelist_path)),
         }
     )

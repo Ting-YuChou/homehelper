@@ -9,6 +9,7 @@
 **/.pytest_cache
 **/.ruff_cache
 data
+!data/mock
 legacy
 docs
 evals/reports

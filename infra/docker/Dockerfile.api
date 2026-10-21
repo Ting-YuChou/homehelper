@@ -13,6 +13,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY apps/api apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package homehelper --no-editable
+# Read at startup (Settings.data_dir / web_whitelist_path are relative to /app): MCP mock data.
+COPY config config
+COPY data/mock data/mock
 
 # Local development: editable install + dev tools; source is bind-mounted by docker compose.
 FROM builder AS dev
@@ -26,6 +29,8 @@ FROM python:3.12-slim AS runtime
 RUN useradd --create-home --uid 10001 app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder --chown=app:app /app/config /app/config
+COPY --from=builder --chown=app:app /app/data/mock /app/data/mock
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080
 USER app
 EXPOSE 8080
