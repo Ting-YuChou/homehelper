@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# Build context: repo root.
+FROM ghcr.io/astral-sh/uv:0.11.19 AS uv
+
+FROM python:3.12-slim AS builder
+COPY --from=uv /uv /uvx /bin/
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY apps/api/pyproject.toml apps/api/pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --package homehelper --no-install-workspace
+COPY apps/api apps/api
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --package homehelper --no-editable
+
+# Local development: editable install + dev tools; source is bind-mounted by docker compose.
+FROM builder AS dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --package homehelper
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+CMD ["uvicorn", "homehelper.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
+     "--reload", "--reload-dir", "apps/api/src", "--no-access-log"]
+
+FROM python:3.12-slim AS runtime
+RUN useradd --create-home --uid 10001 app
+WORKDIR /app
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080
+USER app
+EXPOSE 8080
+CMD ["sh", "-c", "exec uvicorn homehelper.main:create_app --factory --host 0.0.0.0 --port ${PORT} --no-access-log"]

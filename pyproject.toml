@@ -1,0 +1,49 @@
+[project]
+name = "homehelper-workspace"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["homehelper"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["apps/api"]
+
+[tool.uv.sources]
+homehelper = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["legacy", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["homehelper", "tests"]
+
+[tool.pyright]
+include = ["apps/api/src", "apps/api/tests"]
+exclude = ["legacy", "**/node_modules", "**/.venv"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests"]
+pythonpath = ["apps/api"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["integration: needs running Postgres and Redis (set RUN_INTEGRATION=1)"]

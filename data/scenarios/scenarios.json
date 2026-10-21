@@ -1,0 +1,1710 @@
+{
+    "WD5100D_WEB_IB_SU-PJT_COMBO-MD_index": {
+        "filename": "WD5100D_WEB_IB_SU-PJT_COMBO-MD.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "Samsung",
+        "issues": [
+            "The washing machine does not start even when the door is closed and the Start/Pause button is pressed.",
+            "The washing machine makes a series of clicking noises but does not start the wash cycle.",
+            "Water supply is insufficient or no water is supplied even when the water tap is open.",
+            "The washing machine's Child Lock feature is activated and prevents operation.",
+            "Detergent remains in the detergent drawer after the wash cycle is complete.",
+            "The fuse blows or the circuit breaker trips frequently when using the washing machine.",
+            "The washing machine does not start because it is not plugged in.",
+            "The water supply hose is kinked or clogged, preventing proper water flow.",
+            "The mesh filter in the water supply hose is dirty, affecting water supply.",
+            "The washing machine experiences discolouration or deformation due to improper cleaning agents being used."
+        ],
+        "solution_steps": [
+            {
+                "issue": "The washing machine does not start despite being plugged in and the door closed.",
+                "steps": "1. Make sure the door is properly closed.\n2. Make sure the water taps are open.\n3. Make sure to press or tap Start/Pause to start the washing machine.\n4. Make sure Child Lock is not activated.\n5. Check the fuse or reset the circuit breaker."
+            },
+            {
+                "issue": "Water supply is insufficient or no water is supplied during the wash cycle.",
+                "steps": "1. Fully open the water tap.\n2. Make sure the door is properly closed.\n3. Make sure the water supply hose is not frozen.\n4. Make sure the water supply hose is not kinked or clogged.\n5. Make sure there is sufficient water pressure.\n6. Make sure the mesh filter of the water supply hose is clean."
+            },
+            {
+                "issue": "Detergent remains in the dispenser after a wash cycle.",
+                "steps": "1. Remove the detergent drawer by holding down the release lever on the inner part of the drawer and sliding it open.\n2. Take out the release lever and the liquid detergent guide from the drawer.\n3. Clean the drawer components in flowing water using a soft brush.\n4. Clean the drawer recess using a bottle brush to remove detergent residues and limescale on the drawer recess.\n5. Reinsert the release lever and the liquid detergent guide to the drawer.\n6. Slide the drawer inward to close it.\n7. To remove remaining detergent, perform the RINSE+SPIN cycle with the drum being empty."
+            },
+            {
+                "issue": "The Child Lock feature is activated, preventing the machine from starting.",
+                "steps": "1. Hold down Temp. and Spin simultaneously for 3 seconds to release the Child Lock function. \n2. After releasing the Child Lock, ensure that the door is properly closed.\n3. Press or tap Start/Pause to start the washing machine."
+            },
+            {
+                "issue": "The washing machine makes a series of clicking noises but does not fill with water.",
+                "steps": "1. Make sure the washing machine is plugged in.\n2. Make sure the water taps are open.\n3. Make sure the water supply hose is not frozen.\n4. Make sure the water supply hose is not kinked or clogged.\n5. Make sure there is sufficient water pressure.\n6. Make sure the mesh filter of the water supply hose is clean."
+            },
+            {
+                "issue": "The mesh filter of the water supply hose is clogged, leading to low water flow.",
+                "steps": "1. Turn off the washing machine, and unplug the power cord.\n2. Close the water tap.\n3. Loosen and disconnect the water hose from the back of the washing machine. Cover the hose with a cloth to prevent water from gushing out.\n4. Use pliers to pull out the mesh filter from the inlet valve.\n5. Submerge the mesh filter deeply in water so that the threaded connector is also submerged.\n6. Dry the mesh filter completely in the shade.\n7. Reinsert the mesh filter into the inlet valve, and reconnect the water hose to the inlet valve.\n8. Open the water tap."
+            },
+            {
+                "issue": "The appliance displays an error code that is not defined in the manual.",
+                "steps": "1. If any information code keeps appearing on the screen, contact a local Samsung service centre."
+            },
+            {
+                "issue": "The washing machine vibrates excessively during spin cycles.",
+                "steps": "1. Make sure laundry is spread out evenly.\n\n2. Make sure the washing machine is on a flat, stable surface.\n\n3. Redistribute the load. If only one item of clothing needs washing, such as a bathrobe or pair of jeans, the final spin result might be unsatisfactory, and an \u201cUb\u201d check message will be shown in the display.\n\n4. For best performance, ensure the washing machine is installed on a solid floor. Wood floors may need to be reinforced to minimise vibration and/or unbalanced loads. Carpeting and soft tile surfaces are not a good resistance to vibrations and may cause the washing machine to move slightly during the spin cycle.\n\n5. Do NOT install the washing machine on a platform or a poorly supported structure."
+            },
+            {
+                "issue": "There are strange noises coming from the washing machine during operation.",
+                "steps": "1. Make sure the washing machine is not contacting any other object.\n\n2. Make sure the laundry load is balanced.\n\n3. Be aware that the motor can cause noise during normal operation.\n\n4. Check if overalls or metal-decorated clothes are being washed, as they can cause noise while being washed. This is normal.\n\n5. Check for any metal objects such as coins that can cause noise. After washing, remove these objects from the drum or filter case."
+            },
+            {
+                "issue": "The door of the washing machine does not close properly, causing leaks.",
+                "steps": "1. Ensure that the laundry is inserted into the washing machine completely so that the laundry does not get caught in the door. \"If laundry gets caught in the door, it may result in damage to the laundry or the washing machine, or result in a water leak.\"\n\n2. Ensure that the door is properly closed. \n\n3. Check if there is something stuck between the door and the diaphragm. \"If there is something stuck between the door and the diaphragm, it may cause a leak or damage to the diaphragm.\"\n\n4. Ensure that the rubber seal and front door glass are not contaminated by a foreign substance (e.g. waste, thread, hair, etc.). \n\n5. Open the water tap and check if the water supply hose connector is firmly tightened and that there is no water leak before using the appliance. \"If the screws on the water supply hose connector are loose, it may result in a water leak.\""
+            }
+        ]
+    },
+    "OID78671_IB_T-PJT_WD8000D_7LCD_index": {
+        "filename": "OID78671_IB_T-PJT_WD8000D_7LCD.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "Samsung",
+        "issues": [
+            "The Laundry Combo does not start even when the power button is pressed.",
+            "Clicking noises are heard before the Laundry Combo fills with water, but it fails to proceed.",
+            "Water supply is insufficient or no water is entering the Laundry Combo.",
+            "The door of the Laundry Combo does not close properly, preventing operation.",
+            "Low voltage is detected, causing the Laundry Combo to malfunction.",
+            "Laundry is caught in the door, obstructing the proper functioning of the Laundry Combo.",
+            "The appliance does not operate due to a tripped circuit breaker or blown fuse.",
+            "The filter is clogged, affecting the appliance's performance.",
+            "The appliance experiences electric shock or fire risk due to improper cleaning methods.",
+            "Water inside the drain hose freezes during winter, causing drainage issues."
+        ]
+    },
+    "OID56233_IB_D-PJT_WASHER-MD_index": {
+        "filename": "OID56233_IB_D-PJT_WASHER-MD.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "Samsung",
+        "issues": [
+            "The washing machine does not start despite pressing the start button.",
+            "The door does not properly close, preventing the washing machine from operating.",
+            "Child Lock is activated, and the washing machine cannot be started.",
+            "The washing machine produces a series of clicking noises before starting to fill with water.",
+            "The washing machine performs a quick drain before beginning the wash cycle.",
+            "Low voltage is detected, and the washing machine fails to operate correctly.",
+            "The washing machine is plugged in but shows no signs of power.",
+            "The water taps are open, yet the washing machine does not fill with water.",
+            "Laundry is caught in the door, preventing the washing machine from starting.",
+            "The circuit breaker needs to be reset to restore power to the washing machine."
+        ]
+    },
+    "WD5100D_WEB_IB_SU-PJT_COMBO-MD(1)_index": {
+        "filename": "WD5100D_WEB_IB_SU-PJT_COMBO-MD(1).pdf",
+        "product_name": "WashingMachines",
+        "company_name": "Samsung",
+        "issues": [
+            "The washing machine does not start despite being plugged in and the door being properly closed.",
+            "Insufficient or no water supply even when the water taps are fully open and hoses are not kinked.",
+            "Child Lock is activated, preventing the washing machine from starting.",
+            "The washing machine makes a series of clicking noises before starting to fill.",
+            "The mesh filter of the water supply hose is clogged, affecting water intake.",
+            "Detergent remains in the machine after a completed cycle.",
+            "Risk of electric shock if the appliance is not unplugged before cleaning or maintenance.",
+            "Potential for fire if strong acidic cleaning agents or substances like benzene are used on the appliance.",
+            "The appliance is not intended for unsupervised use by children or individuals with reduced capabilities.",
+            "The washing machine may not start if the circuit breaker is tripped or the fuse is blown."
+        ]
+    },
+    "Web_IB_Z-PJT_WF9400F-AD_7LCD_index": {
+        "filename": "Web_IB_Z-PJT_WF9400F-AD_7LCD.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "Samsung",
+        "issues": [
+            "The washing machine does not start after pressing the start button.",
+            "The door fails to lock properly, preventing the cycle from beginning.",
+            "The LCD screen displays low voltage detected error, stopping the operation.",
+            "Clicking noises occur before the machine starts, possibly indicating a door lock check failure.",
+            "The machine does not fill with water due to a clogged filter.",
+            "Insufficient water supply even when the water tap is fully open.",
+            "The washing machine operates with low water pressure affecting wash quality.",
+            "There is a risk of electric shock when placing objects on the appliance.",
+            "The appliance experiences performance issues when used for business purposes instead of domestic.",
+            "The appliance malfunctions due to electromagnetic fields generated by nearby objects."
+        ]
+    },
+    "WM_EUS_MFL71693772_04_250521_00_OM_WEB_EN_index": {
+        "filename": "WM_EUS_MFL71693772_04_250521_00_OM_WEB_EN.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "LG",
+        "issues": [
+            "The Smart Diagnosis function does not operate due to Wi-Fi unavailability or disconnection.",
+            "The LG ThinQ application does not transmit troubleshooting data because the app is unavailable in the local app store.",
+            "The appliance fails to connect to the LG ThinQ app for Smart Diagnosis due to local policy restrictions.",
+            "Transmission of troubleshooting data is unsuccessful due to incorrect use of the Smart Diagnosis feature.",
+            "The appliance fails to send troubleshooting data to a smartphone because the LG ThinQ app isn't installed correctly.",
+            "The Smart Diagnosis feature does not function as expected due to changes in the feature's form without prior notice.",
+            "The appliance does not disconnect from the power supply when turning the controls to the OFF position.",
+            "Static buildup in clothes because of improper use of fabric softeners or static-eliminating products.",
+            "The appliance malfunctions when objects are placed on top of it during operation.",
+            "The appliance does not operate properly if the water inlet hose is frozen and not defrosted before use."
+        ]
+    },
+    "WM_EUS_MFL71776114_10_250328_00_OM_WEB_EN_index": {
+        "filename": "WM_EUS_MFL71776114_10_250328_00_OM_WEB_EN.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "LG",
+        "issues": [
+            "The Smart DiagnosisTM feature does not function due to Wi-Fi disconnection or app unavailability.",
+            "Audible diagnosis method produces unclear or inaudible signals, making troubleshooting difficult.",
+            "Fresh Care feature causes the dryer to start briefly every few minutes after the cycle finishes.",
+            "Dryer fails to dry clothes properly due to a clogged lint filter.",
+            "Specific dry cycles do not produce the expected drying results due to incorrect cycle selection.",
+            "Appliance fails to operate after a power outage without resetting the circuit breaker or replacing a fuse.",
+            "Clothes dryer operates inefficiently due to restricted airflow from a lint-clogged filter.",
+            "Overloading the appliance leads to poor drying performance and efficiency.",
+            "Draining water is too hot to touch, posing a risk of burns.",
+            "Frozen water inlet or drain hoses in winter prevent the appliance from operating."
+        ]
+    },
+    "WM_VUS_MFL71964314_03_250117_00_OM_WEB_EN_index": {
+        "filename": "WM_VUS_MFL71964314_03_250117_00_OM_WEB_EN.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "LG",
+        "issues": [
+            "Trouble connecting the appliance and smartphone to the Wi-Fi network due to an incorrect Wi-Fi password.",
+            "Audible diagnosis feature fails to operate properly due to external factors like Wi-Fi unavailability.",
+            "Odor occurs from the dryer during the dry function due to lint and other laundry matter sticking to the heater.",
+            "Mobile data for the smartphone is turned on, preventing connection to the appliance.",
+            "The appliance cannot connect to the Wi-Fi network because the router frequency is not set to 2.4 GHz.",
+            "The wireless network name (SSID) is incorrectly set, using special characters instead of a combination of English letters and numbers.",
+            "Risk of electric shock due to improper connection of the equipment-grounding conductor.",
+            "The appliance emits a particular odor when drying wet clothes with hot air, which disappears after a short while.",
+            "The appliance may not operate due to external factors like app unavailability or local app store policy changes.",
+            "The draining water may be hot, posing a risk of burns if touched during operation."
+        ]
+    },
+    "WM_VUS_MFL71964303_03_250116_00_OM_WEB_EN_index": {
+        "filename": "WM_VUS_MFL71964303_03_250116_00_OM_WEB_EN.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "LG",
+        "issues": [
+            "Smart Diagnosis feature fails to transmit troubleshooting data to the smartphone.",
+            "Audible Diagnosis does not produce tones when the Temp. button is held.",
+            "Push alerts are not received when the cycle is complete or the appliance encounters problems.",
+            "The LG ThinQ application does not recognize changes in network information after router updates.",
+            "Dispenser drawer or lid does not remain closed when not in use.",
+            "The appliance does not level properly on a firm floor, affecting operation.",
+            "Appliance does not disconnect from the power supply when controls are turned off.",
+            "There are issues with dust or foreign matter affecting power plug pins.",
+            "Water faucets are not turned off, leading to potential flooding if the appliance is left unattended for extended periods.",
+            "Drain hose and water inlet hose freeze in winter, causing operational problems."
+        ]
+    },
+    "WM_VUS_MFL70701247_03_250116_00_OM_WEB_EN_index": {
+        "filename": "WM_VUS_MFL70701247_03_250116_00_OM_WEB_EN.pdf",
+        "product_name": "WashingMachines",
+        "company_name": "LG",
+        "issues": [
+            "The Smart Diagnosis feature does not operate due to Wi-Fi unavailability or disconnection.",
+            "Error message indicates \"Door open\" even when the door is closed.",
+            "Error message indicates \"Door unlocked\" despite the door being secured.",
+            "Water supply error due to water inlet hoses being kinked, pinched, or crushed.",
+            "Inadequate water supply pressure causing filling issues.",
+            "Audible diagnosis method is not working as expected through the LG ThinQ application.",
+            "Appliance fails to operate due to improper grounding or electrical connection.",
+            "The appliance does not start because the power cord is not plugged in securely.",
+            "Water leakage from the appliance due to clogged water inlet filters.",
+            "The appliance does not perform as expected if placed on an uneven or unstable surface."
+        ]
+    },
+    "BrewSense_12-cup_Drip_CoffeeMaker_KF7070SI_index": {
+        "filename": "BrewSense_12-cup_Drip_CoffeeMaker_KF7070SI.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "BraunHousehold",
+        "issues": [
+            "It is not possible to set the AUTO ON time because the clock has not been set.",
+            "The green LED light above BREW does not light up when attempting to start the brew cycle.",
+            "The display flashes \u00ab2:00 AM\u00bb after initial operation or a power outage, indicating the need to set the clock.",
+            "It is not possible to change the AUTO OFF time due to the ON/OFF button not being pressed.",
+            "The appliance's display does not show a time when it is unplugged or during a power outage.",
+            "Display shows \u00abE01\u00bb, \u00abE02\u00bb or \u00abE03\u00bb, suggesting a fault needing Braun Customer Service assistance.",
+            "Coffee is not hot due to a power outage or the auto off feature being activated.",
+            "There are coffee grounds at the bottom of the carafe because the filter was not inserted correctly.",
+            "The ON/OFF switch does not light up when the appliance is unplugged or during a power outage.",
+            "Paper filter collapses during brewing, requiring a new filter to be used correctly."
+        ]
+    },
+    "Cuisinart_2-in-1_CoffeeMaker_index": {
+        "filename": "Cuisinart_2-in-1_CoffeeMaker.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Cuisinart",
+        "issues": [
+            "The appliance does not brew coffee even when powered on and water is in the reservoir.",
+            "The coffee basket overflows when attempting to brew a full pot.",
+            "The machine unexpectedly turns off during brewing due to the energy-save mode.",
+            "The single-serve function is non-operational while the 12-cup carafe is brewing.",
+            "The ready tone does not signal at the end of the brew cycle.",
+            "The power loss backup system fails to retain programmed information after a power outage.",
+            "The appliance fails to start due to an improperly closed brew head.",
+            "The cord, plug, or base unit gets wet, risking electric shock.",
+            "The machine operates with a damaged cord or plug, posing a safety hazard.",
+            "Using an incorrect filter type leads to coffee overflow."
+        ]
+    },
+    "Cuisinart_10_Cup_Thermal_Classic_CoffeeMaker_index": {
+        "filename": "Cuisinart_10_Cup_Thermal_Classic_CoffeeMaker.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Cuisinart",
+        "issues": [
+            "The audible tone does not sound when brewing is complete.",
+            "The coffeemaker does not respond to the Power Button being pressed.",
+            "The Hour and Minute Buttons do not properly set the time of day or auto-on time.",
+            "The unit fails to operate in a 120-volt outlet.",
+            "The coffee continues streaming from the filter for an excessive time after the brew cycle.",
+            "The Function knob does not work in tandem with the Power Button as expected.",
+            "The appliance does not turn on when plugged in due to a damaged cord or plug.",
+            "The appliance fails to cool down before cleaning, posing a risk of burns.",
+            "Water or other liquids accidentally come into contact with the cord or base, risking electric shock.",
+            "The appliance malfunctions after being dropped or damaged."
+        ]
+    },
+    "12_Cup_Programmable_CoffeeMaker_KM730D50_index": {
+        "filename": "12_Cup_Programmable_CoffeeMaker_KM730D50.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Krups",
+        "issues": [
+            "The coffee maker does not turn on even when plugged into a working outlet.",
+            "The machine leaks water if the tank is filled beyond the maximum fill level.",
+            "Following a power failure, the clock must be reset for the coffee maker to function properly.",
+            "The appliance switches off automatically due to the Auto-Off function, interrupting the brewing process.",
+            "Brewing takes longer than usual, indicating the need for descaling due to mineral buildup.",
+            "The keep warm function causes the heating plate or carafe bottom to become too hot to touch.",
+            "The coffee maker fails to brew coffee when the water tank is empty.",
+            "A power surge requires the machine to be unplugged and plugged back in to reset.",
+            "The coffee maker requires periodic descaling to maintain optimal performance, especially with hard water.",
+            "Supervision is necessary to prevent children from playing with the appliance, ensuring safety."
+        ]
+    },
+    "iced_hot_coffee_maker_index": {
+        "filename": "iced_hot_coffee_maker.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Mr.Coffee",
+        "issues": [
+            "The drip tray overflows if not cleaned regularly, leading to spills and messes.",
+            "The brew basket does not seat properly, causing coffee grounds to spill.",
+            "The reusable coffee filter is not dishwasher safe in all models, requiring handwashing.",
+            "The over ice button does not engage, preventing the brewing of iced coffee.",
+            "The showerhead becomes clogged, affecting the extraction of coffee flavor.",
+            "The water reservoir markings are unclear, leading to incorrect coffee measurements.",
+            "The appliance does not operate if the water tank is empty, causing user confusion.",
+            "The appliance cord is damaged, presenting a risk of electric shock.",
+            "The plastic components become discolored or damaged after exposure to hot steam.",
+            "The polarized plug does not fit properly in older outlets, necessitating electrical adjustments."
+        ]
+    },
+    "BVMC-KNX_16ESM1_index": {
+        "filename": "BVMC-KNX_16ESM1.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Mr.Coffee",
+        "issues": [
+            "The coffeemaker is not brewing because the appliance is unplugged.  ",
+            "The coffeemaker only brews water when there are no coffee grounds in the filter basket.  ",
+            "The filter basket overflows due to the decanter lid not being on the decanter.  ",
+            "The coffeemaker brews slowly because it needs cleaning.  ",
+            "The coffee is not hot due to a power outage.  ",
+            "The coffee is not brewing because the filter basket is not properly inserted.  ",
+            "The appliance malfunctions or is damaged, requiring return to an Authorized Service Center.  ",
+            "The power cord hangs over the edge of the table or counter, creating a potential hazard.  ",
+            "The coffeemaker is placed too close to a hot gas or electric burner, risking damage.  ",
+            "The decanter is removed from the warming plate for more than 30 seconds, causing overflow.  "
+        ]
+    },
+    "SAP_2214047_index": {
+        "filename": "SAP_2214047.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Mr.Coffee",
+        "issues": [
+            "Water leakage from the bottom due to a misplaced or improperly installed O-ring on the base cover.",
+            "Brewed coffee or water remains inside the ice or coffee cups after the brewing cycle.",
+            "Unit stops prematurely and does not complete the brewing cycle.",
+            "Blinking Red LED while running indicates that the unit is operating with a low charge.",
+            "Solid Red LED while charging indicates that charging is active, but the charge is low.",
+            "Coffee grounds were saturated prior to use, leading to poor brew quality.",
+            "Not enough coffee grounds used leads to weak coffee.",
+            "The appliance should not operate with an empty carafe to prevent damage.",
+            "Using soft water or well water affects the final taste of the brewed coffee.",
+            "Avoid placing the appliance near a hot gas or electric burner, or in a heated oven to prevent damage."
+        ]
+    },
+    "Cafetera_LM_Series_index": {
+        "filename": "Cafetera_LM_Series.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Mr.Coffee",
+        "issues": [
+            "The \"Brew Now\"/On light does not light up when the appliance is plugged in.",
+            "The coffeemaker is not brewing even when the power is restored.",
+            "The water reservoir appears empty despite adding water.",
+            "The filter basket is not properly inserted, preventing brewing.",
+            "The decanter is not correctly placed on the warming plate, halting the brewing process.",
+            "The coffeemaker is not working after a power surge or outage.",
+            "The appliance does not operate after being submerged in water due to incorrect cleaning methods.",
+            "The power cord or plug gets damaged from being near hot surfaces.",
+            "The coffeemaker's hot surfaces cause burns if touched without using handles or knobs.",
+            "The appliance malfunctions after being used with non-MR. COFFEE brand accessory attachments."
+        ]
+    },
+    "15-0419-151P_IB_MECH_HR_index": {
+        "filename": "15-0419-151P_IB_MECH_HR.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "Mr.Coffee",
+        "issues": [
+            "The brew now indicator does not illuminate when the brew now/cancel button is pressed.",
+            "The serving size options knob is not selecting the desired serving size.",
+            "The appliance fails to brew coffee even when the brew now/cancel button is activated.",
+            "The coffee scoop accessory is missing, making it difficult to measure coffee accurately.",
+            "Hot glass container experiences a sudden temperature change causing it to crack.",
+            "The container handle feels loose or weakened after use, posing a safety risk.",
+            "The appliance does not turn on when plugged into the outlet.",
+            "The appliance's cord becomes damaged or frayed, creating a safety hazard.",
+            "The appliance is placed on a hot surface, affecting its performance.",
+            "The appliance emits an unusual odor when in use, indicating a potential malfunction."
+        ]
+    },
+    "MyJo_Single_Cup_CoffeeMaker_index": {
+        "filename": "MyJo_Single_Cup_CoffeeMaker.pdf",
+        "product_name": "CoffeeMaker",
+        "company_name": "MyJo",
+        "issues": [
+            "The MyJo Cup is not fitting properly into the pack holder, preventing brewing.",
+            "Hot water leaks from the reservoir while brewing.",
+            "The needle in the pack holder gets clogged, obstructing water flow.",
+            "The red reservoir grip becomes loose, making it difficult to handle safely.",
+            "The valve at the bottom of the reservoir does not open correctly, halting the brewing process.",
+            "Difficulty in ordering or acquiring the MyJo Cup as it is the only compatible cup.",
+            "The coffee maker's surfaces become too hot to touch, posing a burn risk.",
+            "The coffee maker does not power on despite being plugged in.",
+            "Coffee grounds overflow during brewing, leading to a mess.",
+            "The appliance stops working after a short period of use despite following the instructions."
+        ]
+    },
+    "DC68-04299K-00_IB_DV6300B_EN_MES_231222_index": {
+        "filename": "DC68-04299K-00_IB_DV6300B_EN_MES_231222.pdf",
+        "product_name": "Dryer",
+        "company_name": "Samsung",
+        "issues": [
+            "The Smart Care function may fail to recognize the information code if light reflects off the dryer's display.",
+            "The specific Smart Care function name may vary depending on the language, causing confusion during operation.",
+            "If the app fails to recognize the information code, users must manually enter the code, which can be cumbersome.",
+            "Characteristics of the dryer may differ slightly from the manual, leading to potential confusion when troubleshooting.",
+            "The appliance's controls can be tampered with, potentially causing it to malfunction.",
+            "The interior of the appliance and exhaust duct require periodic cleaning by qualified service personnel, which users may overlook.",
+            "Articles cleaned with flammable substances like gasoline may ignite or explode when dried.",
+            "The accumulation of lint, dust, and dirt around the exhaust opening can pose a fire hazard.",
+            "Children playing on or in the appliance can result in suffocation and injury from entrapment.",
+            "Using heat to dry articles containing foam rubber or similar materials can cause damage or fire."
+        ]
+    },
+    "OID63027_IB_DV7550C_EN_231222_index": {
+        "filename": "OID63027_IB_DV7550C_EN_231222.pdf",
+        "product_name": "Dryer",
+        "company_name": "Samsung",
+        "issues": [
+            "The Smart Control app fails to recognize the information code when light is reflected off the display.",
+            "The app provides incorrect solutions when the information code is not recognized correctly.",
+            "The display panel becomes unresponsive when trying to enter the information code manually.",
+            "The dryer fails to start when the drum is still moving from a previous cycle.",
+            "The drum continues to move after the cycle is supposed to be complete.",
+            "The interior or exhaust duct does not get cleaned properly, even when serviced by qualified personnel.",
+            "The appliance is unable to dry articles that have been cleaned with flammable substances, risking fire or explosion.",
+            "Fabric softeners or anti-static products cause issues unless specifically recommended by the manufacturer.",
+            "Heat drying fails with articles containing foam rubber due to incorrect material handling.",
+            "Lint accumulates around the exhaust opening despite regular cleaning, causing blockages."
+        ]
+    },
+    "DC68-04179B-04_IB_DV8600A_SimpleUX_EN_231006_index": {
+        "filename": "DC68-04179B-04_IB_DV8600A_SimpleUX_EN_231006.pdf",
+        "product_name": "Dryer",
+        "company_name": "Samsung",
+        "issues": [
+            "The drum continues to move even when the door is opened.",
+            "The appliance does not start when the start button is pressed.",
+            "The lint screen is difficult to remove for cleaning after each load.",
+            "The exhaust duct becomes clogged with lint, affecting performance.",
+            "The controls do not respond when adjustments are attempted.",
+            "The drying cycle does not complete as expected, leaving clothes damp.",
+            "The appliance will not operate if installed or stored where it is exposed to weather conditions.",
+            "Risk of fire or explosion when drying articles cleaned with flammable substances.",
+            "The appliance poses a suffocation or entrapment hazard if children play inside.",
+            "Foam rubber or rubber-like materials do not dry properly and should not be heated."
+        ]
+    },
+    "OID55762_IB_DV8900B_SimpleUX_EN_231006_index": {
+        "filename": "OID55762_IB_DV8900B_SimpleUX_EN_231006.pdf",
+        "product_name": "Dryer",
+        "company_name": "Samsung",
+        "issues": [
+            "Door removal required before discarding the appliance.",
+            "Installation limitations due to weather exposure.",
+            "Tampering with controls may lead to malfunction.",
+            "Specific maintenance instructions needed for certain repairs.",
+            "Heat should not be used to dry articles containing foam rubber.",
+            "Cleaning of the interior and exhaust duct requires qualified personnel.",
+            "Risk of fire if drying articles previously cleaned with flammable substances.",
+            "Lint accumulation around the exhaust opening may cause performance issues.",
+            "Risk of suffocation if children play in or around the appliance.",
+            "Fabric softeners not recommended unless specified by the manufacturer."
+        ]
+    },
+    "OID64579_IB_DV7500C_EN_231222_index": {
+        "filename": "OID64579_IB_DV7500C_EN_231222.pdf",
+        "product_name": "Dryer",
+        "company_name": "Samsung",
+        "issues": [
+            "The Smart Control app fails to recognize the information code due to light reflection off the display.",
+            "The app does not provide solutions because it cannot recognize the information code automatically.",
+            "The drum inside the dryer continues to move, preventing safe access.",
+            "The dryer is installed in a location exposed to weather conditions, causing potential damage.",
+            "The appliance's lint screen becomes clogged, impacting dryer performance.",
+            "The exhaust opening and surrounding areas accumulate lint, dust, and dirt.",
+            "Articles cleaned or soaked in flammable substances ignite or explode when dried.",
+            "Children become trapped inside the appliance, posing a risk of suffocation or injury.",
+            "The use of fabric softeners or anti-static products not recommended by the manufacturer causes operational issues.",
+            "Heat drying articles containing foam rubber or similar materials results in damage or hazards."
+        ]
+    },
+    "DR_MEA_MFL71712106_00_201110_00_WEB_EN_index": {
+        "filename": "DR_MEA_MFL71712106_00_201110_00_WEB_EN.pdf",
+        "product_name": "Dryer",
+        "company_name": "LG",
+        "issues": [
+            "The appliance displays a dE error indicating the door has been opened while in operation.",
+            "The dE4 error appears, meaning the door switch detection is not functioning properly.",
+            "Smart Diagnosis feature does not work because the appliance is not properly connected to Wi-Fi.",
+            "The appliance does not heat, potentially due to a blown house fuse or tripped circuit breaker.",
+            "Water leaks from the appliance because the water container hose or optional drain hose is not connected correctly.",
+            "Audible Diagnosis fails to complete because the appliance is not operating as expected.",
+            "The appliance does not turn on, possibly because the power cord is not securely plugged into an outlet.",
+            "Wi-Fi connectivity issues due to the router frequency not being set to 2.4 GHz.",
+            "The appliance is not connected to Wi-Fi because the password is entered incorrectly.",
+            "The appliance does not connect to the smartphone app due to mobile data being on instead of Wi-Fi."
+        ]
+    },
+    "DR_ELF_MFL71712132_01_220913_00_PRINT_index": {
+        "filename": "DR_ELF_MFL71712132_01_220913_00_PRINT.pdf",
+        "product_name": "Dryer",
+        "company_name": "LG",
+        "issues": [
+            "The appliance displays a \"dE\" error, indicating the door is not closed properly during operation.",
+            "The door switch detection malfunctions, showing a \"dE4\" error.",
+            "Clothes take too long to dry, even with appropriate control settings.",
+            "The appliance will not turn on despite being plugged in.",
+            "The appliance does not heat up during drying cycles.",
+            "Water leaks from the appliance due to incorrect hose connections.",
+            "Lint filter becomes clogged, affecting drying performance.",
+            "House fuse is blown, or circuit breaker trips during operation.",
+            "The appliance is overloaded, leading to inefficient drying.",
+            "The appliance does not function during a power outage."
+        ]
+    },
+    "DR_ELF_MFL71712132_01_220913_00_PRINT (1)_index": {
+        "filename": "DR_ELF_MFL71712132_01_220913_00_PRINT (1).pdf",
+        "product_name": "Dryer",
+        "company_name": "LG",
+        "issues": [
+            "Clothes take too long to dry even when using the correct cycle settings.",
+            "dE error code appears when the door is closed properly.",
+            "Appliance will not turn on despite being plugged in securely.",
+            "Appliance does not heat even when the cycle is active.",
+            "Water leaks from the appliance due to incorrect hose connections.",
+            "dE4 error code indicates the door switch detection is not functioning properly.",
+            "House fuse is blown, or the circuit breaker trips during operation.",
+            "Lint filter becomes clogged, affecting drying performance.",
+            "Appliance is overloaded, leading to inefficient drying.",
+            "Power outage affects the operation of the appliance."
+        ]
+    },
+    "DR_ELF_MFL71712112_01_210209_00_WEB_EN_index": {
+        "filename": "DR_ELF_MFL71712112_01_210209_00_WEB_EN.pdf",
+        "product_name": "Dryer",
+        "company_name": "LG",
+        "issues": [
+            "The appliance does not turn on even when the power cord is plugged in.",
+            "The appliance fails to heat up despite being plugged in and powered.",
+            "Water leaks from the appliance due to incorrect connection of the water container hose.",
+            "dE error appears because the door is not closed properly during operation.",
+            "dE4 error occurs due to a malfunction with the door switch detection.",
+            "The Smart Diagnosis feature does not work due to external factors like Wi-Fi disconnection.",
+            "The appliance and smartphone do not connect to the Wi-Fi network due to incorrect Wi-Fi password.",
+            "The appliance fails to connect to the network because the router frequency is not set to 2.4 GHz.",
+            "The wireless network name (SSID) is improperly set with special characters, preventing connection.",
+            "The appliance experiences issues connecting to Wi-Fi when the distance from the router is too far."
+        ]
+    },
+    "DR_KOS_MFL69783889_00_230425_00_OM_WEB_EN_index": {
+        "filename": "DR_KOS_MFL69783889_00_230425_00_OM_WEB_EN.pdf",
+        "product_name": "Dryer",
+        "company_name": "LG",
+        "issues": [
+            "Display shows dE1 error indicating the door has been opened during operation.",
+            "dEz / dE4 error appears due to malfunctioning door switch detection.",
+            "Appliance fails to start because the lint filter is not inserted properly.",
+            "Appliance does not heat due to a tripped circuit breaker or blown house fuse.",
+            "Water leaks because the water container hose or drain hose is not connected correctly.",
+            "Wi-Fi feature doesn't connect because the wireless network name (SSID) contains special characters.",
+            "Power cord isn't securely plugged in, preventing the appliance from turning on.",
+            "Appliance remains unresponsive due to a power outage or insufficient power supply.",
+            "The appliance cannot connect to Wi-Fi as it is too far from the router.",
+            "Smart Diagnosis feature fails due to Wi-Fi disconnection or local app store policy issues."
+        ]
+    },
+    "iQ500_Dishwasher_integrated_SN56P530EU:98_index": {
+        "filename": "iQ500_Dishwasher_integrated_SN56P530EU:98.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Siemens",
+        "issues": [
+            "The \"Check water supply\" display lights up due to a kinked supply hose.",
+            "Error code \":\u2039\u02c6\" is lit because the intake opening is covered by utensils.",
+            "Error code \":\u201a\u0192\" is lit indicating the heating element is calcified or soiled.",
+            "Display \"Check water supply\" is on because the filter in the water supply is blocked.",
+            "The appliance stops during dishwashing with no obvious reason, requiring the Abort programme function.",
+            "The waste water pump is blocked by large food remnants or foreign objects.",
+            "The rinse aid refill indicator is lit, indicating the need to refill the rinse aid dispenser.",
+            "Salt refill indicator is activated, showing that the special salt needs replenishing.",
+            "The appliance does not start, potentially due to the tap being turned off.",
+            "Glass and utensil damage occur due to improper loading in the dishwasher."
+        ]
+    },
+    "iQ500_SN258I06TE_index": {
+        "filename": "iQ500_SN258I06TE.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Siemens",
+        "issues": [
+            "The front display shows an error message indicating \"Filter system soiled (E22)\" which requires cleaning the filters.",
+            "The dishwasher doesn't start or stops unexpectedly, requiring the user to run the Abort programme function (Reset).",
+            "The rinse aid refill indicator doesn't function, leading to improper drying results.",
+            "The salt refill indicator displays inaccurately, affecting the softening of water.",
+            "The WLAN display doesn't connect properly to the home network, affecting remote start capabilities.",
+            "The greeting brand logo cannot be turned off when switching on the appliance.",
+            "Improper repairs or use of non-original spare parts can cause significant damage and pose safety risks.",
+            "The energy manager feature may not connect correctly with the home's energy management system.",
+            "Wi-Fi connection issues prevent the appliance from connecting to the Home Connect server.",
+            "Remote start button fails to activate the dishwasher remotely as intended."
+        ]
+    },
+    "SN636X03ME_index": {
+        "filename": "SN636X03ME.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Siemens",
+        "issues": [
+            "\"Check water supply\" display lights up due to a kinked supply hose.",
+            "Fault code \":\u2039\u02c6 is lit because the intake opening inside the appliance is covered by utensils.",
+            "Fault code \":\u201a\u0192 is lit indicating the heating element is calcified or soiled.",
+            "The door opener mechanism malfunctions and does not open the door.",
+            "The interior light does not illuminate when the door is opened.",
+            "The time preselection feature does not work as intended.",
+            "Large food remnants or foreign objects block the waste water pump.",
+            "The appliance stops during dishwashing without an obvious reason.",
+            "The salt refill indicator remains lit even after refilling.",
+            "The rinse aid refill indicator remains illuminated despite adding rinse aid."
+        ]
+    },
+    "iQ100_SN24D203EU_index": {
+        "filename": "iQ100_SN24D203EU.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Siemens",
+        "issues": [
+            "The rinse aid refill indicator does not illuminate when the rinse aid is low.",
+            "The salt refill indicator fails to alert when the special salt is depleted.",
+            "The display shows \"Check water supply\" even when the water connection is secure.",
+            "The top spray arm does not rotate during operation, leading to unclean dishes.",
+            "The detergent dispenser lock does not engage, preventing proper detergent release.",
+            "The programme selector does not light up, making it difficult to choose a programme.",
+            "The appliance does not turn on when the ON/OFF switch is pressed.",
+            "The door fails to open using the door opener button.",
+            "The cleaning display remains on even after a cleaning cycle is complete.",
+            "The final rinse does not reach the intended temperature, resulting in poor drying."
+        ]
+    },
+    "CDW2FCMB_index": {
+        "filename": "CDW2FCMB.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Criterion",
+        "issues": [
+            "The dishwasher won't start if the door is not completely shut and latched.",
+            "The Delay Start option can prevent immediate operation if not properly reset.",
+            "Child Lock activation on selected models will inhibit the dishwasher's operation.",
+            "The rinse aid light will turn on when the rinse aid level is low.",
+            "Detergent dispenser will not shut due to improper operation of the detergent cover.",
+            "Dishwasher leaks can occur if the appliance is not leveled properly.",
+            "Dishwasher operates too long if connected to a cold water supply instead of hot.",
+            "Water remains in the dishwasher if the previous cycle has not finished or has been interrupted.",
+            "Dishwasher does not drain properly if the drain is clogged or the hose is kinked.",
+            "Suds in the tub can result from using improper detergent not meant for automatic dishwashers."
+        ]
+    },
+    "CDW2FCMW_index": {
+        "filename": "CDW2FCMW.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Criterion",
+        "issues": [
+            "Dishwasher won't start due to the door not being closed properly.",
+            "Child Lock activated accidentally, preventing the dishwasher from starting.",
+            "Delay Start option is selected, delaying the dishwasher's operation.",
+            "Detergent dispenser will not shut due to improper operation of the detergent cover.",
+            "Dishwasher beeps at the end of the cycle to indicate that the wash cycle is finished.",
+            "Rinse Aid light turns on when the rinse aid level is low.",
+            "Dishwasher operates too long when connected to cold water instead of hot water.",
+            "Water remains in the dishwasher if the previous cycle has not finished or has been interrupted.",
+            "Dishwasher does not drain properly due to a clogged drain or kinked drain hose.",
+            "Suds form in the tub if improper detergent is used."
+        ]
+    },
+    "CDW2FCMS_index": {
+        "filename": "CDW2FCMS.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Criterion",
+        "issues": [
+            "Dishwasher won't start if the door is not closed properly; it must be shut completely and be latched.",
+            "Delay Start option may cause the dishwasher not to operate immediately; users need to refer to the Delay Start section to reset.",
+            "Child Lock activation can prevent the dishwasher from starting; users need to deactivate it as instructed in the manual.",
+            "The dishwasher might take longer to operate if connected to a cold water supply instead of hot water.",
+            "The detergent dispenser will not shut if the detergent cover is not operated properly.",
+            "Excessive suds and potential leaks can occur if improper detergent is used instead of automatic dishwasher detergent.",
+            "Water remains in the dishwasher if the previous cycle has not finished or has been interrupted; selecting the proper cycle is necessary.",
+            "Improper drainage can happen if the drain is clogged or if the drain hose is kinked or improperly connected.",
+            "Black or gray marks on dishes can result from aluminum utensils rubbing against dishes.",
+            "Stains in the tub interior, especially from coffee and tea, require spot cleaning to remove the soil."
+        ]
+    },
+    "CDW5TCMS_index": {
+        "filename": "CDW5TCMS.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Criterion",
+        "issues": [
+            "Dishwasher won't start due to Child Lock being activated.",
+            "Error Code E1 occurs when there is an overflow, indicating a leak in the dishwasher.",
+            "Error Code E4 appears when there is a longer inlet time due to restricted water intake.",
+            "Detergent dispenser will not shut properly, causing issues with detergent release.",
+            "Error Code E9 is displayed when a button is touched for more than 30 seconds, possibly due to water or something on the button.",
+            "Dishwasher beeps at the end of the cycle, indicating the wash cycle has finished.",
+            "Dishwasher operates too long when connected to cold water or when the sanitize option is selected.",
+            "Dishes are not clean enough if they are loaded too close together or if there is improper use of detergent.",
+            "Spots and filming on dishes can occur due to low water pressure or improper use of detergent.",
+            "Dishwasher does not drain properly if the drain is clogged or the drain hose is kinked."
+        ]
+    },
+    "Bosch_SHE3AR76UC_index": {
+        "filename": "Bosch_SHE3AR76UC.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Bosch",
+        "issues": [
+            "Auto-Close door feature is not functioning properly due to incorrect installation.",
+            "The dishwasher does not start because the door is not properly latched.",
+            "The unit fails to start when the main power switch is not turned on.",
+            "The auto-start is delayed because the delay start function is engaged.",
+            "Dishwasher cycle does not reset or previous cycle not completed.",
+            "Water supply is not turned on, preventing the dishwasher from starting.",
+            "Dishwasher does not start due to an interruption of electrical power supply or a blown fuse.",
+            "The door is closed without first selecting a cycle, preventing the dishwasher from starting.",
+            "Misuse of the dishwasher leading to serious injury or damage due to non-compliance with safety instructions.",
+            "Use of harsh chemicals damaging the dishwasher when cleaning."
+        ]
+    },
+    "Bosch_800_Series_SHX68T55UC_index": {
+        "filename": "Bosch_800_Series_SHX68T55UC.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Bosch",
+        "issues": [
+            "Dishwasher does not start due to the door not being properly latched.",
+            "Display does not illuminate because a fuse may have been blown or circuit breaker tripped.",
+            "Dishwasher does not start if the unit was not reset or the previous cycle not completed.",
+            "Delay start feature is engaged but the dishwasher does not operate as expected.",
+            "Dishwasher does not start if the door was closed without first selecting a cycle.",
+            "Unit fails to start due to water supply not being turned on.",
+            "Dishwasher does not start because of an interruption of electrical power supply or a blown fuse.",
+            "Improper operation of the dishwasher due to failure to follow operating instructions.",
+            "Risk of electrical shock if the appliance is not grounded to a metal, permanent wiring system.",
+            "Use of non-recommended detergents or rinsing agents could lead to poor cleaning performance."
+        ]
+    },
+    "Bosch_SPS4EMI28E_index": {
+        "filename": "Bosch_SPS4EMI28E.pdf",
+        "product_name": "Diswasher",
+        "company_name": "Bosch",
+        "issues": [
+            "Appliance door does not open at the end of the programme due to automatic door opening not being activated.",
+            "All LEDs lit up or flashing indicating that the electronics have detected a fault.",
+            "Appliance door cannot be closed because the door lock has been activated.",
+            "E:90-01 error code lights up alternately due to mains voltage being too low.",
+            "E:92-40 error code lights up alternately because filters are soiled or blocked.",
+            "A different error code appears in the display window from E:01-00 to E:90-10 indicating a technical fault.",
+            "Tableware is not dry due to no rinse aid being used or the dosage being set too low.",
+            "Mechanical damage occurs when the appliance door, its decor, or attached parts knock against adjacent cabinets or the worktop.",
+            "The lid on the detergent dispenser won't close properly.",
+            "The appliance makes unusual noise during operation."
+        ]
+    },
+    "NNCD65NS_NNCD66NS_ENG_USA_index": {
+        "filename": "NNCD65NS_NNCD66NS_ENG_USA.pdf",
+        "product_name": "Microwave",
+        "company_name": "Panasonic",
+        "issues": [
+            "The CHILD SAFETY LOCK is activated and prevents the door from opening or the appliance from functioning.",
+            "The oven causes interference with nearby TV or radio signals when in use.",
+            "The appliance does not operate if it has a damaged cord or plug, or if it has been damaged or dropped.",
+            "The appliance should only be serviced by qualified personnel, and unauthorized attempts at repair may void the warranty or cause further issues.",
+            "The appliance may cause interference with wireless equipment such as Wi-Fi, cordless telephones, and baby monitors.",
+            "Some food items like whole eggs or sealed containers may explode if heated in this oven.",
+            "The cord of the appliance should not be immersed in water to avoid electrical hazards.",
+            "The cord should not be allowed to hang over the edge of a table or counter to prevent accidental pulling or damage.",
+            "The appliance should not be operated if it is not working properly, indicating possible internal faults.",
+            "The appliance's cord should be kept away from heated surfaces to prevent melting or damage."
+        ]
+    },
+    "NNCS89_PA0121_ENG_index": {
+        "filename": "NNCS89_PA0121_ENG.pdf",
+        "product_name": "Microwave",
+        "company_name": "Panasonic",
+        "issues": [
+            "The oven does not power on because it is not securely plugged in or needs a reset.",
+            "The oven fails to start cooking if the door is not completely closed.",
+            "The display shows \"SERVICE,\" indicating an issue with the microwave generation system.",
+            "\"HOT INSIDE WAIT\" message appears, meaning the cavity is overheated.",
+            "The CHILD SAFETY LOCK is activated, preventing operation, which can be deactivated by touching Stop/Reset three times.",
+            "The oven stops cooking unexpectedly, possibly due to an incorrect program or accidental pressing of Stop/Reset.",
+            "The oven causes interference with radio, TV, or other wireless equipment during operation.",
+            "Steam accumulates on the oven door and warm air comes from the vents, which is normal and should be wiped dry after use.",
+            "The oven is not operating properly due to a damaged cord or plug.",
+            "The oven does not start cooking as another program is already entered and needs to be canceled with Stop/Reset."
+        ]
+    },
+    "MFL69962302_EN_index": {
+        "filename": "MFL69962302_EN.pdf",
+        "product_name": "Microwave",
+        "company_name": "LG",
+        "issues": [
+            "Oven does not start even after setting the cooking time.",
+            "Arcing or sparking occurs when using certain cookware.",
+            "The appliance door is difficult to close properly, preventing operation.",
+            "Sensor Cook function does not heat food evenly.",
+            "Defrost function does not defrost food completely by weight.",
+            "Power Level adjustments do not result in expected cooking outcomes.",
+            "Cooked foods are unevenly heated despite following instructions.",
+            "Incorrect time displayed due to possible power interruption.",
+            "The microwave oven makes unusual noises when running empty.",
+            "Microwave-safe cookware is not recognized, leading to cooking issues."
+        ]
+    },
+    "MFL55318536_index": {
+        "filename": "MFL55318536.pdf",
+        "product_name": "Microwave",
+        "company_name": "LG",
+        "issues": [
+            "AUTO COOK function doesn't start even after selecting the food type and entering the weight.",
+            "Incorrect weight entry on the AUTO COOK function results in improper cooking of the food.",
+            "The microwave does not operate when using wooden or ceramic containers with metallic inlays.",
+            "The turntable breaks or gets damaged after being rinsed in water immediately after cooking.",
+            "Microwave energy leakage occurs if there's an obstruction like a kitchen towel between the door and front edges.",
+            "The appliance tips over if not placed 8 cm or more behind the edge of the surface it's on.",
+            "Overcooking can lead to potential fire hazards if cooking times are not correctly set.",
+            "Recycled paper products cause sparks or fires during cooking.",
+            "Small amounts of food overheat and burn if cooked for standard times.",
+            "Food wrapped in paper towels can cause issues if not specified in the cookbook."
+        ]
+    },
+    "MFL51228855_index": {
+        "filename": "MFL51228855.pdf",
+        "product_name": "Microwave",
+        "company_name": "LG",
+        "issues": [
+            "The appliance does not accept metal twist ties, which could cause arcing and damage.",
+            "The steam cooking mode requires specific assembly of the steamer with a steam cover and water bowl, which may be confusing for some users.",
+            "The Speed Hot Air Preheat function might not initiate as expected if the correct accessories are not used.",
+            "The Convection Combination Cooking mode may not function properly if the steam plate and water bowl are not used correctly.",
+            "Users may experience difficulty with the Steam Keep Warm function if accessories are not correctly assembled.",
+            "The EZ Clean function may not work efficiently if the turntable is rinsed in water just after cooking, leading to possible damage.",
+            "Cooking food wrapped in paper towels can lead to overheating or burning if the cookbook instructions are not followed.",
+            "Using ceramic containers with metallic inlays can cause arcing and potentially damage the appliance.",
+            "Recycled paper products may cause sparks or fires due to impurities when used for cooking.",
+            "Overheating and burning of small amounts of food can occur if normal cooking or heating times are not adjusted."
+        ]
+    },
+    "O_01_IB_FULL_ME7500D_ME21DG6700SR_index": {
+        "filename": "O_01_IB_FULL_ME7500D_ME21DG6700SR.pdf",
+        "product_name": "Microwave",
+        "company_name": "Samsung",
+        "issues": [
+            "Steam coming through a crack in the door during cooking or defrosting.",
+            "Water left in the oven after cooking or defrosting.",
+            "Variations in brightness inside the oven due to changes in power output.",
+            "The cooling fan continues to run for about 3 minutes after cooking is finished.",
+            "Pressing the Start button operates the oven unexpectedly.",
+            "Difficulty in operating Auto Cook items by voice control.",
+            "Grease accumulation on the vent-hood filter.",
+            "Risk of electric shock due to improper grounding plug use.",
+            "Potential for electric shock or fire if the appliance is cleaned with water, benzene, thinner, or alcohol.",
+            "Microwave oven efficiency reduced due to food particles or oils stuck inside."
+        ]
+    },
+    "O_MC17T8000CS_AA_EN_index": {
+        "filename": "O_MC17T8000CS_AA_EN.pdf",
+        "product_name": "Microwave",
+        "company_name": "Samsung",
+        "issues": [
+            "The buttons cannot be touched properly due to foreign matter being caught between them.",
+            "The time is not displayed because the Eco (power-saving) function is set.",
+            "The oven does not work if the door is open.",
+            "The thaw function does not work when too much food is being thawed or improper cookware is used.",
+            "The interior light is dim or does not turn on if the door has been left open for a long time.",
+            "A beeping sound occurs during cooking when the Auto Cook function is being used.",
+            "Power is not supplied because the microwave is not plugged in or there is an issue with the fuses or circuit breakers.",
+            "Child Lock is activated, preventing the use of the appliance.",
+            "The oven may not work properly if moisture is on the exterior for touch models.",
+            "The interior light may be covered by foreign matter, affecting its functionality."
+        ]
+    },
+    "O_01_IB_FULL_ME7500D_GOOD_ME21DG6300SR_index": {
+        "filename": "O_01_IB_FULL_ME7500D_GOOD_ME21DG6300SR.pdf",
+        "product_name": "Microwave",
+        "company_name": "Samsung",
+        "issues": [
+            "The interior light is dim or does not turn on when the door is opened.",
+            "A beeping sound occurs during cooking, indicating it's time to turn over the food.",
+            "The oven is not level, affecting cooking performance.",
+            "There are sparks during cooking due to the use of metal containers.",
+            "The oven immediately starts working upon connecting power due to an improperly closed door.",
+            "The power turns off during operation after cooking for an extended period.",
+            "The cooling fan is not working, which may result in overheating.",
+            "Trying to operate the oven without food inside can cause malfunctions.",
+            "There is not enough ventilation space around the oven, affecting performance.",
+            "Several appliances or devices are plugged into the same outlet, causing power issues."
+        ]
+    },
+    "MC17J8000CG_AA_DE68-04224E-02_index": {
+        "filename": "MC17J8000CG_AA_DE68-04224E-02.pdf",
+        "product_name": "Microwave",
+        "company_name": "Samsung",
+        "issues": [
+            "The buttons cannot be pressed properly due to foreign matter caught between them.",
+            "The time is not displayed because the Eco (power-saving) function is set.",
+            "There is a bad smell coming from inside the oven due to food residue or plastic melting.",
+            "The oven does not cook properly if the door is frequently opened during cooking.",
+            "The oven controls are not correctly set, leading to improper cooking results.",
+            "The grill or other accessories are not correctly inserted.",
+            "The appliance does not work because power is not supplied.",
+            "Child lock is activated, preventing operation.",
+            "Some products like whole eggs can explode if heated rapidly.",
+            "Corrosive cleaning agents may damage the vent-hood filter."
+        ]
+    },
+    "ME11A7710D_EN_index": {
+        "filename": "ME11A7710D_EN.pdf",
+        "product_name": "Microwave",
+        "company_name": "Samsung",
+        "issues": [
+            "The buttons cannot be touched properly due to foreign matter being caught between them.",
+            "The time is not displayed because the Eco (power-saving) function is set.",
+            "The oven stops while in operation when the user opens the door to turn food over.",
+            "The power turns off during operation because the oven has been cooking for an extended period of time.",
+            "There is water dripping from the oven, which may be generated by the cooking or defrosting process.",
+            "Steam comes through a crack in the door, generated by the cooking or defrosting process.",
+            "The oven does not work because power is not supplied, and the microwave is not plugged in.",
+            "The cooling fan is not working, leading to overheating during operation.",
+            "Several appliances or devices are plugged into the same outlet, causing power issues.",
+            "There is not enough ventilation space around the oven, affecting its performance."
+        ]
+    },
+    "Miele_en_index": {
+        "filename": "Miele_en.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Miele",
+        "issues": [
+            "The overheating warning light activates and the vacuum cleaner switches off automatically.",
+            "The automatic cable rewind foot switch fails to retract the cable properly.",
+            "The dustbag change indicator does not signal when the dustbag is full.",
+            "The telescopic suction tube release button is stuck and does not allow for adjustments.",
+            "The standby button does not respond, preventing pauses during vacuuming.",
+            "The suction power selector buttons do not adjust the suction power as intended.",
+            "The vacuum cleaner loses suction power unexpectedly.",
+            "The exhaust filter becomes heavily soiled, causing reduced performance.",
+            "The vacuum cleaner fails to start despite being plugged into a power source.",
+            "Blockages in the suction hose or tube affect the vacuum cleaner's performance."
+        ]
+    },
+    "LG_index": {
+        "filename": "LG.pdf",
+        "product_name": "Vacuum",
+        "company_name": "LG",
+        "issues": [
+            "The appliance does not operate because the battery is fully discharged.",
+            "Suction power is too weak due to a full dust bin.",
+            "The product body does not appear to be charging when the power cord is unplugged.",
+            "A strange odor is coming from the appliance if the pre-filter was installed while damp or wet.",
+            "The appliance turns off unexpectedly if the battery is not fully charged.",
+            "The rotating brush does not rotate when it is improperly installed.",
+            "Hot air coming from the product body as a result of the motor cooling.",
+            "The appliance turns off by itself after the motor speed fluctuates repeatedly with clogged filters.",
+            "Foreign objects causing blockage in the product body or extension pipe.",
+            "Dust bin causing odor when it is full of dust."
+        ]
+    },
+    "Bissell_index": {
+        "filename": "Bissell.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Bissell",
+        "issues": [
+            "The vacuum is difficult to push due to incorrect height adjustment.",
+            "Visible dirt escapes from the vacuum caused by a full dirt tank.",
+            "The vacuum won't turn on because the power cord is not plugged in.",
+            "The vacuum won't pick up dirt due to a broken or worn drive belt.",
+            "The rotating floor brush is jammed with debris at the brush ends.",
+            "The hose is not attached to the suction opening, leading to reduced suction.",
+            "The vacuum won't turn on if there is a blown fuse or tripped breaker.",
+            "The vacuum won't pick up dirt due to a crack or hole in the hose.",
+            "Visible dirt escapes from the vacuum when filters are missing or installed incorrectly.",
+            "A polarized plug not fitting an outlet may require a qualified electrician to install a proper outlet."
+        ]
+    },
+    "Shark_NV350_Series_index": {
+        "filename": "Shark_NV350_Series.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Shark",
+        "issues": [
+            "The detachable pod fails to securely attach to the wand, causing a loss of suction.",
+            "Motorized floor nozzle does not engage, resulting in ineffective cleaning on carpets.",
+            "The accessory holder does not properly retain attachments, leading to frequent drops during use.",
+            "The stretch hose collapses during operation, restricting airflow and reducing suction power.",
+            "The 8\" crevice tool fails to fit properly into the designated storage compartment on the vacuum.",
+            "The duster crevice tool loses its ability to extend, limiting its use in tight spaces.",
+            "Vacuum loses suction power over time, potentially due to clogged filters or blockages.",
+            "The polarized plug does not fit into certain outlets, preventing the vacuum from powering on.",
+            "Pet hair becomes tangled in the brush roll, reducing the vacuum's cleaning efficiency.",
+            "Electrical connections within the vacuum become loose, causing intermittent power issues."
+        ]
+    },
+    "Dyson_index": {
+        "filename": "Dyson.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Dyson",
+        "issues": [
+            "The Dyson machine automatically cuts out due to blockages, indicated by the motor pulsing on and off.",
+            "The high torque cleaner head\u2019s brush bar is not washable, leading to potential maintenance difficulties.",
+            "The filter unit requires more frequent washing if used mainly in Boost mode or when vacuuming fine dust.",
+            "The machine is not intended for use by persons with reduced physical, sensory, or reasoning capabilities without supervision.",
+            "The filter unit must be completely dry before refitting, which can take a minimum of 24 hours.",
+            "The machine should not be charged outside of the specified temperature range, which can lead to improper charging.",
+            "The machine should not pick up burning objects or be used near open flames, which could pose a safety hazard.",
+            "The battery may leak liquid that can cause skin, respiratory, or eye irritation if handled improperly.",
+            "Storing the machine near heat sources can lead to damage or malfunction.",
+            "The machine should not be used or stored near water or liquids to prevent electric shock or damage."
+        ]
+    },
+    "Kenmore_en_index": {
+        "filename": "Kenmore_en.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Kenmore",
+        "issues": [
+            "The vacuum cleaner fails to start despite being plugged in and switched on.",
+            "The PowerMate\u00ae attachment does not engage properly with the main unit.",
+            "The Pet PowerMate\u2122 tool fails to pick up pet hair effectively.",
+            "The telescoping wand does not extend or retract smoothly.",
+            "The hose and handle assembly do not fit securely, causing air leaks.",
+            "The crevice tool is difficult to detach from the handle for separate use.",
+            "The vacuum cleaner performs poorly in picking up dirt due to a full or clogged dust bag.",
+            "Circuit breaker trips or fuse blows when the vacuum is used.",
+            "The appliance shows signs of discoloration or surface rust due to improper maintenance.",
+            "Damage occurs from using detergents or cleaners not recommended in the instructions."
+        ]
+    },
+    "Dirt_Devil_en_index": {
+        "filename": "Dirt_Devil_en.pdf",
+        "product_name": "Vacuum",
+        "company_name": "DirtDevil",
+        "issues": [
+            "The vacuum doesn't start due to the power cord not being firmly plugged into the outlet.",
+            "Dust escapes from the vacuum because the dirt cup is not installed correctly.",
+            "The vacuum stops working because the thermal protector has been activated and needs to cool down.",
+            "The vacuum doesn't run as there is no voltage in the wall plug.",
+            "The hose is not installed correctly, leading to reduced suction or dust escaping.",
+            "The vacuum continues to run but the brushroll damages flooring by being left in one location for too long.",
+            "The vacuum doesn't operate due to a blown fuse or tripped breaker.",
+            "The polarized plug doesn't fit fully into the outlet, posing a risk of electric shock.",
+            "The appliance is damaged after being left out in freezing temperatures.",
+            "Sharp objects used to clean out the hose cause damage to it."
+        ]
+    },
+    "Panasonic_index": {
+        "filename": "Panasonic.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Panasonic",
+        "issues": [
+            "Vacuum cleaner won't run due to a tripped overload protector in the nozzle.",
+            "Beater bar does not turn because the Carpet/Bare Floor selector is in the wrong position.",
+            "Poor job of dirt pick-up caused by a worn beater bar.",
+            "Motor protection system activated due to clogs.",
+            "Vacuum cleaner won't run because the thermal protector has tripped.",
+            "Beater bar does not turn due to a worn or broken belt.",
+            "Vacuum cleaner won't run because it is unplugged at the mains socket.",
+            "Poor job of dirt pick-up due to a full or clogged dust bin.",
+            "Beater bar does not turn because the belt is worn or broken.",
+            "Poor job of dirt pick-up because of a dirty pre-filter, primary filter, and/or exhaust filter."
+        ]
+    },
+    "Hoover_BH53010CDI_index": {
+        "filename": "Hoover_BH53010CDI.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Hoover",
+        "issues": [
+            "The charging LEDs flash, indicating a unit error that requires contacting customer service.",
+            "The mode LEDs flash due to the brush roll stalling, requiring the product to be turned off to reset stall protection.",
+            "Dust escapes from the vacuum because the dirt cup is not installed correctly.",
+            "The filter is dirty and needs to be rinsed to maintain optimal performance.",
+            "The dirt cup is full and needs to be emptied to prevent dust from escaping.",
+            "The rinsable filter and/or separator is not installed completely, causing dust to escape.",
+            "Appliance does not operate on wet surfaces, as it is not designed for use on such surfaces.",
+            "Appliance stops working if exposed to rain, as it must be stored indoors and kept dry.",
+            "Charger cannot be used if it has a damaged cord or plug, which may prevent the appliance from charging.",
+            "Appliance should not be used as a toy and requires close supervision when used near children to prevent injury."
+        ]
+    },
+    "eureka_NEU180_index": {
+        "filename": "eureka_NEU180.pdf",
+        "product_name": "Vacuum",
+        "company_name": "Eureka",
+        "issues": [
+            "The motor will not start, possibly due to a loose plug or circuit breaker issues.",
+            "The vacuum cleaner suddenly shuts off due to motor overheating and requires a 30-minute cool-down period.",
+            "There is no suction at the end of the hose or wand, which may be caused by clogs in the hose or wand.",
+            "A burning smell is detected, and the brush roll will not turn, indicating debris in the brush roll or a broken belt.",
+            "The vacuum is difficult to push, suggesting the vacuum height adjustment knob needs repositioning.",
+            "The turbo brush does not turn, which could be due to debris in the turbo brush.",
+            "The vacuum cleaner does not clean floors effectively, potentially due to a full dust cup, or clogged filters.",
+            "The appliance fails to pick up burning or smoking objects, which should be avoided for safety reasons.",
+            "The vacuum cleaner creates suction, and its revolving brush roll requires careful handling to avoid injury.",
+            "The appliance should not be used to pick up flammable or combustible liquids, as this poses a fire hazard."
+        ]
+    },
+    "TCL_TV_index": {
+        "filename": "TCL_TV.pdf",
+        "product_name": "Television",
+        "company_name": "TCL",
+        "issues": [
+            "Poor picture quality due to a VHS camera or camcorder being connected simultaneously.",
+            "Ghost or double image caused by obstruction to the antenna from high-rise buildings or hills.",
+            "Horizontal dotted lines appearing on the screen due to electrical interference.",
+            "Remote control not working due to strong fluorescent lighting affecting the remote sensor window.",
+            "Remote control not functioning because of dead batteries.",
+            "Issues with picture being too dark, too light, or tinted due to incorrect color, brightness, or sharpness settings.",
+            "Overheating of the TV due to blocked ventilation holes.",
+            "Power surges potentially damaging the TV if plugged into an outlet controlled by a wall switch.",
+            "Audio interference caused by improperly positioned cables.",
+            "Poor ventilation when the TV is placed on a stand without adequate airflow."
+        ]
+    },
+    "LG_HD_TV_index": {
+        "filename": "LG_HD_TV.pdf",
+        "product_name": "Television",
+        "company_name": "LG",
+        "issues": [
+            "The screen color is unstable or mono-colored due to incorrect LVDS cable connection on the 26TS30MF model.",
+            "After-image appears on the 47TS30MF when turned off, especially if a fixed image is used for a long time.",
+            "Temporary noise is experienced when powering ON or OFF the 26TS30MF model.",
+            "Black spots appear on the screen of the 47TS30MF model due to pixel characteristics of the LCD panel.",
+            "Incorrect portrait layout setup on the 47TS30MF can lead to display issues.",
+            "Improper storage method can cause panel protection issues in the 47TS30MF model.",
+            "Missing accessories upon purchase or unboxing of the device.",
+            "Damages or injuries caused by using unapproved parts or accessories are not covered by warranty.",
+            "The owner's manual may not match the model due to variations or upgrades in product specifications.",
+            "Changes in product specifications or manual contents without prior notice can cause confusion in troubleshooting."
+        ]
+    },
+    "Sony_LCD_TV_index": {
+        "filename": "Sony_LCD_TV.pdf",
+        "product_name": "Television",
+        "company_name": "Sony",
+        "issues": [
+            "The Wall-Mount Bracket may fall if the supplied screws and anchors are not used, potentially causing injury or property damage.",
+            "Installation over or under an air-conditioner can expose the TV or LCD Display to water leaks or air currents, leading to fire or electric shock.",
+            "Failure to assemble the bracket properly according to the manual can result in the TV or LCD Display falling.",
+            "Using substitute items instead of the supplied attachment parts can cause the TV or LCD Display to fall and cause injury or damage.",
+            "Loose screws during installation can result in the Wall-Mount Bracket detaching from the wall.",
+            "Improper placement of the AC power cord can cause a fire or electric shock through a short circuit.",
+            "The TV or LCD Display may topple over if not securely installed, leading to potential injuries.",
+            "Inadequate support from the wall material may cause the Wall-Mount Bracket to fail.",
+            "The cord and cable getting twisted or pinched during installation can lead to operational problems.",
+            "Moving the TV or LCD Display without holding it firmly from the bottom can result in damage or injury."
+        ]
+    },
+    "Sony_LCD_TV2_index": {
+        "filename": "Sony_LCD_TV2.pdf",
+        "product_name": "Television",
+        "company_name": "Sony",
+        "issues": [
+            "The TV fails to respond to the remote control due to varying remote control button functions depending on the region or model.",
+            "The Google Assistant or voice search does not work, possibly due to an Internet connection requirement.",
+            "Wall-mount installation issues arise if the SU-WL855 bracket is not used, as it's recommended.",
+            "The LED sensor not functioning correctly, as the location and availability may vary by model.",
+            "Difficulty in accessing the on-screen Help Guide using the remote control.",
+            "Problems with digital program guide display due to region/model-specific differences.",
+            "Electric shock risk when using an AC plug with an unsuitable extension cord or receptacle.",
+            "Limited availability of digital cable television programming depending on the cable service provider.",
+            "Difficulty operating the TV outside the 110 V \u2013 240 V AC range.",
+            "Incorrect settings result in the inability to switch between TV channels or input sources using the remote control."
+        ]
+    },
+    "Samsung_QLED_TV_index": {
+        "filename": "Samsung_QLED_TV.pdf",
+        "product_name": "Television",
+        "company_name": "Samsung",
+        "issues": [
+            "\"Weak or No Signal\" is displayed in TV mode or channels cannot be found.",
+            "The TV is not receiving all available channels.",
+            "A message appears saying \"Wireless One Connect is disconnected\" when viewing content.",
+            "Cannot select Broadcast Signal in Self Diagnosis mode.",
+            "The settings are lost after 5 minutes or every time the TV is turned off.",
+            "The TV narrates the screen events in a voice-over unexpectedly.",
+            "The video is okay but there is no audio when using external devices.",
+            "The TV is hot to the touch during operation.",
+            "The TV makes a popping noise intermittently.",
+            "There is a failure to connect to a wireless network or access point."
+        ]
+    },
+    "Samsung_HD2_index": {
+        "filename": "Samsung_HD2.pdf",
+        "product_name": "Television",
+        "company_name": "Samsung",
+        "issues": [
+            "There is a plastic smell from the TV that persists initially.",
+            "TV is tilted to the right or left side even after setup.",
+            "The TV Signal Information is unavailable in the Self Diagnosis Test menu.",
+            "A \"Mode Not Supported\" message appears on the screen.",
+            "The TV turned on by itself after being turned off 45 minutes ago.",
+            "You see small particles when you look closely at the edge of the frame of the TV.",
+            "There is no picture/video on the screen.",
+            "The remote control does not work even after replacing the batteries.",
+            "The cable/set top box remote control doesn\u2019t turn the TV on or off, or adjust the volume.",
+            "Difficulties may arise when assembling the stand base of the TV."
+        ]
+    },
+    "Samsung_HD_index": {
+        "filename": "Samsung_HD.pdf",
+        "product_name": "Television",
+        "company_name": "Samsung",
+        "issues": [
+            "The TV picture quality is poor, and the test image is not displayed properly during the Picture Test.",
+            "The TV image does not look as good as it did in the store when using an analogue cable/set top box.",
+            "The PIP (Picture-in-Picture) menu is unavailable when not using an HDMI or components source.",
+            "The TV turns on by itself 45 minutes after being turned off due to the OTA function.",
+            "Small particles are visible at the edge of the TV frame, which is part of the product's design.",
+            "The message \u201cThis file may not be playable properly.\u201d appears due to high bit rate content.",
+            "Recurrent picture or sound issues that may require checking and changing the signal/source.",
+            "Electric shock or equipment damage risk when not using a properly grounded plug and wall outlet.",
+            "Damage to furniture surfaces caused by rubber cushion pads on the TV base stand.",
+            "Potential damage to the TV's appearance when cleaned with chemicals such as wax, benzene, or alcohol."
+        ]
+    },
+    "Philips_LED_index": {
+        "filename": "Philips_LED.pdf",
+        "product_name": "Television",
+        "company_name": "Philips",
+        "issues": [
+            "Users cannot access the Help function while using activities like Text where the colour keys have specific functions.",
+            "Difficulty in downloading the Help manual in PDF format for offline access or printing.",
+            "TV does not register with the support site, limiting access to privileged information and support benefits.",
+            "Internet App feature does not function properly due to uncleared internet memory.",
+            "Issues with HDMI connection not displaying tips when required.",
+            "Inability to adjust the Headphone volume to desired levels.",
+            "The Home Theatre System volume levelling does not work effectively, leading to inconsistent audio levels.",
+            "Media server software compatibility issues with the TV, preventing media sharing.",
+            "Language menu settings fail to change, causing user interface language problems.",
+            "Key beep sound remains active even when users attempt to mute it."
+        ]
+    },
+    "Toshiba_TV_index": {
+        "filename": "Toshiba_TV.pdf",
+        "product_name": "Television",
+        "company_name": "Toshiba",
+        "issues": [
+            "Black box appears on screen due to the closed caption feature set to one of the Text modes (T1, T2, T3, or T4).",
+            "TV stops responding to the remote control or TV control panel, requiring a power cycle.",
+            "TV will not turn on, potentially due to dead remote control batteries or power cord issues.",
+            "Picture problems due to incorrect antenna/cable connections.",
+            "Damage or service issues from modifications not approved in writing by TCL.",
+            "Issues with firmware updates that are not performed via a USB stick or SD card as posted on the Toshiba Support website.",
+            "Damage to the appliance from improper installation near heat sources like radiators or stoves.",
+            "Issues resulting from failure to use specified attachments/accessories by the manufacturer.",
+            "Problems arising from the appliance being walked on or pinched power cords.",
+            "Appliance malfunction due to improper grounding or use of outdated outlets without consulting an electrician."
+        ]
+    },
+    "bosch_fridge_index": {
+        "filename": "bosch_fridge.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "Bosh",
+        "issues": [
+            "Display indicates an error with an \"E...\" message, requiring customer service contact.",
+            "Alarm off button flashes and a warning signal sounds, needing user intervention.",
+            "Refrigerator compartment remains open, triggering an alarm.",
+            "Ventilation openings are covered, affecting appliance performance.",
+            "The appliance is not level, causing unnecessary noise.",
+            "The appliance's LED light requires repair by customer service or authorized technicians.",
+            "The power plug is not inserted properly, disrupting the appliance's operation.",
+            "The fuse has tripped, causing the appliance to stop functioning.",
+            "The temperature inside the appliance is too warm or too cold, requiring manual adjustment.",
+            "Unpleasant odors develop inside the appliance, necessitating a thorough cleaning."
+        ]
+    },
+    "whirlpool_fridge_index": {
+        "filename": "whirlpool_fridge.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "Whirlpool",
+        "issues": [
+            "Doors are difficult to open due to dirty or sticky gaskets.",
+            "Refrigerator doors do not close completely because the door is blocked open by food packages.",
+            "Doors appear to be uneven, indicating a need for alignment or leveling.",
+            "Refrigerator rocks and is not stable, suggesting the need for leveling adjustments.",
+            "Ice maker is not producing ice, implying potential issues with ice production mechanisms.",
+            "Cosmetic damage such as scratches or dents, which must be reported within 30 days from the date of purchase.",
+            "Appliance fails to operate due to the use of an extension cord or adapter instead of a grounded 3 prong outlet.",
+            "Risk of fire or electric shock if the refrigerator is not plugged into a grounded outlet or if the ground prong is removed.",
+            "Failure to disconnect power before servicing, posing a risk of electric shock.",
+            "Refrigerator located in a remote area incurs additional expenses for travel and transportation for service."
+        ]
+    },
+    "LG_fridge3_index": {
+        "filename": "LG_fridge3.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "LG",
+        "issues": [
+            "Doors will not close correctly or pop open due to food packages blocking the door.",
+            "Ice bin, crisper cover, pans, shelves, door bins, or baskets are out of position, preventing proper door closure.",
+            "Refrigerator doors were removed during installation and not properly replaced, causing alignment issues.",
+            "Difficulty in opening doors because the gaskets are dirty or sticky.",
+            "Trouble connecting the appliance to a Wi-Fi network if the wireless network name (SSID) is set incorrectly.",
+            "Wi-Fi connection issues if the router frequency is not 2.4 GHz.",
+            "Refrigerator is not leveled properly, affecting door alignment and operation.",
+            "The appliance and the router are too far apart, leading to a weak Wi-Fi signal and connection problems.",
+            "During Wi-Fi setup, the app requests a password to connect to the product, causing confusion.",
+            "Audible diagnosis is interrupted if the phone is not correctly placed near the refrigerator's speaker."
+        ]
+    },
+    "LG_fridge2_index": {
+        "filename": "LG_fridge2.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "LG",
+        "issues": [
+            "Icemaker is not making enough ice due to a reverse osmosis filtration system reducing water pressure.",
+            "Tubing connecting the refrigerator to the house supply valve is kinked, resulting in reduced water flow.",
+            "Doors are often opened or left open for long periods, impacting the refrigerator's ability to maintain the set temperature.",
+            "Wi-Fi connection issues if the password for the Wi-Fi network is entered incorrectly.",
+            "The wireless network name (SSID) is set incorrectly, preventing the appliance from connecting to the network.",
+            "The router frequency is not set to 2.4 GHz, which is required for the appliance to connect to the wireless network.",
+            "The appliance and the router are too far apart, leading to a weak signal and connectivity problems.",
+            "Mobile data on the smartphone is turned on, interfering with the connection process between the appliance and the network.",
+            "Changes in the wireless router, Internet service provider, or password requiring the appliance to be reconnected to the LG ThinQ application.",
+            "Audible diagnosis not functioning correctly if the display lock on the refrigerator has been activated for over five minutes."
+        ]
+    },
+    "LG_French_Fridge_index": {
+        "filename": "LG_French_Fridge.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "LG",
+        "issues": [
+            "The fridge doors do not open wide enough due to an uneven refrigerator level.",
+            "The SmartThings app fails to operate specifically with Samsung Smart Home models.",
+            "The SmartThings app is installed but not connected because the Wi-Fi icon on the refrigerator's display is off.",
+            "Water flow is weaker than normal due to low water pressure in the connected supply.",
+            "Ice maker makes a buzzing sound because the water supply to the refrigerator has not been connected.",
+            "Ice does not dispense because the ice bucket is not properly inserted.",
+            "Could not find the SmartThings app in the app market due to changes in OS supporting policy.",
+            "Ice maker does not make ice immediately after installation; it requires 24 hours to start producing ice.",
+            "Freezer temperature is too high, affecting the ice-making process.",
+            "Ice may jam if the ice dispenser is not used for a long time, approximately 3 weeks."
+        ]
+    },
+    "Fridge_GE_manual_index": {
+        "filename": "Fridge_GE_manual.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "GE",
+        "issues": [
+            "Automatic icemaker does not work when the icemaker switch is in the OFF position.",
+            "Water filter is not properly installed, causing a water leak.",
+            "Interior light does not work due to a burned-out bulb.",
+            "Hot air is expelled from the bottom of the refrigerator, which might discolor sensitive floor coverings.",
+            "Refrigerator never shuts off but maintains correct temperatures due to adaptive defrost.",
+            "Cubes can become jammed in the chute, leading to water on the kitchen floor or bottom of the freezer.",
+            "Experience of fog or small amounts of moisture in the refrigerator compartment.",
+            "Ice cubes have an odor or taste, indicating the need to clean the ice storage bin.",
+            "Interior light does not work because there is no power at the outlet.",
+            "Food transmitting odors or tastes to ice cubes due to improper food wrapping."
+        ]
+    },
+    "fridge-owners-manual_index": {
+        "filename": "fridge-owners-manual.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "GE",
+        "issues": [
+            "Water filter indicator light remains lit after replacing the filter.",
+            "Handle is loose or has a gap, requiring adjustment.",
+            "Refrigerator beeps due to the door alarm.",
+            "No water or ice cube production because the supply line or shutoff valve is clogged.",
+            "Water is leaking from the dispenser due to air presence in the water line system.",
+            "Freezer cooling while fresh food section is not cooling when the refrigerator is first plugged in.",
+            "Not cooling due to the cooling system being off.",
+            "Water has poor taste or odor, potentially indicating a need for filter replacement.",
+            "Ice dispenser opens after closing the freezer drawer, considered a normal occurrence.",
+            "Water filter indicator light is not lit, indicating a need to replace the filter soon."
+        ]
+    },
+    "Samsung_one_door_index": {
+        "filename": "Samsung_one_door.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "Samsung",
+        "issues": [
+            "The UV LED lamp causes eye strain when stared at for long periods.",
+            "Unauthorized modifications may lead to safety problems and incur full cost charges for parts and labor.",
+            "Issues with reversing an unauthorized modification can lead to additional charges.",
+            "The feature panel may not function correctly if protective plastic film is not removed before initial use.",
+            "Grounding issues might cause severe electric shock if the refrigerator is not safely grounded.",
+            "Reinstallation not performed by a service center may result in electric shock or product problems.",
+            "Standing on the appliance or placing objects on it may result in electric shock or fire.",
+            "Using non-standard fuses could lead to safety issues such as electric shock or fire.",
+            "Placing a container filled with water on the appliance risks fire or electric shock if spilled.",
+            "Damage to the refrigerant circuit may cause operational problems or safety hazards."
+        ]
+    },
+    "Samsung_fridge_side_index": {
+        "filename": "Samsung_fridge_side.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "Samsung",
+        "issues": [
+            "The AI Vision Inside feature doesn't recognize or manage the ingredients stored in the refrigerator.",
+            "The AI Energy Mode icon does not appear even when the mode is supposed to be operating.",
+            "Power Cool function indicator fails to display when the function is active.",
+            "The SmartThings app fails to connect to the refrigerator for remote control.",
+            "The App dock handler does not appear on the Home screen as expected.",
+            "The Fridge Manager does not allow setting the desired temperature or modes for each compartment.",
+            "Abnormal sounds are heard from the refrigerator during operation.",
+            "The Power Freeze function does not activate or indicate when in use.",
+            "The freezer does not maintain the set temperature accurately.",
+            "The App tray button does not respond when tapped to view all available apps."
+        ]
+    },
+    "samsung_fridge_index": {
+        "filename": "samsung_fridge.pdf",
+        "product_name": "Refrigerator",
+        "company_name": "Samsung",
+        "issues": [
+            "The ice maker fails to indicate the correct status with the Ice Maker On/Off indicators.",
+            "The Water Filter indicator does not reset after replacing the filter.",
+            "The Peak Demand indicator does not display the correct status of the Peak Demand function.",
+            "AutoFill pitcher does not fill automatically on applicable models.",
+            "The Quick Space shelf does not adjust or lock into place properly.",
+            "Beverage Center door does not close securely on dispenser models.",
+            "The refrigerator is overfilled, causing items to fall out and potentially cause injury.",
+            "Volatile materials were sprayed onto the appliance, leading to an electric shock or fire hazard.",
+            "Placing flammable substances inside the refrigerator results in risk of fire or damage.",
+            "Using a hair dryer to dry the inside of the refrigerator leads to an electric shock or fire hazard."
+        ]
+    },
+    "Black_Decker_bl2010bp_index": {
+        "filename": "Black_Decker_bl2010bp.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "BlackDecker",
+        "issues": [
+            "The measuring cup lid insert (part # Bl2010WG-01) does not fit securely, causing spills during blending.",
+            "The blade assembly does not align properly with the gasket, leading to leaks.",
+            "The blending jar fails to lock into the power base, preventing the blender from operating.",
+            "The appliance does not turn on despite being plugged in, possibly due to a faulty power base connection.",
+            "The lid does not seal properly, allowing contents to splash out during use.",
+            "The blending jar cannot be removed easily from the power base after blending.",
+            "The appliance creates unusual noises during operation, indicating possible blade assembly misalignment.",
+            "Ice crushing function does not crush ice effectively, resulting in large chunks remaining.",
+            "Liquid spills onto the base and causes difficulty in cleaning, as the base cannot be immersed in water.",
+            "The appliance stops working mid-operation, potentially due to overheating or a malfunctioning motor."
+        ]
+    },
+    "Hamilton_Beach_en_index": {
+        "filename": "Hamilton_Beach_en.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Hamilton Beach",
+        "issues": [
+            "The unit does not operate on any speed or Pulse despite being plugged in.",
+            "The unit stops during operation and will not come back on due to motor overload protection.",
+            "A burning smell emanates from the unit, potentially indicating a manufacturing residue or overheating.",
+            "The bowl is difficult to remove from the base after use.",
+            "Food is not sliced or shredded uniformly, possibly due to packing too much food or pushing too hard.",
+            "Cheese does not shred well, which may be related to incorrect processing techniques or settings.",
+            "The outlet may not work, affecting the appliance's operation.",
+            "The bowl and lid are not locked in place, preventing the appliance from operating properly.",
+            "Electrical shock risk if the base, motor, cord, or plug is immersed in water or other liquid.",
+            "Vegetables are not shredding or slicing as expected, which could be due to incorrect food size or quantity."
+        ]
+    },
+    "Cuisinart_FP-14BKC_index": {
+        "filename": "Cuisinart_FP-14BKC.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Cuisinart",
+        "issues": [
+            "The dough control button does not work unless the ON button is selected after activating the dough function.",
+            "The food processor does not start because the work bowl and cover are not securely locked into position.",
+            "The food processor shuts off during operation.",
+            "Nub of dough forms on top of blade and does not become uniformly kneaded.",
+            "Dough feels tough after kneading, requiring redistribution and further processing to become soft and pliable.",
+            "Food falls over in the feed tube because it is not packed full enough for optimal processing.",
+            "Dough is too dry, requiring additional water to achieve the correct consistency.",
+            "Dough is too wet, needing more flour to clean the inside of the bowl.",
+            "The food is unevenly processed due to unevenly cut ingredients or overloading the work bowl.",
+            "Slices are uneven or slanted because food is not placed evenly in the feed tube or uneven pressure is applied on the pusher."
+        ]
+    },
+    "Philips_HR3760_en_index": {
+        "filename": "Philips_HR3760_en.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Philips",
+        "issues": [
+            "Rotary knob does not wake up the appliance from standby mode.",
+            "The appliance does not power off when the rotary knob is pressed and held for 2 seconds.",
+            "Quick select program cannot be confirmed after turning the rotary knob.",
+            "Blender jar exceeds maximum capacity indication causing overflow.",
+            "Tumbler seal ring does not fit properly leading to leakage.",
+            "Mill attachment fails to connect securely to the motor unit.",
+            "Food sticks to the wall of the blender jar and cannot be removed easily.",
+            "Ingredients hotter than 80\u02daC cause damage to the blender jar.",
+            "The appliance generates excessive noise, beyond the 83 dB(A) level.",
+            "The thermal cut-out resets inadvertently, interrupting operation."
+        ]
+    },
+    "Kenwood_en_index": {
+        "filename": "Kenwood_en.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Kenwood",
+        "issues": [
+            "The appliance does not operate if the plug or cord is damaged, and it must be replaced by Kenwood or an authorized repairer.",
+            "Users might encounter a scald risk if hot ingredients are processed, as the appliance is not designed to handle hot ingredients.",
+            "The appliance may be damaged if operated continuously for longer than the recommended times in the usage chart.",
+            "The mini chopper/mill attachment may draw the maximum load, causing the appliance to overheat if used improperly.",
+            "Failure to comply with the instructions for domestic use may result in the appliance malfunctioning or Kenwood not accepting liability.",
+            "The appliance may eject hot liquid if poured in quickly, due to sudden steaming, posing a risk of injury.",
+            "Children cannot use the appliance, and it must be kept out of their reach, which may limit household convenience.",
+            "The blades and discs are very sharp, increasing the risk of injury if not handled with care during cleaning or handling.",
+            "Exceeding the maximum capacities stated in the recommended usage chart can lead to appliance damage.",
+            "Users may face difficulty if they lack the supervision or instruction necessary for safe appliance use, especially those with reduced physical, sensory, or mental capabilities."
+        ]
+    },
+    "Vitamix-5200_index": {
+        "filename": "Vitamix-5200.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Vitamix",
+        "issues": [
+            "Blender overheats and shuts off due to Automatic Overload Protection when blending at low speed for too long.",
+            "Blender does not operate when the lid and lid plug are not securely in place.",
+            "The motor fails to cool properly when not using High speed, leading to potential overheating.",
+            "Food fails to circulate in the blender, causing the machine to stall or become overloaded.",
+            "Difficulty in releasing trapped air bubbles, which affects blending efficiency.",
+            "Machine malfunctions or fails to operate due to a damaged cord or plug.",
+            "Risk of electrical shock if the blender base is submerged in water or other liquid.",
+            "Blender does not turn on or off properly if plugged into an ungrounded outlet.",
+            "Appliance may pose a safety risk if used unattended, particularly near children or incapacitated individuals.",
+            "Risk of burns or scalding when blending hot liquids or ingredients without proper precautions."
+        ]
+    },
+    "Ninja_BL770_index": {
+        "filename": "Ninja_BL770.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Ninja",
+        "issues": [
+            "Motor doesn\u2019t start or the blade assembly doesn\u2019t rotate.",
+            "Food is unevenly chopped due to overloading or unevenly sized pieces.",
+            "Food is chopped too fine or becomes too watery because of over-processing.",
+            "Food collects on the lid or sides of the container, indicating the mixture is too thick.",
+            "Cannot achieve snow from solid ice when using ice that has started to melt.",
+            "Motor base won\u2019t stick to the counter or tabletop.",
+            "The appliance does not turn on because the power button is not pressed.",
+            "The unit overheats or overloads, requiring a cooling period before reuse.",
+            "The container is not securely locked on the motor base, preventing operation.",
+            "The lid is not securely on the container in the correct position, affecting functionality."
+        ]
+    },
+    "Oster_en_index": {
+        "filename": "Oster_en.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Oster",
+        "issues": [
+            "The container cover does not securely lock in place, preventing the appliance from operating.",
+            "The polarized plug does not fit into the outlet, and reversing the plug still fails to fit.",
+            "The food processor does not power on after being dropped or damaged.",
+            "The blade or processing disk is not properly placed before turning on the appliance, causing malfunction.",
+            "The control knob does not respond when trying to switch between different speed settings.",
+            "The food chute lid does not properly close, affecting the processing of food.",
+            "The appliance doesn't turn off even when the switch is set to the OFF (O) position.",
+            "The cord touches hot surfaces, potentially leading to damage or a safety hazard.",
+            "The food processor is used with attachments not recommended by the manufacturer, leading to potential risks.",
+            "The appliance fails to operate when the container is not correctly positioned on the motor base."
+        ]
+    },
+    "Breville_BFP800_Eng_index": {
+        "filename": "Breville_BFP800_Eng.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "Breville",
+        "issues": [
+            "Food is unevenly processed due to not cutting ingredients into 2.5cm pieces.",
+            "Motor slows down when kneading dough because the amount of dough exceeds maximum capacity.",
+            "Slices are slanted or uneven if food is not placed evenly in the feed chute.",
+            "Food falls over in the feed chute when it's not packed full or incorrectly positioned.",
+            "French fries cutter becomes blocked, requiring clearing before processing more potatoes.",
+            "Malfunction of the processing bowl\u2019s auto switch occurs if the processing lid is left in the locked position when not in use.",
+            "Ingredients need to be processed in batches to avoid overloading.",
+            "Some food remains on top of the disc after processing, which is considered normal.",
+            "The appliance should not be used if the power supply cord, plug, or appliance is damaged.",
+            "This appliance should not be used by children or persons without proper supervision or instruction."
+        ]
+    },
+    "KitchenAid_index": {
+        "filename": "KitchenAid.pdf",
+        "product_name": "Blender-FoodProcessor",
+        "company_name": "KitchenAid",
+        "issues": [
+            "The appliance does not turn on even when plugged in.",
+            "The blades or discs do not move during operation.",
+            "The appliance stops working during use and won't restart.",
+            "The lid does not lock securely, preventing the processor from operating.",
+            "The food processor makes an unusual noise when in use.",
+            "The food processor vibrates excessively when processing food.",
+            "The cord is damaged or frayed, posing a risk of electrical shock.",
+            "The food processor is difficult to clean due to food getting stuck in crevices.",
+            "The appliance emits a burning smell during operation.",
+            "The processor's attachments do not fit securely onto the base."
+        ]
+    },
+    "bluewater_index": {
+        "filename": "bluewater.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "BlueWater",
+        "issues": [
+            "The ON/OFF light flashes indicating the water purifier is flushing.",
+            "Pro 400: The need to replace FILTER I when the water purifier signals.",
+            "Pro 600: The need to replace FILTER I and II when notified by the water purifier.",
+            "The inlet water pressure is too low, causing the water purifier to stop.",
+            "Pro 400: The requirement to replace FILTER II due to system performance issues.",
+            "Pro 600: The requirement to replace both FILTER I and II due to system performance issues.",
+            "The Inlet Grid Filter is blocked, preventing proper water flow.",
+            "The water purifier does not restart automatically after low water pressure is resolved.",
+            "The user is unaware that the \"PURIFICATION LEVEL II or LEVEL III\" light must turn green before using the purified water.",
+            "The water purifier's emergency stop is engaged, requiring a manual reset."
+        ]
+    },
+    "aquafilter_index": {
+        "filename": "aquafilter.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "AquaFilter",
+        "issues": [
+            "FP3-2 system leaks when connected to the water supply.",
+            "FP3-K1 system's cartridge replacement causes water to flow at reduced pressure.",
+            "FP3-HJ-K1 system's water softening cartridge does not fit properly.",
+            "FP3-4 system's membrane element is difficult to install due to tight housing.",
+            "FP3-5 system frequently loses warranty coverage due to non-compliance with installation instructions.",
+            "FP3-3 system requires specific inlet water temperature not always achievable in all climates.",
+            "The system leaks after filter cartridge or membrane element replacements.",
+            "Inlet water pressure exceeds the recommended range, causing operational issues.",
+            "Using non-genuine replacement parts leads to poor performance.",
+            "The system's water supply adapter does not fit standard plumbing connections."
+        ]
+    },
+    "brita_index": {
+        "filename": "brita.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Brita",
+        "issues": [
+            "Filter replacement indicator fails to activate when it's time to change the filter.",
+            "Water purifier does not connect to the app via Wi-Fi despite following the setup instructions.",
+            "Voltage mismatch error occurs even when the supplied voltage corresponds to the manual.",
+            "Feed water condition indicator flashes an error, but the feed conditions match those specified in the manual.",
+            "The appliance does not start purifying water after installation by a BRITA Authorized Service Representative.",
+            "Indicator lights do not function as described in the product overview section.",
+            "The purifier makes unusual noises during operation.",
+            "Water leakage is observed from the purifier when in use.",
+            "The purifier does not power on even when plugged into a power source.",
+            "The appliance stops working without any visible damage or error indicators."
+        ]
+    },
+    "brondell2_index": {
+        "filename": "brondell2.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Brondell",
+        "issues": [
+            "The faucet battery needs frequent replacement, leading to potential interruptions in operation.",
+            "Difficulty in aligning the filter label and filter base during filter installation, causing improper setup.",
+            "The filter change indicator does not accurately signal when the filters need replacement.",
+            "Users may forget to track filter changes due to the separate replacement cycles of the RO filter and others.",
+            "The system may not perform properly if the reverse osmosis component is replaced with one of different specifications.",
+            "The manual's troubleshooting section is not detailed enough to address specific operational failures.",
+            "Water flow issues caused by incorrect installation of the drain clamp.",
+            "Potential safety hazard if the unit is installed near heaters or flammable objects are placed on it.",
+            "Damage may occur if dishes or containers are placed on top of the product.",
+            "Incorrect cleaning methods, such as using benzene, may damage the appliance."
+        ]
+    },
+    "brondell3_index": {
+        "filename": "brondell3.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Brondell",
+        "issues": [
+            "No water flow even when the appliance is powered and connected.",
+            "Insufficient water flow due to bent or twisted tubing.",
+            "Water tastes or smells bad, indicating expired filters.",
+            "Leak surrounding one of the hose connections due to improper insertion.",
+            "Water supply valve not turned on all the way, affecting flow.",
+            "Filter change reminder LED indicator not resetting after battery replacement.",
+            "Sharp decrease in water flow due to colder tap water temperatures.",
+            "Water leak occurring when the unit is placed on an uneven surface.",
+            "Water purification quality diminishes when filters are exhausted.",
+            "Water pressure rise during cold weather causing potential leaks."
+        ]
+    },
+    "Brondell_index": {
+        "filename": "Brondell.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Brondell",
+        "issues": [
+            "No water comes out of the unit due to the faucet diverter/T-valve being closed.",
+            "The button on top of the unit is not working because the water pressure might be too high.",
+            "Low volume of filtered water might occur if the water temperature drops dramatically.",
+            "Poor aftertaste or bad smell from water if the filters are not replaced periodically.",
+            "Condensation on the product's main body due to high temperature or humidity levels.",
+            "The unit may not function properly if installed in a non-level area or if force is applied to it.",
+            "Water flow is restricted due to filters not being regularly replaced.",
+            "The appliance may not work correctly if the water supply valve is closed.",
+            "It is unsuitable to use the filtered water for aquarium or fishbowl water exchange.",
+            "The appliance may not perform effectively if used with microbiologically unsafe water without proper disinfection."
+        ]
+    },
+    "whirlpool_whapspro_index": {
+        "filename": "whirlpool_whapspro.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Whirlpool",
+        "issues": [
+            "Treated water has Total Dissolved Solids (TDS) levels outside the system\u2019s performance guidelines.",
+            "Continuous water flow to drain and low or no water production.",
+            "Water leaking from the faucet airgap hole.",
+            "Plugged drain flow control insert causing performance issues.",
+            "Missing flow control insert in the drain port.",
+            "Incorrect connection of the drain side of the faucet airgap leading to a restriction or plug.",
+            "Need for periodic testing of product water to verify system performance.",
+            "Requirement to replace reverse osmosis component with identical specifications for efficiency.",
+            "Proper installation requires a suitable drain point for waste water.",
+            "Necessity for a remote interior location with a nearby water source and drain point for installation."
+        ]
+    },
+    "whirlpool_whar_index": {
+        "filename": "whirlpool_whar.pdf",
+        "product_name": "WaterPurifier",
+        "company_name": "Whirlpool",
+        "issues": [
+            "Continual water flow to drain and low or no water production due to a plugged drain flow control insert.",
+            "Missing flow control insert in the drain port causing continual water flow to drain.",
+            "Water leaking from faucet airgap hole because the drain side of the faucet airgap tubing is plugged or incorrectly connected.",
+            "Water leaks at push connect fittings due to tubing not being cut square.",
+            "Water leaks at push connect fittings because tubing is not pushed in all the way.",
+            "Incorrect drain line routing causing leaks at the faucet airgap.",
+            "Tubing not cut properly leading to water leaks at connection points.",
+            "Incorrectly connected drain lines resulting in water leaks.",
+            "Plugged or restricted tubing causing poor water flow or leaks.",
+            "Missing or improperly installed components leading to malfunction or leaks."
+        ]
+    }
+}

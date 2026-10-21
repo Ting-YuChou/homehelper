@@ -1,0 +1,22 @@
+[project]
+name = "homehelper"
+version = "0.1.0"
+description = "HomeHelper API: appliance repair support agent"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "asyncpg>=0.32.0",
+    "fastapi>=0.157.0",
+    "langfuse>=5.0.4",
+    "pydantic-settings>=2.16.1",
+    "redis[hiredis]>=8.1.0",
+    "sqlalchemy[asyncio]>=2.1.5",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/homehelper"]
