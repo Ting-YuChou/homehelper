@@ -1,0 +1,3 @@
+# Manual manifest — generated and human-reviewed in M1-01 (see docs/SPEC.md §10.1).
+# PDFs live in data/manuals/pdfs/<category>/<Brand>/ locally and in a private GCS bucket in prod; they are never committed.
+[]
