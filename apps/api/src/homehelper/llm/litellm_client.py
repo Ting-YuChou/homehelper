@@ -18,6 +18,7 @@ from homehelper.core.logging import get_logger
 from homehelper.core.tracing import Tracer
 from homehelper.llm.registry import ModelRegistry, TaskConfig
 from homehelper.llm.types import LLMError, LLMUsage, Message, T
+from homehelper.llm.usage import record_usage
 
 log = get_logger(__name__)
 
@@ -122,6 +123,7 @@ class LiteLLMClient:
                         usage_details={"input": usage.input_tokens, "output": usage.output_tokens},
                         cost_details={"total": usage.cost_usd},
                     )
+            record_usage(usage)
             if self._usage_sink:
                 self._usage_sink(usage)
             return content, model

@@ -1,10 +1,19 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
 
-from homehelper.llm import FakeLLMClient, LiteLLMClient, LLMError, LLMUsage, Message, ModelRegistry
+from homehelper.llm import (
+    FakeLLMClient,
+    LiteLLMClient,
+    LLMError,
+    LLMUsage,
+    Message,
+    ModelRegistry,
+    track_usage,
+)
 
 MESSAGES = [Message(role="user", content="hi")]
 
@@ -63,6 +72,17 @@ async def test_falls_back_when_primary_fails() -> None:
     assert [c["model"] for c in completion.calls] == ["anthropic/primary", "openai/backup"]
     assert completion.calls[1]["api_key"] == "o"
     assert [(u.model, u.input_tokens, u.output_tokens) for u in usage] == [("openai/backup", 10, 5)]
+
+
+async def test_track_usage_collects_calls_in_scope_including_child_tasks() -> None:
+    completion = ScriptedCompletion({"anthropic/primary": ["a", "b", "c"]})
+    client = _client(completion)
+    await client.text("nlu", MESSAGES)  # outside any scope: not counted
+    with track_usage() as tally:
+        await client.text("nlu", MESSAGES)
+        await asyncio.create_task(client.text("nlu", MESSAGES))
+    assert len(tally.calls) == 2
+    assert (tally.input_tokens, tally.output_tokens) == (20, 10)
 
 
 async def test_raises_when_every_model_fails() -> None:
