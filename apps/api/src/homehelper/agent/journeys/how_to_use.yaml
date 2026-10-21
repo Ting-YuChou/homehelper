@@ -1,0 +1,61 @@
+# Usage and maintenance questions answered from the manuals (spec §7.5).
+id: how_to_use
+version: 1
+goal: The user gets a cited answer about using or maintaining their appliance.
+entry_intents: [ask_how_to]
+
+slots:
+  appliance_category: { type: enum, values: categories, required: true }
+  question:           { type: text, required: true }
+  brand:              { type: text, required: false }
+  model_number:       { type: text, required: false, ask_policy: once }
+
+guardrails:
+  - when: hazard_detected
+    to: escalate
+  - when: user_requested_technician
+    to: escalate
+
+steps:
+  - id: gather
+    type: collect
+    goal: Get the appliance category and the question.
+    transitions:
+      - when: required_slots_filled
+        to: retrieve
+
+  - id: retrieve
+    type: system
+    actions: [knowledge.search]
+    transitions:
+      - when: always              # the answer says so when no manual covers the question
+        to: answer
+
+  - id: answer
+    type: inform
+    goal: Answer the question from the retrieved manual content, with citations.
+    outcome: resolved             # provisional: a user who leaves after the answer was helped
+    tools_allowed: [mcp:tutorials.search_videos]
+    transitions:
+      - when: user_asked_followup
+        to: retrieve
+      - when: user_satisfied
+        to: done
+
+  - id: done
+    type: end
+    outcome: resolved
+
+  - id: escalate
+    type: handoff
+    goal: Explain why professional help is recommended and offer booking options.
+    outcome: escalated
+    tools_allowed: [mcp:service_booking.list_slots]
+    transitions:
+      - when: booking_confirmed
+        to: escalated_end
+
+  - id: escalated_end
+    type: end
+    outcome: escalated
+    actions: [mcp:service_booking.book]

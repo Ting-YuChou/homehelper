@@ -1,0 +1,81 @@
+# Main troubleshooting flow (spec §7.4). Predicates are registered in agent/engine/predicates.py.
+id: troubleshoot
+version: 1
+goal: The user confirms the problem is fixed, or is safely referred to a professional.
+entry_intents: [report_problem]
+
+slots:
+  appliance_category: { type: enum, values: categories, required: true }
+  symptom:            { type: text, required: true }
+  brand:              { type: text, required: false }
+  model_number:       { type: text, required: false, ask_policy: once }  # ask once, never insist
+  error_code:         { type: text, required: false }
+
+# Evaluated before step transitions on every turn; a hit overrides the step's own transitions.
+guardrails:
+  - when: hazard_detected              # G-SAFE-01..04, 07 (two-layer detection)
+    to: escalate
+  - when: max_failed_steps_reached     # G-LOOP-01: 4 plan items did not help
+    to: escalate
+  - when: user_requested_technician
+    to: escalate
+
+steps:
+  - id: gather
+    type: collect
+    goal: Get the appliance category and the symptom.
+    transitions:
+      - when: required_slots_filled
+        to: confirm_appliance
+
+  - id: confirm_appliance
+    type: confirm
+    goal: Confirm low-confidence appliance details, such as a photo-recognized model.
+    skip_when: no_unconfirmed_low_confidence_slots
+    transitions:
+      - when: user_confirmed
+        to: diagnose
+      - when: user_denied
+        to: gather
+      - when: no_unconfirmed_low_confidence_slots   # the user corrected the details instead
+        to: diagnose
+
+  - id: diagnose
+    type: system
+    actions: [knowledge.search, plan.build]
+    transitions:
+      - when: plan_available
+        to: guide
+      - when: plan_unavailable                      # nothing relevant, or every item removed
+        to: escalate
+
+  - id: guide
+    type: guide
+    goal: Explain one step at a time and ask whether it helped.
+    tools_allowed: [mcp:tutorials.search_videos, mcp:parts_catalog.search_parts]
+    transitions:
+      - when: user_reports_fixed
+        to: resolved
+      - when: user_reports_not_fixed_and_plan_has_next
+        to: guide                                   # re-entry presents the next plan item
+      - when: plan_exhausted
+        to: escalate
+
+  - id: resolved
+    type: end
+    outcome: resolved
+    actions: [mcp:user_profile.add_repair_record]
+
+  - id: escalate
+    type: handoff
+    goal: Explain why professional help is recommended and offer booking options.
+    outcome: escalated
+    tools_allowed: [mcp:service_booking.list_slots]  # read-only tools only
+    transitions:
+      - when: booking_confirmed   # BookingSlots card action; code then calls service_booking.book
+        to: escalated_end
+
+  - id: escalated_end
+    type: end
+    outcome: escalated
+    actions: [mcp:service_booking.book]
