@@ -4,6 +4,7 @@ import { LoaderCircle } from "lucide-react";
 import Markdown from "react-markdown";
 
 import { CardList } from "@/components/cards/card-list";
+import { CitationList } from "@/components/cards/citation-chip";
 import type { Card, Citation, Message, StructuredAction } from "@/lib/api/types";
 import { actionLabel } from "@/lib/chat/actions";
 
@@ -34,6 +35,17 @@ export function AssistantMessage({
   onAction: (action: StructuredAction) => void;
   streaming?: boolean;
 }) {
+  // Sources not already shown on a card (step cards carry their own citations).
+  const onCards = new Set(
+    message.cards.flatMap((card) =>
+      card.type === "step"
+        ? (card.citations ?? []).map((c) => c.chunk_id)
+        : card.type === "citation"
+          ? [card.citation.chunk_id]
+          : [],
+    ),
+  );
+  const sources = message.citations.filter((citation) => !onCards.has(citation.chunk_id));
   return (
     <article className="flex flex-col gap-3" aria-busy={streaming}>
       {message.content && (
@@ -42,6 +54,7 @@ export function AssistantMessage({
         </div>
       )}
       <CardList cards={message.cards} interactive={interactive} onAction={onAction} />
+      <CitationList citations={sources} />
     </article>
   );
 }
