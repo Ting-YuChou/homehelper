@@ -110,6 +110,11 @@ def _blocks(page: int, markdown: str) -> Iterator[_Block]:
     yield from flush_text()
 
 
+def _display_title(entry: ManualEntry) -> str:
+    title = entry.title
+    return title if title.lower().startswith(entry.brand.lower()) else f"{entry.brand} {title}"
+
+
 def _is_table_of_contents(section: tuple[str, ...]) -> bool:
     return any(re.fullmatch(r"(table of )?contents?", title.strip().lower()) for title in section)
 
@@ -212,7 +217,7 @@ class ManualChunker:
         for seq, (path, page_start, page_end, body, is_table) in enumerate(pieces):
             if len(body) < MIN_CHUNK_CHARS or _is_table_of_contents(path):
                 continue
-            header = f"[{entry.brand} {entry.title}" + (f" — {' > '.join(path)}]" if path else "]")
+            header = f"[{_display_title(entry)}" + (f" — {' > '.join(path)}]" if path else "]")
             chunks.append(
                 Chunk(
                     chunk_id=f"{entry.doc_id}:p{page_start}:{seq:04d}",

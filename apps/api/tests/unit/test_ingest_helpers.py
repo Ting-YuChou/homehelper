@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from llama_index.core.vector_stores.utils import node_to_metadata_dict
+
 from homehelper.ingestion.chunking import Chunk
 from homehelper.ingestion.pipeline import manifest_hash, referenced_versions, to_node
 from homehelper.knowledge.schemas import CategoryId, ChunkMetadata
@@ -41,6 +43,9 @@ def test_to_node_keeps_id_text_embedding_and_json_metadata() -> None:
     assert node.embedding == [0.1, 0.2]
     assert node.metadata["category"] == "washing_machine"
     assert node.metadata["section_path"] == ["Troubleshooting", "Error Codes"]
+    # What PGVectorStore persists: our doc_id must survive LlamaIndex's reserved keys.
+    stored = node_to_metadata_dict(node, remove_text=True, flat_metadata=False)
+    assert stored["doc_id"] == stored["ref_doc_id"] == "lg-wm3400"
 
 
 def test_store_naming_and_urls() -> None:

@@ -46,3 +46,6 @@ tasks:
 embedding:
   model: openai/text-embedding-3-small
   dimensions: 1536
+
+rerank:
+  model: cohere/rerank-v5.0-fast

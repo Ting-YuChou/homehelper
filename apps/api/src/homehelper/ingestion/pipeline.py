@@ -10,7 +10,7 @@ from pathlib import Path
 
 import openai
 from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.core.schema import BaseNode, TextNode
+from llama_index.core.schema import BaseNode, NodeRelationship, RelatedNodeInfo, TextNode
 from llama_index.embeddings.openai import OpenAIEmbedding
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -27,7 +27,7 @@ from homehelper.llm import ModelRegistry
 log = get_logger(__name__)
 
 # Bump when chunking or node layout changes, so the manifest hash reflects it.
-PIPELINE_VERSION = "chunker-1"
+PIPELINE_VERSION = "chunker-2"
 KEEP_VERSIONS = 5
 EMBED_BATCH = 100
 EMBED_RETRIES = 8  # the OpenAI tokens-per-minute limit is hit on full rebuilds
@@ -48,11 +48,14 @@ def manifest_hash(manifest_path: Path, embedding_model: str) -> str:
 
 
 def to_node(chunk: Chunk, embedding: list[float]) -> BaseNode:
+    # The manual is the node's SOURCE: LlamaIndex writes `doc_id`/`ref_doc_id` into the stored
+    # metadata from it, and would overwrite our `doc_id` with "None" without it.
     return TextNode(
         id_=chunk.chunk_id,
         text=chunk.text,
         embedding=embedding,
         metadata=chunk.metadata.model_dump(mode="json"),
+        relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=chunk.metadata.doc_id)},
     )
 
 
@@ -122,6 +125,7 @@ async def ingest(
     *,
     parse_concurrency: int = 6,
     embedder: BaseEmbedding | None = None,
+    retention: bool = True,
 ) -> IngestResult:
     manuals_dir = settings.manuals_dir
     manifest_path = manuals_dir / "manifest.yaml"
@@ -195,6 +199,6 @@ async def ingest(
             .where(KBVersion.version == version)
             .values(status="ready", chunk_count=len(chunks))
         )
-    dropped = await enforce_retention(engine, settings.releases_dir)
+    dropped = await enforce_retention(engine, settings.releases_dir) if retention else []
     log.info("ingested", kb_version=version, chunks=len(chunks), dropped_versions=dropped)
     return IngestResult(version, len(chunks), len(entries), parsed_now)
