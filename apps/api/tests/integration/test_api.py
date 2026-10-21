@@ -31,7 +31,7 @@ async def test_demo_login_sets_a_session_cookie(api: httpx.AsyncClient) -> None:
     assert cookie.startswith("hh_session=")
     assert "httponly" in cookie and "samesite=lax" in cookie
     user = response.json()
-    assert user == {"id": "demo_alex", "display_name": "Alex", "is_demo": True}
+    assert (user["id"], user["is_demo"]) == ("demo_alex", True)
     assert (await api.get("/v1/auth/me")).json() == user
     assert (await api.post("/v1/auth/demo-login", json={"user_id": "nobody"})).status_code == 404
 

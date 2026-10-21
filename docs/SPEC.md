@@ -873,7 +873,7 @@ LangGraph checkpointer 的表由 `AsyncPostgresSaver.setup()` 建立，與應用
 
 > `messages` 是 UI 與歷史紀錄的事實來源；checkpointer 存的是 agent 內部狀態。兩者分開是刻意的設計。
 
-M4-01 補充：`mock_*` 表由 M5 的 migration 建立。`conversations.release_id` 不設外鍵（release 先以 `releases/*.yaml` 存在，發布後才有資料列）。assistant 訊息的 `id` 沿用 agent 事件的 `message_id`。`feedback` 每則訊息一筆（`message_id` unique），再次評分會覆蓋；`rating` 為 `up`／`down`。Alembic 只能有一個 head，單元測試會檢查。
+M4-01 補充：`mock_*` 表由 M5 的 migration（`5c1e2a9d7b40`）建立，app 資料表的 migration（`09c3d5a63334`）接在它之後。`conversations.release_id` 不設外鍵（release 先以 `releases/*.yaml` 存在，發布後才有資料列）。assistant 訊息的 `id` 沿用 agent 事件的 `message_id`。`feedback` 每則訊息一筆（`message_id` unique），再次評分會覆蓋；`rating` 為 `up`／`down`。Alembic 只能有一個 head，單元測試會檢查。
 
 ### 14.2 Redis
 

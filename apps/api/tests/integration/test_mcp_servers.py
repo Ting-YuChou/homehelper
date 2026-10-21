@@ -1,12 +1,10 @@
 """MCP servers in real mode: mounted in the API, backed by the Postgres mock tables."""
 
 import asyncio
-import os
 from pathlib import Path
 
 import pytest
 from alembic import command
-from alembic.config import Config
 
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine
@@ -14,11 +12,11 @@ from homehelper.mcp_servers.mock_data import load_mock_data
 from homehelper.mcp_servers.registry import TOOLS
 from homehelper.mcp_servers.stores import seed_mock_tables
 from tests.conftest import make_settings
+from tests.integration.conftest import REDIS_URL, alembic_config, database_url
 from tests.unit.mcp_servers.test_mounting import mcp_session, running
 
 pytestmark = pytest.mark.integration
 
-ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 REPO = Path(__file__).resolve().parents[4]
 
 
@@ -26,13 +24,11 @@ REPO = Path(__file__).resolve().parents[4]
 async def settings() -> Settings:
     settings = make_settings(
         mcp_mode="real",
-        database_url=os.environ.get(
-            "DATABASE_URL", "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
-        ),
-        redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+        database_url=database_url(),
+        redis_url=REDIS_URL,
     )
     # env.py runs its own event loop, so drive Alembic from a worker thread.
-    await asyncio.to_thread(command.upgrade, Config(str(ALEMBIC_INI)), "head")
+    await asyncio.to_thread(command.upgrade, alembic_config(), "head")
     engine = create_engine(settings.database_url)
     await seed_mock_tables(engine, load_mock_data(REPO / "data" / "mock"))
     await engine.dispose()

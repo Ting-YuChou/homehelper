@@ -1,7 +1,7 @@
 """app tables: users, conversations, messages, attachments, feedback, annotations, releases
 
 Revision ID: 09c3d5a63334
-Revises: 86d1142fe842
+Revises: 5c1e2a9d7b40
 Create Date: 2026-10-21 15:54:06.201022
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "09c3d5a63334"
-down_revision: str | Sequence[str] | None = "86d1142fe842"
+down_revision: str | Sequence[str] | None = "5c1e2a9d7b40"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

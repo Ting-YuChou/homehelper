@@ -3,6 +3,7 @@ containers in CI). Redis tests use database 15 and flush it, so they never touch
 
 import json
 import os
+import shutil
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from tests.conftest import make_settings
 
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 REDIS_TEST_DB = 15
+REPO = Path(__file__).resolve().parents[4]
 # Read at import: the autouse fixture in tests/conftest.py removes these from the environment
 # for every test, so reading them inside a test would silently fall back to the defaults.
 DATABASE_URL = os.environ.get(
@@ -72,10 +74,9 @@ def parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 def write_demo_data(data_dir: Path) -> None:
-    """A demo user and one manual with a tiny PDF, under a temporary data dir."""
-    (data_dir / "mock").mkdir(parents=True)
-    users = [{"user_id": "demo_alex", "display_name": "Alex", "persona": "novice", "notes": None}]
-    (data_dir / "mock" / "users.json").write_text(json.dumps(users))
+    """The mock data and one manual with a tiny PDF, under a temporary data dir."""
+    # The real mock data set (the MCP servers load all of it at startup); demo_alex is in it.
+    shutil.copytree(REPO / "data" / "mock", data_dir / "mock")
     pdfs = data_dir / "manuals" / "pdfs" / "dishwasher" / "Bosch"
     pdfs.mkdir(parents=True)
     (pdfs / "Bosch_800.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")

@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 import httpx
@@ -7,6 +8,8 @@ import pytest
 from homehelper.api.deps import SessionSigner
 from homehelper.core.config import Settings
 from tests.conftest import make_settings
+
+MOCK_DATA = Path(__file__).resolve().parents[4] / "data" / "mock"
 
 
 def test_session_cookie_round_trips_and_rejects_tampering() -> None:
@@ -56,26 +59,22 @@ async def test_admin_routes_need_the_admin_token(client: httpx.AsyncClient) -> N
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    (tmp_path / "mock").mkdir()
-    users = [
-        {
-            "user_id": "demo_alex",
-            "display_name": "Alex",
-            "persona": "novice",
-            "notes": "First-time homeowner",
-        },
-        {"user_id": "demo_sam", "display_name": "Sam", "zip_code": "94110", "notes": None},
-    ]
-    (tmp_path / "mock" / "users.json").write_text(json.dumps(users))
+    # The MCP servers load the whole mock data set at startup, so start from the real one.
+    shutil.copytree(MOCK_DATA, tmp_path / "mock")
+    users = json.loads((tmp_path / "mock" / "users.json").read_text())
+    users[0]["notes"] = "First-time homeowner"
+    users[1]["notes"] = None
+    (tmp_path / "mock" / "users.json").write_text(json.dumps(users[:2]))
     return make_settings(data_dir=tmp_path, admin_token="admin-secret")
 
 
 async def test_demo_users_come_from_the_mock_data(client: httpx.AsyncClient) -> None:
-    response = await client.get("/v1/auth/demo-users")
-    assert response.json() == [
-        {"id": "demo_alex", "display_name": "Alex", "description": "First-time homeowner"},
-        {"id": "demo_sam", "display_name": "Sam", "description": None},
+    users = (await client.get("/v1/auth/demo-users")).json()
+    assert [(u["id"], u["description"]) for u in users] == [
+        ("demo_alex", "First-time homeowner"),
+        ("demo_jordan", None),
     ]
+    assert all(u["display_name"] for u in users)
 
 
 async def test_admin_skeleton_answers_with_the_token(client: httpx.AsyncClient) -> None:
