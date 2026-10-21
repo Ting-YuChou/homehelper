@@ -32,6 +32,7 @@ from homehelper.agent.guardrails.rules import HAZARD_RULES, MAX_FRUSTRATED_TURNS
 from homehelper.agent.guardrails.templates import (
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
+    UNSUPPORTED_APPLIANCE_REPLY,
     FixedReply,
     safety_reply,
 )
@@ -43,10 +44,12 @@ from homehelper.agent.state import (
     PlanItemStatus,
     SlotValue,
 )
+from homehelper.knowledge.schemas import CategoryId
 
 # Conversation-level appliance context, carried into the next journey on the same appliance.
 APPLIANCE_SLOTS = ("appliance_category", "brand", "model_number")
 CATEGORY_SLOT = "appliance_category"
+CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 # Once a journey works on an appliance, naming another one is a switch, not a correction.
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
 
@@ -60,7 +63,16 @@ GUARDRAIL_RULE_IDS = {"max_failed_steps_reached": "G-LOOP-01"}
 NOTICE_OFFER_HANDOFF = "G-LOOP-01"  # responder offers a referral
 NOTICE_RESUME_PAUSED = "resume_paused"  # responder offers to return to the paused journey
 
-RouteKind = Literal["stay", "start", "switch", "resume", "side_question", "scope_side", "none"]
+RouteKind = Literal[
+    "stay",
+    "start",
+    "switch",
+    "resume",
+    "side_question",
+    "scope_side",
+    "unsupported_appliance",
+    "none",
+]
 
 
 class Route(BaseModel):
@@ -120,6 +132,12 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             and new_category != current.value
             and step_type in SWITCH_STEP_TYPES
         ):
+            if new_category not in CATEGORY_VALUES:
+                return Route(
+                    kind="unsupported_appliance",
+                    journey=active.id,
+                    reason=f"no manuals for {new_category}; staying on {active.id}",
+                )
             return Route(
                 kind="switch",
                 journey=(target or active).id,
@@ -200,7 +218,9 @@ class _Run:
         if signals.rejected_action:
             self._log("route", f"ignored card action: {signals.rejected_action}")
         signals = self._detect_hazards(turn, signals)
-        if turn.nlu is not None:
+        if turn.action is not None:  # a button press breaks a run of frustrated messages
+            self.state.frustrated_turns = 0
+        elif turn.nlu is not None:
             frustrated = turn.nlu.user_sentiment == "frustrated"
             self.state.frustrated_turns = self.state.frustrated_turns + 1 if frustrated else 0
 
@@ -295,6 +315,10 @@ class _Run:
                 return
             case "scope_side":
                 self.fixed_replies.append(SCOPE_SIDE_REPLY)
+                self._log("guardrail", decided.reason, rule_id="G-SCOPE-01")
+                return
+            case "unsupported_appliance":
+                self.fixed_replies.append(UNSUPPORTED_APPLIANCE_REPLY)
                 self._log("guardrail", decided.reason, rule_id="G-SCOPE-01")
                 return
             case "resume":
@@ -437,8 +461,8 @@ class _Run:
             step = journey.step(step_id)
             self.state.step_id = step.id
             self.state.step_attempts[step.id] = 0
-            if step.skip_when and self._holds(journey, step.skip_when, None):
-                target = step.transitions[0].to
+            if step.skip_when and step.skip_to and self._holds(journey, step.skip_when, None):
+                target = step.skip_to
                 self._log(
                     "skip",
                     f"{step.skip_when} holds; skipped to {target}",

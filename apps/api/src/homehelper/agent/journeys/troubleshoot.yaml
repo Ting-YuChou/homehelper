@@ -32,6 +32,7 @@ steps:
     type: confirm
     goal: Confirm low-confidence appliance details, such as a photo-recognized model.
     skip_when: no_unconfirmed_low_confidence_slots
+    skip_to: diagnose
     transitions:
       - when: user_confirmed
         to: diagnose

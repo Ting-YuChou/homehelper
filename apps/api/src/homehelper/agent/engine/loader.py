@@ -9,7 +9,14 @@ import yaml
 from pydantic import ValidationError
 
 from homehelper.agent.engine.predicates import PREDICATES, PredicateRegistry
-from homehelper.agent.engine.schema import KNOWN_ACTIONS, MCP_TOOL, Journey, is_write_tool
+from homehelper.agent.engine.schema import (
+    KNOWN_ACTIONS,
+    MCP_READ_TOOLS,
+    MCP_TOOL,
+    MCP_WRITE_TOOLS,
+    Journey,
+    is_write_tool,
+)
 from homehelper.agent.guardrails.templates import STEP_TEMPLATES
 from homehelper.agent.state import Intent
 from homehelper.knowledge.schemas import CategoryId
@@ -64,12 +71,14 @@ def validate_journey(journey: Journey, predicates: PredicateRegistry = PREDICATE
         where = f"step {step.id!r}"
         if step.skip_when:
             check_predicate(step.skip_when, f"{where} skip_when")
+        if step.skip_to is not None and step.skip_to not in known:
+            errors.append(f"{where}: skip_to {step.skip_to!r} does not exist")
         for t in step.transitions:
             check_predicate(t.when, where)
             if t.to not in known:
                 errors.append(f"{where}: target {t.to!r} does not exist")
         for action in step.actions:
-            if action not in KNOWN_ACTIONS and not MCP_TOOL.match(action):
+            if action not in KNOWN_ACTIONS | MCP_READ_TOOLS | MCP_WRITE_TOOLS:
                 errors.append(f"{where}: unknown action {action!r}")
         for tool in step.tools_allowed:
             if not MCP_TOOL.match(tool):
@@ -79,34 +88,39 @@ def validate_journey(journey: Journey, predicates: PredicateRegistry = PREDICATE
                     f"{where}: write tool {tool!r} cannot be exposed to the LLM; "
                     "call it from a step action instead"
                 )
+            elif tool not in MCP_READ_TOOLS:
+                errors.append(f"{where}: {tool!r} is not a known read-only tool")
         if step.template is not None and step.template not in STEP_TEMPLATES:
             errors.append(f"{where}: unknown template {step.template!r}")
 
     if errors:  # graph checks below assume ids and targets are sound
         return errors
 
-    edges = _edges(journey)
-    reachable = _reachable(journey.entry_step, edges)
+    # Guardrails can fire from any step, so they count for reachability, but a step must be
+    # able to finish through its own transitions: a guardrail is not a way out of a loop.
+    reachable = _reachable(journey.entry_step, _edges(journey, with_guardrails=True))
     for step_id in step_ids:
         if step_id not in reachable:
             errors.append(f"step {step_id!r} is unreachable from entry {journey.entry_step!r}")
+    step_edges = _edges(journey, with_guardrails=False)
     ends = {step.id for step in journey.steps if step.type == "end"}
-    if not ends & reachable:
+    if not ends & _reachable(journey.entry_step, step_edges):
         errors.append(f"no end step is reachable from entry {journey.entry_step!r}")
     for step_id in step_ids:
-        if not ends & _reachable(step_id, edges):
-            errors.append(f"step {step_id!r} cannot reach any end step")
+        if not ends & _reachable(step_id, step_edges):
+            errors.append(f"step {step_id!r} cannot reach any end step without a guardrail")
     return errors
 
 
-def _edges(journey: Journey) -> dict[str, set[str]]:
-    guard_targets = {guard.to for guard in journey.guardrails}
+def _edges(journey: Journey, *, with_guardrails: bool) -> dict[str, set[str]]:
+    guard_targets = {guard.to for guard in journey.guardrails} if with_guardrails else set()
     edges: dict[str, set[str]] = {}
     for step in journey.steps:
         if step.type == "end":
             edges[step.id] = set()
         else:
-            edges[step.id] = {t.to for t in step.transitions} | guard_targets
+            skip = {step.skip_to} if step.skip_to else set()
+            edges[step.id] = {t.to for t in step.transitions} | skip | guard_targets
     return edges
 
 

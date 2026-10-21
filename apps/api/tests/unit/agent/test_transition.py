@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from homehelper.agent.engine import (
     JourneyCatalog,
@@ -238,6 +239,31 @@ def test_frustration_notice_after_two_turns(catalog: JourneyCatalog) -> None:
     assert second.decisions[-1].rule_id == "G-LOOP-01"
     calm = transition(catalog, second.state, say("other", "ok"))
     assert calm.state.frustrated_turns == 0
+    pressed = transition(catalog, second.state, press("step_result", "not_fixed"))
+    assert pressed.state.frustrated_turns == 0
+    assert NOTICE_OFFER_HANDOFF not in pressed.notices
+
+
+def test_unsupported_appliance_mid_journey_stays_on_step(catalog: JourneyCatalog) -> None:
+    state = start_guide(catalog)
+    result = transition(
+        catalog,
+        state,
+        say("report_problem", "my oven is also broken", slots={"appliance_category": "oven"}),
+    )
+    assert result.state.paused_journey is None
+    assert result.state.step_id == "guide"
+    assert result.state.plan == state.plan
+    assert result.state.slots["appliance_category"].value == "dishwasher"
+    assert [r.rule_id for r in result.fixed_replies] == ["G-SCOPE-01"]
+    assert not result.skip_respond
+    assert "no manuals for oven" in result.decisions[0].reason
+
+
+def test_fixed_replies_are_immutable(catalog: JourneyCatalog) -> None:
+    result = transition(catalog, new_state(), say("out_of_scope", "tell me a joke"))
+    with pytest.raises(ValidationError):
+        result.fixed_replies[0].text = "changed"
 
 
 def test_hazard_in_journey_without_hazard_guardrail_switches(catalog: JourneyCatalog) -> None:
@@ -519,7 +545,14 @@ def test_transition_chain_limit_stops_cycles() -> None:
             "guardrails": [{"when": "hazard_detected", "to": "out"}],
             "steps": [
                 {"id": "a", "type": "collect", "transitions": [{"when": "always", "to": "b"}]},
-                {"id": "b", "type": "collect", "transitions": [{"when": "always", "to": "a"}]},
+                {
+                    "id": "b",
+                    "type": "collect",
+                    "transitions": [
+                        {"when": "always", "to": "a"},
+                        {"when": "user_confirmed", "to": "out"},
+                    ],
+                },
                 {"id": "out", "type": "end", "outcome": "escalated"},
             ],
         }

@@ -22,13 +22,39 @@ KNOWN_ACTIONS = frozenset({"knowledge.search", "plan.build"})
 MCP_TOOL = re.compile(r"^mcp:(?P<server>[a-z][a-z0-9_]*)\.(?P<tool>[a-z][a-z0-9_]*)$")
 
 
+# MCP tools (spec §12.1). `tools_allowed` is an allowlist of the read tools; write tools run only
+# from step actions, never via the LLM. `web_search` is left out on purpose: web content reaches
+# the LLM only through the knowledge layer's injection guard (spec §10.6).
+MCP_READ_TOOLS = frozenset(
+    {
+        "mcp:user_profile.get_profile",
+        "mcp:user_profile.list_appliances",
+        "mcp:user_profile.get_appliance",
+        "mcp:user_profile.get_warranty_status",
+        "mcp:user_profile.list_repair_history",
+        "mcp:parts_catalog.search_parts",
+        "mcp:parts_catalog.get_part",
+        "mcp:tutorials.search_videos",
+        "mcp:service_booking.list_slots",
+    }
+)
+MCP_WRITE_TOOLS = frozenset(
+    {
+        "mcp:user_profile.add_appliance",
+        "mcp:user_profile.add_repair_record",
+        "mcp:service_booking.book",
+        "mcp:service_booking.cancel",
+    }
+)
+_WRITE_VERB = re.compile(r"^(book|cancel|add|update|delete|remove|set|create)(_|$)")
+
+
 def is_write_tool(tool: str) -> bool:
-    """Write-type MCP tools (`book`, `add_*`) run only from step actions, never via the LLM."""
+    """A known write tool, or any tool whose name starts with a write verb."""
     match = MCP_TOOL.match(tool)
     if not match:
         return False
-    name = match["tool"]
-    return name == "book" or name.startswith("add_")
+    return tool in MCP_WRITE_TOOLS or bool(_WRITE_VERB.match(match["tool"]))
 
 
 class _Strict(BaseModel):
@@ -60,6 +86,7 @@ class Step(_Strict):
     type: StepType
     goal: str | None = None
     skip_when: str | None = None
+    skip_to: str | None = None  # where to go when `skip_when` holds on entry
     actions: list[str] = Field(default_factory=list)
     tools_allowed: list[str] = Field(default_factory=list)
     transitions: list[Transition] = Field(default_factory=list)
@@ -77,6 +104,8 @@ class Step(_Strict):
                 raise ValueError(f"end step {self.id!r} cannot have `skip_when`")
         elif not self.transitions:
             raise ValueError(f"step {self.id!r} is a dead end: it has no transitions")
+        if (self.skip_when is None) != (self.skip_to is None):
+            raise ValueError(f"step {self.id!r}: `skip_when` and `skip_to` go together")
         if self.outcome is not None and self.type not in OUTCOME_STEPS:
             raise ValueError(
                 f"step {self.id!r}: `outcome` is only allowed on {sorted(OUTCOME_STEPS)}"

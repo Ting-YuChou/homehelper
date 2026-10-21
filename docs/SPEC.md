@@ -444,6 +444,7 @@ steps:
     type: confirm
     goal: 確認低信心的家電資訊（例如影像辨識結果）
     skip_when: no_unconfirmed_low_confidence_slots
+    skip_to: diagnose
     transitions:
       - when: user_confirmed
         to: diagnose
@@ -499,12 +500,12 @@ Journey Engine 規則：
 - `transition(catalog, state, turn: TurnInput | None) -> TransitionResult` 是**純函式**，必須有完整的單元測試。`TurnInput` 包含原始文字（給關鍵字護欄）、`NLUResult` 或卡片 `StructuredAction`（兩者都轉成同一組 signals；有 action 時忽略 NLU）。
 - 每回合順序：危險偵測 → `route()`（維持／開始／切換／恢復 journey，或旁支問題）→ 套用輸入（slot 更新、確認／否認、步驟回饋、預約時段）→ journey 護欄（命中即覆寫）→ 目前 step 的轉移（第一個成立的）。
 - 進入 step 後會繼續評估**只依狀態**的轉移（本回合輸入已被消耗），直到遇到等待使用者的 step、`end`，或有 actions 的 step。actions 交給 `act` 執行；`system` step 的 actions 執行完後，以 `transition(catalog, state, None)` 繼續。
-- `skip_when` 成立時，直接走該 step 的第一條轉移。
+- 進入 step 時 `skip_when` 成立，就跳到 `skip_to`（兩者必須同時出現）。
 - `guide` 每次進入時呈現下一個 `pending` 項目（`plan_cursor` 前進）。
-- 載入時驗證：schema 不允許多餘欄位；所有 `to` 都存在、所有 predicate 都已註冊、從 entry 能到達某個 `end`、每個 step 都可到達 `end`、沒有無法到達的 step、沒有無出口的 step、`tools_allowed` 只能是 `mcp:<server>.<tool>` 且不得含寫入類工具（`book`、`add_*`）、actions 只能是 `knowledge.search`、`plan.build` 或 MCP 工具；跨 journey 的 `entry_intents` 不可重複。任何錯誤都在啟動時拋出 `JourneyValidationError`。
+- 載入時驗證：schema 不允許多餘欄位；所有 `to` 都存在、所有 predicate 都已註冊、從 entry 能到達某個 `end`、每個 step 不靠護欄也能經由自己的轉移到達 `end`（護欄只算進「可到達」檢查）、沒有無法到達的 step、沒有無出口的 step、`tools_allowed` 是讀取類工具的白名單（§12.1 的讀取工具，不含 `web_search`），寫入類工具（`book`、`cancel`、`add_*`、`update_*`、`delete_*` 等）一律拒絕、actions 只能是 `knowledge.search`、`plan.build` 或 §12.1 列出的 MCP 工具；跨 journey 的 `entry_intents` 不可重複。任何錯誤都在啟動時拋出 `JourneyValidationError`。
 - 每次轉移寫一筆 `Decision(from_step, to_step, predicate, reason)`；護欄另記 `rule_id`。
 - 使用者在進行中的 journey 問操作問題（`intent = ask_how_to`），先以 `inform` 回答但**不改變 step**；離題訊息回固定的 G-SCOPE-01 短句，也不改變 step。
-- 在 `guide`／`inform`／`handoff` 換了另一台家電，或意圖屬於另一個 journey，就把目前的 journey（含 slots、plan、cursor）移到 `paused_journey`（只保留一層，新的覆蓋舊的）。換家電時不帶 slots；同一台家電開始新 journey 時帶入 `appliance_category`、`brand`、`model_number`。在收集階段改家電視為更正，不暫停。
+- 在 `guide`／`inform`／`handoff` 換了另一台家電，或意圖屬於另一個 journey，就把目前的 journey（含 slots、plan、cursor）移到 `paused_journey`（只保留一層，新的覆蓋舊的）。換家電時不帶 slots；同一台家電開始新 journey 時帶入 `appliance_category`、`brand`、`model_number`。在收集階段改家電視為更正，不暫停。新家電不在支援類別內時不切換，維持目前 step，並回固定的「沒有對應手冊」短句（G-SCOPE-01）。
 - Journey 結束且有暫停的 journey 時，回傳 `resume_paused` 提示；使用者 `confirm` 就恢復。
 
 ### 7.5 MVP Journeys
@@ -1274,4 +1275,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.4 | M1-01：manifest 完成並人工審查（94 本；排除重複與變體、`aliases`、LG_French_Fridge 實為 Samsung，§2.2） |
 | v0.5 | M1 完成：LlamaParse 改用 `llama-cloud` SDK；reranker 定為 Cohere `rerank-v5.0-fast`；τ 校準值（§10.4）；自建 RRF 與不跨類別放寬（§10.4）；檢索評估結果（§16.2）；SQLAlchemy 固定 2.0.x（llama-index-vector-stores-postgres 需要 <2.1） |
 | v0.6 | M2 Track B：`root_cause_step` 標註加 `user_fixable`／`troubleshootable` 並凍結為 v1、對話模擬改分層抽樣（smoke 20、full 100，回覆 Q9 的提案）、三個新資料集的實際內容、模擬使用者的按鈕與結束規則、安全題「第一則回覆」的判定方式、CLI 與 Langfuse dataset／experiment 的做法（§16） |
-| v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1） |
+| v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |

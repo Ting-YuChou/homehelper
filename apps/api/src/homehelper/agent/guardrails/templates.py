@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from homehelper.agent.guardrails.rules import HAZARD_RULES
 from homehelper.agent.state import HazardSignal
@@ -15,6 +15,8 @@ class FixedReply(BaseModel):
     `replaces_response=True` means `respond` is skipped for the turn; otherwise the text is shown
     before the LLM reply (G-SAFE-05: switch the breaker off first, then continue).
     """
+
+    model_config = ConfigDict(frozen=True)  # module-level templates are shared across turns
 
     rule_id: str
     text: str
@@ -125,6 +127,18 @@ SCOPE_SIDE_REPLY = FixedReply(
     text=(
         "That's outside what I can help with. I'm here for your home appliances, so let's get "
         "back to that."
+    ),
+    replaces_response=False,
+)
+
+
+UNSUPPORTED_APPLIANCE_REPLY = FixedReply(
+    rule_id="G-SCOPE-01",
+    text=(
+        "I don't have manuals for that appliance, so I can't troubleshoot it here. I can help "
+        "with dishwashers, washing machines, dryers, refrigerators, microwaves, coffee makers, "
+        "blenders and food processors, vacuums, TVs, and water purifiers. Let's keep going with "
+        "the one we're working on."
     ),
     replaces_response=False,
 )

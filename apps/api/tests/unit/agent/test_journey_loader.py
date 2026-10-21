@@ -119,7 +119,16 @@ def test_valid_fixture_parses() -> None:
             with_step(0, transitions=[{"when": "moon_is_full", "to": "go"}]),
             "predicate 'moon_is_full' is not registered",
         ),
-        (with_step(0, skip_when="moon_is_full"), "skip_when: predicate 'moon_is_full'"),
+        (
+            with_step(0, skip_when="moon_is_full", skip_to="go"),
+            "skip_when: predicate 'moon_is_full'",
+        ),
+        (with_step(0, skip_when="always", skip_to="limbo"), "skip_to 'limbo' does not exist"),
+        (with_step(3, tools_allowed=["mcp:service_booking.cancel"]), "write tool"),
+        (with_step(3, tools_allowed=["mcp:user_profile.update_address"]), "write tool"),
+        (with_step(3, tools_allowed=["mcp:user_profile.export_all"]), "not a known read-only tool"),
+        (with_step(3, tools_allowed=["mcp:web_search.search"]), "not a known read-only tool"),
+        (with_step(1, actions=["mcp:mystery.tool"]), "unknown action 'mcp:mystery.tool'"),
         (variant(guardrails=[{"when": "moon_is_full", "to": "help"}]), "guardrails[0]: predicate"),
         (variant(guardrails=[{"when": "hazard_detected", "to": "gone"}]), "guardrails[0]: target"),
         (with_step(3, tools_allowed=["mcp:service_booking.book"]), "write tool"),
@@ -151,7 +160,9 @@ def test_graph_errors(data: dict[str, Any], message: str) -> None:
         (with_step(0, transitions=[]), "dead end"),
         (with_step(2, outcome=None), "needs an `outcome`"),
         (with_step(2, transitions=[{"when": "always", "to": "ask"}]), "cannot have transitions"),
-        (with_step(2, skip_when="always"), "cannot have `skip_when`"),
+        (with_step(2, skip_when="always", skip_to="ask"), "cannot have `skip_when`"),
+        (with_step(0, skip_when="always"), "`skip_when` and `skip_to` go together"),
+        (with_step(0, skip_to="go"), "`skip_when` and `skip_to` go together"),
         (with_step(0, outcome="resolved"), "`outcome` is only allowed"),
         (with_step(1, tools_allowed=["mcp:a.b"]), "no `tools_allowed`"),
         (variant(slots={"x": {"type": "enum"}}), "enum slots need `values`"),
@@ -179,6 +190,23 @@ def test_no_end_reachable_and_steps_that_cannot_finish() -> None:
     assert "step 'z' is unreachable" in message
     assert "no end step is reachable from entry 'a'" in message
     assert "step 'b' cannot reach any end step" in message
+
+
+def test_guardrail_is_not_a_way_out_of_a_step_loop() -> None:
+    # a <-> b never ends on its own; the hazard guardrail must not make that look valid
+    data = variant(
+        guardrails=[{"when": "hazard_detected", "to": "z"}],
+        steps=[
+            {"id": "a", "type": "collect", "transitions": [{"when": "always", "to": "b"}]},
+            {"id": "b", "type": "collect", "transitions": [{"when": "always", "to": "a"}]},
+            {"id": "z", "type": "end", "outcome": "escalated"},
+        ],
+        entry="a",
+    )
+    message = errors_of(data)
+    assert "unreachable" not in message  # z is reachable through the guardrail
+    assert "no end step is reachable from entry 'a'" in message
+    assert "step 'a' cannot reach any end step without a guardrail" in message
 
 
 def test_load_journey_reports_file_and_yaml_errors(tmp_path: Path) -> None:
@@ -237,5 +265,8 @@ def test_predicate_registry() -> None:
 def test_is_write_tool() -> None:
     assert is_write_tool("mcp:service_booking.book")
     assert is_write_tool("mcp:user_profile.add_repair_record")
+    assert is_write_tool("mcp:service_booking.cancel")
+    assert is_write_tool("mcp:anything.delete_all")
+    assert not is_write_tool("mcp:parts_catalog.search_parts")
     assert not is_write_tool("mcp:service_booking.list_slots")
     assert not is_write_tool("knowledge.search")
