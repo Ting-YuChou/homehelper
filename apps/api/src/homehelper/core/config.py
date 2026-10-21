@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -14,6 +15,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     release_id: str = "dev"
 
+    # Repo-relative by default (commands run from the repo root); a mounted volume in containers.
+    data_dir: Path = Path("data")
+
     database_url: str = "postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper"
     redis_url: str = "redis://localhost:6379/0"
 
@@ -27,6 +31,10 @@ class Settings(BaseSettings):
         default="https://cloud.langfuse.com",
         validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST"),
     )
+
+    @property
+    def manuals_dir(self) -> Path:
+        return self.data_dir / "manuals"
 
     def provider_api_keys(self) -> dict[str, str]:
         """LiteLLM provider name → API key, for providers that are configured."""

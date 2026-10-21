@@ -1,3 +1,1223 @@
-# Manual manifest — generated and human-reviewed in M1-01 (see docs/SPEC.md §10.1).
-# PDFs live in data/manuals/pdfs/<category>/<Brand>/ locally and in a private GCS bucket in prod; they are never committed.
-[]
+# Manual manifest (docs/SPEC.md §10.1). Drafted by `homehelper manifest draft`,
+# then human-reviewed: entries with `reviewed: true` are never overwritten.
+- doc_id: black-decker-bl2010
+  file: blender_food_processor/BlackDecker/Black_Decker_bl2010bp.pdf
+  category: blender_food_processor
+  brand: Black+Decker
+  title: Black+Decker BL2010BP 10 Speed Blender
+  model_patterns:
+  - BL2010*
+  aliases: []
+  language: en
+  pages: 11
+  sha256: 65be4ccc7f01054dc9a82df7e480cd028194022e6650f6e08a30de844303b40f
+  reviewed: true
+- doc_id: breville-bfp800
+  file: blender_food_processor/Breville/Breville_BFP800_Eng.pdf
+  category: blender_food_processor
+  brand: Breville
+  title: Breville Kitchen Wizz 15 Pro Food Processor
+  model_patterns:
+  - BFP800*
+  aliases: []
+  language: en
+  pages: 36
+  sha256: eab8ed254e835d6d566bc8088504b9d2e51f2d90fa7d31d6916bd23287895112
+  reviewed: true
+- doc_id: cuisinart-fp-14c
+  file: blender_food_processor/Cuisinart/Cuisinart_FP-14BKC.pdf
+  category: blender_food_processor
+  brand: Cuisinart
+  title: Cuisinart Elite Collection 14-Cup Food Processor
+  model_patterns:
+  - FP-14C*
+  - FP-14BKC
+  aliases: []
+  language: en
+  pages: 34
+  sha256: 9dd2851fafaee9b7e3c0ef8e80e9de0412fe40c8fbb7918f1389f54d72a8324b
+  reviewed: true
+- doc_id: hamilton-beach-food-processor
+  file: blender_food_processor/Hamilton Beach/Hamilton_Beach_en.pdf
+  category: blender_food_processor
+  brand: Hamilton Beach
+  title: Hamilton Beach Food Processor
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 12
+  sha256: ed5d0efe70db9e067ba72167f75580864ff4605ebf612a3dc27d71cc0991524c
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: kenwood-fdp65
+  file: blender_food_processor/Kenwood/Kenwood_en.pdf
+  category: blender_food_processor
+  brand: Kenwood
+  title: Kenwood multipro Express Instructions
+  model_patterns:
+  - FDP65
+  aliases: []
+  language: en
+  pages: 20
+  sha256: dfe1f7a366422e04abf8c385a38e4f0804aa4784107e24270c1542d2a2a7c84c
+  reviewed: true
+- doc_id: kitchenaid-kfp750
+  file: blender_food_processor/KitchenAid/KitchenAid.pdf
+  category: blender_food_processor
+  brand: KitchenAid
+  title: KitchenAid 12 Cup Food Processor
+  model_patterns:
+  - KFP750
+  aliases: []
+  language: en
+  pages: 20
+  sha256: fb1d35f9a39e301e6c76c0627dc1143bad949292dc4cd5404e11f9ea11c21d7f
+  reviewed: true
+- doc_id: ninja-bl770
+  file: blender_food_processor/Ninja/Ninja_BL770.pdf
+  category: blender_food_processor
+  brand: Ninja
+  title: Ninja Mega Kitchen System
+  model_patterns:
+  - BL770*
+  aliases: []
+  language: en
+  pages: 11
+  sha256: c0e5cf573e65c03afa288281b5d4c33c1ec8d27fca8c1e1ce7bab7efb830cbc5
+  reviewed: true
+- doc_id: oster-fpstfp4253
+  file: blender_food_processor/Oster/Oster_en.pdf
+  category: blender_food_processor
+  brand: Oster
+  title: Oster 14 Cup Food Processor with 5-Cup Work Bowl
+  model_patterns:
+  - FPSTFP4253
+  aliases: []
+  language: en
+  pages: 8
+  sha256: 741976fe0fa8e64b9a395987c7fd222b18d7413f2f9853e4f18092feae5e9a30
+  reviewed: true
+- doc_id: philips-hr3760
+  file: blender_food_processor/Philips/Philips_HR3760_en.pdf
+  category: blender_food_processor
+  brand: Philips
+  title: Philips Blender HR3760
+  model_patterns:
+  - HR3760*
+  aliases: []
+  language: en
+  pages: 5
+  sha256: 9ca3b454b60d57e1a7dbbf87a8a13bbe75b41dd992402921388b8d2fc33974cc
+  reviewed: true
+- doc_id: vitamix-5200
+  file: blender_food_processor/Vitamix/Vitamix-5200.pdf
+  category: blender_food_processor
+  brand: Vitamix
+  title: Vitamix 5200 Blender
+  model_patterns:
+  - 5200*
+  aliases: []
+  language: en
+  pages: 20
+  sha256: baed42b249db5d51dac08d4a1c2f4144a931559ceeaa249267a2a4f1f30f9b3c
+  reviewed: true
+- doc_id: braun-kf6050
+  file: coffee_maker/BraunHousehold/BrewSense_12-cup_Drip_CoffeeMaker_KF7070SI.pdf
+  category: coffee_maker
+  brand: Braun
+  title: Braun BrewSense 12-cup Drip Coffee Maker
+  model_patterns:
+  - KF6050*
+  - KF7000*
+  - KF7030*
+  - KF7070*
+  aliases: []
+  language: en
+  pages: 11
+  sha256: f6d29f917b2ab5450f701c8b6194ba771765def3eb3e63b1023fc29cd95e3015
+  reviewed: true
+- doc_id: cuisinart-dcc-1170
+  file: coffee_maker/Cuisinart/Cuisinart_10_Cup_Thermal_Classic_CoffeeMaker.pdf
+  category: coffee_maker
+  brand: Cuisinart
+  title: Cuisinart 10-Cup Thermal Classic Coffeemaker
+  model_patterns:
+  - DCC-1170*
+  aliases: []
+  language: en
+  pages: 10
+  sha256: 6b0a63c4b2bcf77d2878604a3df598892270c58e9a0596ece3b75268466ff4a8
+  reviewed: true
+- doc_id: cuisinart-ss-16
+  file: coffee_maker/Cuisinart/Cuisinart_2-in-1_CoffeeMaker.pdf
+  category: coffee_maker
+  brand: Cuisinart
+  title: Cuisinart Coffee Center SS-16 Series
+  model_patterns:
+  - SS-16*
+  aliases: []
+  language: en
+  pages: 17
+  sha256: 43f862d8356b403761c7748d785ea955597bc7bce4caa36ba5d4eb85ee0a6e71
+  reviewed: true
+- doc_id: krups-km730
+  file: coffee_maker/Krups/12_Cup_Programmable_CoffeeMaker_KM730D50.pdf
+  category: coffee_maker
+  brand: Krups
+  title: Krups 12 Cup Programmable Coffee Maker
+  model_patterns:
+  - KM730*
+  aliases: []
+  language: en
+  pages: 11
+  sha256: 85dae52c8a4df10bf6dce167f505b51647f6aca60b0e70d4f0f496db63f2224d
+  reviewed: true
+- doc_id: mr-coffee-bvmc-hc
+  file: coffee_maker/Mr.Coffee/15-0419-151P_IB_MECH_HR.pdf
+  category: coffee_maker
+  brand: Mr. Coffee
+  title: Mr. Coffee HotCup Pod-Free Single Serve Coffeemaker
+  model_patterns:
+  - BVMC-HC*
+  aliases: []
+  language: en
+  pages: 7
+  sha256: a7e9ef6d83665306120a43d27744bf1a59b6c7174591e1a436cc872b2e271f14
+  reviewed: true
+- doc_id: mr-coffee-bvmc-knx
+  file: coffee_maker/Mr.Coffee/BVMC-KNX_16ESM1.pdf
+  category: coffee_maker
+  brand: Mr. Coffee
+  title: Mr. Coffee KNX Series Coffeemaker
+  model_patterns:
+  - BVMC-KNX*
+  aliases: []
+  language: en
+  pages: 13
+  sha256: e04a14572a956bace1c57ab1c07b7a1118da73f57dd605c8c127145f65e284c1
+  reviewed: true
+- doc_id: mr-coffee-lm
+  file: coffee_maker/Mr.Coffee/Cafetera_LM_Series.pdf
+  category: coffee_maker
+  brand: Mr. Coffee
+  title: Mr. Coffee LM Series Coffeemaker
+  model_patterns:
+  - LM*
+  aliases: []
+  language: en
+  pages: 11
+  sha256: 9a4fc424497dca639f2c92f6e8daac4622486a3648f4a1cf4dd560764a1c8eae
+  reviewed: true
+- doc_id: mr-coffee-express-cold-brew
+  file: coffee_maker/Mr.Coffee/SAP_2214047.pdf
+  category: coffee_maker
+  brand: Mr. Coffee
+  title: Mr. Coffee Express Cold Brew
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 9
+  sha256: 21c4881e23e588f16306978daa172af3d83111357ebd9b98480fe5efc35f0f94
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: mr-coffee-iced-hot
+  file: coffee_maker/Mr.Coffee/iced_hot_coffee_maker.pdf
+  category: coffee_maker
+  brand: Mr. Coffee
+  title: Mr. Coffee Single Serve Iced and Hot Coffeemaker
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 7
+  sha256: cd3730b6a9caacd48842992e12de44b3602b086f3c1e0a412ac0cce5f32ddf05
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: myjo-single-cup
+  file: coffee_maker/MyJo/MyJo_Single_Cup_CoffeeMaker.pdf
+  category: coffee_maker
+  brand: MyJo
+  title: MyJo Single Cup Coffee Maker
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 4
+  sha256: 37144208687197cfe42b5a2d25e6b9a0667322851e4455fc9513efbda86ad12f
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: bosch-shx68t55
+  file: dishwasher/Bosch/Bosch_800_Series_SHX68T55UC.pdf
+  category: dishwasher
+  brand: Bosch
+  title: Bosch 800 Series Dishwasher
+  model_patterns:
+  - SHX68T55*
+  aliases: []
+  language: en
+  pages: 27
+  sha256: 98e3dae849e3765d3c9f13dd91dda9a4d56e43dcf39c1ce69f9939cb4484297d
+  reviewed: true
+- doc_id: bosch-she3ar76u
+  file: dishwasher/Bosch/Bosch_SHE3AR76UC.pdf
+  category: dishwasher
+  brand: Bosch
+  title: Bosch Dishwasher Use & Care Manual
+  model_patterns:
+  - SHE3AR76U*
+  aliases: []
+  language: en
+  pages: 21
+  sha256: c050dd34a3aa142bab8e3bbb70dd506f24ad8d798402037aee21b7b8fadf7f66
+  reviewed: true
+- doc_id: bosch-sps4emi28e
+  file: dishwasher/Bosch/Bosch_SPS4EMI28E.pdf
+  category: dishwasher
+  brand: Bosch
+  title: Bosch Dishwasher
+  model_patterns:
+  - SPS4EMI28E*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 1083253b7ad1db1e1a9a2bec387351e5446209989dfe68cce128242e6b61bc8f
+  reviewed: true
+- doc_id: criterion-cdw2fcm
+  file: dishwasher/Criterion/CDW2FCMB.pdf
+  category: dishwasher
+  brand: Criterion
+  title: Criterion Front Control Dishwasher (CDW2FCMB/S/W)
+  model_patterns:
+  - CDW2FCM*
+  aliases:
+  - CDW2FCMS.pdf
+  - CDW2FCMW.pdf
+  language: en
+  pages: 19
+  sha256: 90ff04261b93b3743d1305e540f09d4c9a6f0fdb5a78b7f14ad87cbe43fb68c5
+  reviewed: true
+  notes: CDW2FCMS.pdf and CDW2FCMW.pdf have identical text (color variants) and are excluded.
+- doc_id: criterion-cdw5tcms
+  file: dishwasher/Criterion/CDW5TCMS.pdf
+  category: dishwasher
+  brand: Criterion
+  title: Criterion Dishwasher Use & Care Manual
+  model_patterns:
+  - CDW5TCMS*
+  aliases: []
+  language: en
+  pages: 24
+  sha256: 7a8306d5c1d2d95c982b690f8463458f03a69a23df79e95b51d7d333df7f6a6f
+  reviewed: true
+- doc_id: siemens-sn636x03
+  file: dishwasher/Siemens/SN636X03ME.pdf
+  category: dishwasher
+  brand: Siemens
+  title: Siemens Dishwasher
+  model_patterns:
+  - SN636X03*
+  aliases: []
+  language: en
+  pages: 50
+  sha256: 783ff5eb4febf532d0269156613deda7b3a704862eb26a69855f7203555c32e5
+  reviewed: true
+  notes: pypdf text extraction is garbled; model taken from the file name.
+- doc_id: siemens-sn24d203
+  file: dishwasher/Siemens/iQ100_SN24D203EU.pdf
+  category: dishwasher
+  brand: Siemens
+  title: Siemens iQ100 Dishwasher
+  model_patterns:
+  - SN24D203*
+  aliases: []
+  language: en
+  pages: 28
+  sha256: 172ddb0b9d392f25f06ade9ca162819b6952889e6be5a765186d13d599e57096
+  reviewed: true
+  notes: pypdf text extraction is garbled; model taken from the file name.
+- doc_id: siemens-sn56p530eu
+  file: dishwasher/Siemens/iQ500_Dishwasher_integrated_SN56P530EU:98.pdf
+  category: dishwasher
+  brand: Siemens
+  title: Siemens iQ500 Integrated Dishwasher
+  model_patterns:
+  - SN56P530EU*
+  aliases: []
+  language: en
+  pages: 44
+  sha256: 160af4c1a87db867e1ac83a5f5af84e20c5d8d8c0059e31edafe489a3f0cdd19
+  reviewed: true
+  notes: pypdf text extraction is garbled; model taken from the file name.
+- doc_id: siemens-sn258i06
+  file: dishwasher/Siemens/iQ500_SN258I06TE.pdf
+  category: dishwasher
+  brand: Siemens
+  title: Siemens iQ500 Dishwasher
+  model_patterns:
+  - SN258I06*
+  aliases: []
+  language: en
+  pages: 58
+  sha256: 5ac50c02d1ae1b024a2eccdb75a74f6716f568d75c0d5fb3242866d325a0002c
+  reviewed: true
+  notes: pypdf text extraction is garbled; model taken from the file name.
+- doc_id: lg-rh1077-vk
+  file: dryer/LG/DR_ELF_MFL71712112_01_210209_00_WEB_EN.pdf
+  category: dryer
+  brand: LG
+  title: LG Dryer Owner's Manual
+  model_patterns:
+  - RH1077*VK
+  aliases: []
+  language: en
+  pages: 48
+  sha256: ac1b257cffda3cdb06ab2d2313f93833d568d693f75ced0c7427cbfab9d616bc
+  reviewed: true
+- doc_id: lg-rh90v9pv8n
+  file: dryer/LG/DR_ELF_MFL71712132_01_220913_00_PRINT (1).pdf
+  category: dryer
+  brand: LG
+  title: LG Dryer Owner's Manual
+  model_patterns:
+  - RH90V9PV8N*
+  - RH90V3AV0N*
+  aliases:
+  - DR_ELF_MFL71712132_01_220913_00_PRINT.pdf
+  language: en
+  pages: 48
+  sha256: eab48b163aaae91718870abbded352b793735b365552d1a542f47383d4fe267c
+  reviewed: true
+  notes: The 94-page PRINT variant (English + another language) is excluded; this 48-page English edition
+    has the same content.
+- doc_id: lg-rh16u8-vcw
+  file: dryer/LG/DR_KOS_MFL69783889_00_230425_00_OM_WEB_EN.pdf
+  category: dryer
+  brand: LG
+  title: LG Dryer Owner's Manual
+  model_patterns:
+  - RH16U8*VCW
+  aliases: []
+  language: en
+  pages: 44
+  sha256: a5185f91c3b23ab5dc71d2666aabe5663397d3716a5f1efdba08b614db738587
+  reviewed: true
+- doc_id: lg-rc10v7-dk
+  file: dryer/LG/DR_MEA_MFL71712106_00_201110_00_WEB_EN.pdf
+  category: dryer
+  brand: LG
+  title: LG Dryer Owner's Manual
+  model_patterns:
+  - RC10V7*DK
+  - RC90V9*V2W
+  aliases: []
+  language: en
+  pages: 48
+  sha256: 5ddb8b114c9a123f595101ad2cf39ae62ad7d361e7abe0b94bb0ed6523e81f70
+  reviewed: true
+- doc_id: samsung-dv50a8800
+  file: dryer/Samsung/DC68-04179B-04_IB_DV8600A_SimpleUX_EN_231006.pdf
+  category: dryer
+  brand: Samsung
+  title: Samsung Dryer
+  model_patterns:
+  - DVE50A8800*
+  - DVG50A8800*
+  - DVE50A8600*
+  - DVG50A8600*
+  - DVE45A6400*
+  - DVG45A6400*
+  aliases: []
+  language: en
+  pages: 72
+  sha256: 5dfcb5f459a44b62a874c4e5614ab7bcf603944d7c0354108110e98c4c94c1b0
+  reviewed: true
+- doc_id: samsung-dve45b6300
+  file: dryer/Samsung/DC68-04299K-00_IB_DV6300B_EN_MES_231222.pdf
+  category: dryer
+  brand: Samsung
+  title: Samsung Dryer
+  model_patterns:
+  - DVE45B6300*
+  - DVG45B6300*
+  aliases: []
+  language: en
+  pages: 61
+  sha256: e24f8df271925812a25032e528dbe2cac8dd55ab2e780f3d99819f348610e98f
+  reviewed: true
+- doc_id: samsung-dv53bb8900
+  file: dryer/Samsung/OID55762_IB_DV8900B_SimpleUX_EN_231006.pdf
+  category: dryer
+  brand: Samsung
+  title: Samsung Dryer User Manual
+  model_patterns:
+  - DVE*53BB8900*
+  - DVE*53BB8700*
+  - DVE*46BB6700*
+  - DVE*46BG6500*
+  aliases: []
+  language: en
+  pages: 72
+  sha256: 08fe72a38d3c096ff4c8acf4b98f7c0ce50758241843127f03991061051dd10a
+  reviewed: true
+- doc_id: samsung-dve54cg7550
+  file: dryer/Samsung/OID63027_IB_DV7550C_EN_231222.pdf
+  category: dryer
+  brand: Samsung
+  title: Samsung Dryer User Manual
+  model_patterns:
+  - DVE54CG7550*
+  - DVE54CG7155*
+  - DVG54CG7550*
+  - DVE54CG7150*
+  - DVG54CG7150*
+  aliases: []
+  language: en
+  pages: 68
+  sha256: 608411d0d567d1930ff91dbfedcc398bedd1004c3dafaf119d0b6d5a2ad0098a
+  reviewed: true
+- doc_id: samsung-dv55cg7500
+  file: dryer/Samsung/OID64579_IB_DV7500C_EN_231222.pdf
+  category: dryer
+  brand: Samsung
+  title: Samsung Dryer
+  model_patterns:
+  - DVE55CG7500*
+  - DVG55CG7500*
+  - DVE55CG7100*
+  - DVG55CG7100*
+  - DVE55CG7130*
+  - DVG55CG7130*
+  aliases: []
+  language: en
+  pages: 68
+  sha256: 47182d68170fffe9014c9784de5cd889886e93f499424822122c56f63449586a
+  reviewed: true
+- doc_id: lg-mc8088
+  file: microwave/LG/MFL51228855.pdf
+  category: microwave
+  brand: LG
+  title: LG Microwave/Grill/Convection Oven
+  model_patterns:
+  - MC8088*
+  - MC8288FRC*
+  - MC8087TRC*
+  aliases: []
+  language: en
+  pages: 55
+  sha256: 895392b5eef365af2245020be3b994f7aa76efbab208586c57eed2696ba98b1e
+  reviewed: true
+- doc_id: lg-mh6842b
+  file: microwave/LG/MFL55318536.pdf
+  category: microwave
+  brand: LG
+  title: LG Microwave Oven
+  model_patterns:
+  - MH6842B*
+  aliases: []
+  language: en
+  pages: 30
+  sha256: 989b7bbfeede760ae7b30b6bc7f0a9f27a5bc6c92a6ce966f69f3c19399ed039
+  reviewed: true
+- doc_id: lg-lmc1575
+  file: microwave/LG/MFL69962302_EN.pdf
+  category: microwave
+  brand: LG
+  title: LG Microwave Oven
+  model_patterns:
+  - LMC1575*
+  aliases: []
+  language: en
+  pages: 33
+  sha256: 1b2d6b75c309ec16a3bd86a8ceea667810968ac447b11a94889ea0224e483e0c
+  reviewed: true
+- doc_id: panasonic-nn-cd65ns
+  file: microwave/Panasonic/NNCD65NS_NNCD66NS_ENG_USA.pdf
+  category: microwave
+  brand: Panasonic
+  title: Panasonic Convection/Broil/Microwave Oven
+  model_patterns:
+  - NN-CD65NS
+  - NN-CD66NS
+  aliases: []
+  language: en
+  pages: 60
+  sha256: a882dbfd3b9dab1a29089e074aa8eee13db6765c05e77474f2b8d04825296afc
+  reviewed: true
+- doc_id: panasonic-nn-cs89
+  file: microwave/Panasonic/NNCS89_PA0121_ENG.pdf
+  category: microwave
+  brand: Panasonic
+  title: Panasonic Steam/Convection/Broil/Microwave Oven
+  model_patterns:
+  - NN-CS89*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: a6306105c9924178028d752315529a2a82b7dab4b08356b0909a46c827fdb550
+  reviewed: true
+- doc_id: samsung-mc17j8000c
+  file: microwave/Samsung/MC17J8000CG_AA_DE68-04224E-02.pdf
+  category: microwave
+  brand: Samsung
+  title: Samsung Microwave Oven
+  model_patterns:
+  - MC17J8000C*
+  aliases: []
+  language: en
+  pages: 54
+  sha256: 63f1d5fe414253f8cb181ca548d40778fe6f577864609bcb0491b5947c91f737
+  reviewed: true
+- doc_id: samsung-me11a7710d
+  file: microwave/Samsung/ME11A7710D_EN.pdf
+  category: microwave
+  brand: Samsung
+  title: Samsung Microwave Oven
+  model_patterns:
+  - ME11A7710D*
+  aliases: []
+  language: en
+  pages: 42
+  sha256: d2a119a0b65440680faac65263c471af89f69d287df1516b06bc5a5cea088fc6
+  reviewed: true
+- doc_id: samsung-me21d-6300
+  file: microwave/Samsung/O_01_IB_FULL_ME7500D_GOOD_ME21DG6300SR.pdf
+  category: microwave
+  brand: Samsung
+  title: Samsung Microwave Oven
+  model_patterns:
+  - ME21D*6300*
+  aliases: []
+  language: en
+  pages: 44
+  sha256: 9407d8f35ee6403c4bb88b121d66b0f7b7ac34b2c088960f46af262499e450d3
+  reviewed: true
+- doc_id: samsung-me21d-6700
+  file: microwave/Samsung/O_01_IB_FULL_ME7500D_ME21DG6700SR.pdf
+  category: microwave
+  brand: Samsung
+  title: Samsung Microwave Oven
+  model_patterns:
+  - ME21D*6700*
+  aliases: []
+  language: en
+  pages: 44
+  sha256: 7249fd9f6d0fc01b9f63277f9055309099673506788728e267c81ae62b8bfc92
+  reviewed: true
+- doc_id: samsung-mc17t8000c
+  file: microwave/Samsung/O_MC17T8000CS_AA_EN.pdf
+  category: microwave
+  brand: Samsung
+  title: Samsung Microwave Oven
+  model_patterns:
+  - MC17T8000C*
+  aliases: []
+  language: en
+  pages: 80
+  sha256: 3717e9ff7bb7709875e54f034d485c664c8755ec7d6a2f2de1e2442d75983ec1
+  reviewed: true
+- doc_id: bosch-b36ct
+  file: refrigerator/Bosch/bosch_fridge.pdf
+  category: refrigerator
+  brand: Bosch
+  title: Bosch Fridge-freezer
+  model_patterns:
+  - B36CT*
+  aliases: []
+  language: en
+  pages: 33
+  sha256: 52d1284da1f55396a62cbcb958ae34905dbd5580104eef02863ba5cb7fa18a5d
+  reviewed: true
+- doc_id: ge-side-by-side
+  file: refrigerator/GE/Fridge_GE_manual.pdf
+  category: refrigerator
+  brand: GE
+  title: GE Side by Side Refrigerator
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 40
+  sha256: f590685b393be0ae32273a235d207760907a2e1d3122cc54a107d8ec0da3d842
+  reviewed: true
+  notes: Only size families (22/23/25/28 cu ft) are printed, not model numbers.
+- doc_id: ge-bottom-freezer
+  file: refrigerator/GE/fridge-owners-manual.pdf
+  category: refrigerator
+  brand: GE
+  title: GE Bottom Freezer Refrigerator
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 44
+  sha256: f2f36c8b3d93763cefa215589ad1d41e73cc4c0215775dbedc586a87a9ca2fe8
+  reviewed: true
+  notes: Only a publication number is printed.
+- doc_id: samsung-rf23db
+  file: refrigerator/LG/LG_French_Fridge.pdf
+  category: refrigerator
+  brand: Samsung
+  title: Samsung French Door Refrigerator
+  model_patterns:
+  - RF23DB*
+  - RF23DG*
+  - RF29DB*
+  - RF29DG*
+  aliases: []
+  language: en
+  pages: 204
+  sha256: 6984cbe34ed7c3d5f1089eb597f9ec759375e3ace2c8a89a006cac804360c237
+  reviewed: true
+  notes: Misfiled under LG in v1 and labelled LG in the scenario dataset; the manual is Samsung.
+- doc_id: lg-lrsds2706
+  file: refrigerator/LG/LG_fridge2.pdf
+  category: refrigerator
+  brand: LG
+  title: LG Side by Side Refrigerator
+  model_patterns:
+  - LRSDS2706*
+  - LRSXS2706*
+  - LRSOS2706*
+  - LRSOC2306*
+  - LRSXC2306*
+  - LHSXS2706*
+  - LRSVS2706*
+  - LRSWS2806*
+  - LLSDS2706*
+  - LY27S3240*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 95ff0619705a58e622dbd9bc26e022aa365f6649467176dde4a6b7a788e04417
+  reviewed: true
+- doc_id: lg-ls27t3230
+  file: refrigerator/LG/LG_fridge3.pdf
+  category: refrigerator
+  brand: LG
+  title: LG Side by Side Refrigerator
+  model_patterns:
+  - LS27T3230*
+  - LL27T3530*
+  - LS27H3230*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 57e30bb84a914e09a7986c41903f8c44be5391d0c4f10aac2e0c3cbb531e73d4
+  reviewed: true
+- doc_id: samsung-side-by-side
+  file: refrigerator/Samsung/Samsung_fridge_side.pdf
+  category: refrigerator
+  brand: Samsung
+  title: Samsung Side by Side Refrigerator
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 108
+  sha256: a2b512fd72ea727205d1c95dd62ac76c55a7938fe06978e1b627412b302894d8
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: samsung-rz32
+  file: refrigerator/Samsung/Samsung_one_door.pdf
+  category: refrigerator
+  brand: Samsung
+  title: Samsung Refrigerator User Manual (freezer only)
+  model_patterns:
+  - RZ32*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 64f69b45e79567489bd6c0ab4668934d5bc6ee5b0bd81c33b577e240b7abcadb
+  reviewed: true
+- doc_id: samsung-rf24bb6
+  file: refrigerator/Samsung/samsung_fridge.pdf
+  category: refrigerator
+  brand: Samsung
+  title: Samsung Refrigerator
+  model_patterns:
+  - RF24BB6*
+  - RF30BB6*
+  aliases: []
+  language: en
+  pages: 78
+  sha256: ea34ba51e2f0b96296e61af669f2c1ebbde184ec5313839e54576fba213d3c85
+  reviewed: true
+- doc_id: whirlpool-w10439277c
+  file: refrigerator/Whirlpool/whirlpool_fridge.pdf
+  category: refrigerator
+  brand: Whirlpool
+  title: Whirlpool Refrigerator User Instructions
+  model_patterns:
+  - W10439277C
+  aliases: []
+  language: en
+  pages: 28
+  sha256: cc88dd4428af9bc200844fe37ac63b249f402b2ca46d773fca390b6637f3e7b5
+  reviewed: true
+- doc_id: lg-26ts30mf
+  file: television/LG/LG_HD_TV.pdf
+  category: television
+  brand: LG
+  title: LG Monitor Signage
+  model_patterns:
+  - 26TS30MF
+  - 47TS30MF
+  aliases: []
+  language: en
+  pages: 19
+  sha256: c391e74e4a5cd8ef41791550803c8b293440d4012ba160ce1f692ee36539931a
+  reviewed: true
+- doc_id: philips-pfl8007
+  file: television/Philips/Philips_LED.pdf
+  category: television
+  brand: Philips
+  title: Philips 8000 Series Smart LED TV
+  model_patterns:
+  - 40PFL8007*
+  - 46PFL8007*
+  - 55PFL8007*
+  aliases: []
+  language: en
+  pages: 75
+  sha256: 632216ae181f40ee9f11867c690ae980a3950c15f048ff824eeb1b47226e2be6
+  reviewed: true
+  notes: pypdf text extraction is garbled (custom font encoding); needs OCR in parsing.
+- doc_id: samsung-uk5100b
+  file: television/Samsung/Samsung_HD.pdf
+  category: television
+  brand: Samsung
+  title: Samsung 4 & 5 Series TV User Manual
+  model_patterns:
+  - UK5100B*
+  aliases: []
+  language: en
+  pages: 36
+  sha256: 0e17ef48d6a6558c9a769a4da6e66e3c052615ebfe5dd7082216ac651b183a48
+  reviewed: true
+- doc_id: samsung-tv-e-manual
+  file: television/Samsung/Samsung_HD2.pdf
+  category: television
+  brand: Samsung
+  title: Samsung Television E-Manual
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 125
+  sha256: dc39732ef7b25cfb6ad4ffe8200a0780415769991f4034f34c544e00a3652d8b
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: samsung-qef1
+  file: television/Samsung/Samsung_QLED_TV.pdf
+  category: television
+  brand: Samsung
+  title: Samsung QLED TV User Guide
+  model_patterns:
+  - QEF1*
+  - Q6F*
+  - F6***F
+  - H5***F
+  - BEFX*
+  - QN9**F
+  aliases: []
+  language: en
+  pages: 291
+  sha256: 315e85325e457151dead6903e0099d21d848b86377a0653a02c1699ee4b13aaa
+  reviewed: true
+- doc_id: sony-x90ch
+  file: television/Sony/Sony_LCD_TV.pdf
+  category: television
+  brand: Sony
+  title: Sony LCD TV Reference Guide (X90CH / BZ40H)
+  model_patterns:
+  - XBR-*X90CH*
+  - FW-*BZ40H*
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 21d6a893203518141f202693375b74e2a907298b5bda80b96526e29d366abb65
+  reviewed: true
+- doc_id: sony-xbr-85x900h
+  file: television/Sony/Sony_LCD_TV2.pdf
+  category: television
+  brand: Sony
+  title: Sony LCD TV Reference Guide
+  model_patterns:
+  - XBR-85X900H*
+  - XBR-85X90CH*
+  - XBR-75X900H*
+  - XBR-75X90CH*
+  - XBR-65X900H*
+  - XBR-65X90CH*
+  - XBR-55X900H*
+  - XBR-55X90CH*
+  - SU-WL855*
+  aliases: []
+  language: en
+  pages: 28
+  sha256: f44e2c6c578e9835ed2b4a5111023eba733528b3916f5d947b47c25abd6bd1f7
+  reviewed: true
+- doc_id: tcl-android-tv
+  file: television/TCL/TCL_TV.pdf
+  category: television
+  brand: TCL
+  title: TCL Android TV User Guide
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 20
+  sha256: 31e205b2ba4ffd997f9baf08a19391b384ffd77dd195a5f1cfcbbb2cdb28fec6
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: toshiba-32ft2u
+  file: television/Toshiba/Toshiba_TV.pdf
+  category: television
+  brand: Toshiba
+  title: Toshiba Integrated High Definition LCD Television
+  model_patterns:
+  - 32FT2U*
+  aliases: []
+  language: en
+  pages: 60
+  sha256: beffe9517886e105db1afeaaf5edaf99eafe3bd1d947571bb51b373909e95f3a
+  reviewed: true
+- doc_id: bissell-2254
+  file: vacuum/Bissell/Bissell.pdf
+  category: vacuum
+  brand: Bissell
+  title: BISSELL CleanView Swivel Pet Rewind User Guide
+  model_patterns:
+  - 2254*
+  - 2256*
+  aliases: []
+  language: en
+  pages: 7
+  sha256: 5852b938fdaf17f9e1da3da2cd1fb634ba9bfaa96e9559f525d21adebdfa83c0
+  reviewed: true
+- doc_id: dirt-devil-ud70182
+  file: vacuum/DirtDevil/Dirt_Devil_en.pdf
+  category: vacuum
+  brand: Dirt Devil
+  title: Dirt Devil Full Size Upright Removable Handle
+  model_patterns:
+  - UD70182*
+  - UD70186*
+  - UD70174*
+  aliases: []
+  language: en
+  pages: 4
+  sha256: 1d6606abb9f360a6cfc3d617ab162f92f9cf8a0a7ab2e0f1124033e673318862
+  reviewed: true
+- doc_id: dyson-sv14
+  file: vacuum/Dyson/Dyson.pdf
+  category: vacuum
+  brand: Dyson
+  title: Dyson V11 Operating Manual
+  model_patterns:
+  - SV14*
+  aliases: []
+  language: en
+  pages: 13
+  sha256: 7e0d52deb8cd22c42b9b41a9bbf5b3736d2bbc5ac4ec067ed12ab0e6b1623f29
+  reviewed: true
+- doc_id: eureka-neu180
+  file: vacuum/Eureka/eureka_NEU180.pdf
+  category: vacuum
+  brand: Eureka
+  title: Eureka Upright Vacuum Cleaner Owner's Guide
+  model_patterns:
+  - NEU180*
+  aliases: []
+  language: en
+  pages: 16
+  sha256: c78bcf39f7f96dc7cab393ae933ad24b750f4ce3c0ff7507a1d8ebc345ccd277
+  reviewed: true
+- doc_id: hoover-bh53010
+  file: vacuum/Hoover/Hoover_BH53010CDI.pdf
+  category: vacuum
+  brand: Hoover
+  title: Hoover IMPULSE Cordless Vacuum
+  model_patterns:
+  - BH53010*
+  aliases: []
+  language: en
+  pages: 21
+  sha256: 0ab24a367107f678bc4d2410327d79d420258503b3a26ef4c1c354998eaa57bb
+  reviewed: true
+- doc_id: kenmore-125-81714610
+  file: vacuum/Kenmore/Kenmore_en.pdf
+  category: vacuum
+  brand: Kenmore
+  title: Kenmore Elite Canister Vacuum Cleaner
+  model_patterns:
+  - '125.81714610'
+  aliases: []
+  language: en
+  pages: 24
+  sha256: 4e08904f7e04b32a48aec2b3c1a7f27de1c254f2dd6379be132b86327a060b7b
+  reviewed: true
+- doc_id: lg-a90
+  file: vacuum/LG/LG.pdf
+  category: vacuum
+  brand: LG
+  title: LG Vacuum Cleaner Owner's Manual
+  model_patterns:
+  - A90*
+  aliases: []
+  language: en
+  pages: 32
+  sha256: aae5bf0bb4c77c175e159197194cc9a115376e5f2f0890fe88046fb07ad079c1
+  reviewed: true
+- doc_id: miele-vacuum
+  file: vacuum/Miele/Miele_en.pdf
+  category: vacuum
+  brand: Miele
+  title: Miele Vacuum Cleaner
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 25
+  sha256: 23aaa4085765a3fc78c5d3940337cdb179386b214ec7460d43b60fa110dc644e
+  reviewed: true
+  notes: No model number printed in the manual.
+- doc_id: panasonic-mc-ul424
+  file: vacuum/Panasonic/Panasonic.pdf
+  category: vacuum
+  brand: Panasonic
+  title: Panasonic Vacuum Cleaner (Domestic)
+  model_patterns:
+  - MC-UL424*
+  - MC-UL426*
+  aliases: []
+  language: en
+  pages: 44
+  sha256: 9577b1a09a9bbe1584c9f6a8b1aba6cf562313ccea4f91b1dffb1d71bfa224e3
+  reviewed: true
+- doc_id: shark-nv351
+  file: vacuum/Shark/Shark_NV350_Series.pdf
+  category: vacuum
+  brand: Shark
+  title: Shark Navigator Lift-Away Upright Vacuum NV350 Series
+  model_patterns:
+  - NV351*
+  - NV352*
+  - NV353*
+  aliases: []
+  language: en
+  pages: 9
+  sha256: c720873b2a91270bf9e706d90899523ddde64345fcad8235f884d8c92f1f97bb
+  reviewed: true
+- doc_id: lg-wm9900h-a
+  file: washing_machine/LG/WM_EUS_MFL71693772_04_250521_00_OM_WEB_EN.pdf
+  category: washing_machine
+  brand: LG
+  title: LG Front Load Washer
+  model_patterns:
+  - WM9900H*A
+  - WM9901H*A
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 99e444709851f2a9913867001a7f2a448563bcf14ff7e9bfd41c913f49f5a866
+  reviewed: true
+- doc_id: lg-wm6998h-a
+  file: washing_machine/LG/WM_EUS_MFL71776114_10_250328_00_OM_WEB_EN.pdf
+  category: washing_machine
+  brand: LG
+  title: LG Front Load Washer
+  model_patterns:
+  - WM6998H*A
+  aliases: []
+  language: en
+  pages: 76
+  sha256: c5874c526b10e704898b32584fd967105500bc1f231d3a9f6b364a159a17769f
+  reviewed: true
+- doc_id: lg-wm6700h-a
+  file: washing_machine/LG/WM_VUS_MFL70701247_03_250116_00_OM_WEB_EN.pdf
+  category: washing_machine
+  brand: LG
+  title: LG Front Load Washer
+  model_patterns:
+  - WM6700H*A
+  - WM5700H*A
+  aliases: []
+  language: en
+  pages: 68
+  sha256: 0c657b10ab5a2b57573377f68b3eec841b3d6a63c08534e5a1e4569c160c7628
+  reviewed: true
+- doc_id: lg-wm4000h-a
+  file: washing_machine/LG/WM_VUS_MFL71964303_03_250116_00_OM_WEB_EN.pdf
+  category: washing_machine
+  brand: LG
+  title: LG Washing Machine Owner's Manual
+  model_patterns:
+  - WM4000H*A
+  aliases: []
+  language: en
+  pages: 60
+  sha256: 7d47175666e0b324e8b7bc63a059f95760f33dae8c2ef3a592f15d9a864d45fc
+  reviewed: true
+- doc_id: lg-wm5500h-a
+  file: washing_machine/LG/WM_VUS_MFL71964314_03_250117_00_OM_WEB_EN.pdf
+  category: washing_machine
+  brand: LG
+  title: LG Front Load Washer
+  model_patterns:
+  - WM5500H*A
+  - WM6500H*A
+  aliases: []
+  language: en
+  pages: 64
+  sha256: 2bd9670e64f32b7b939b3ffbd391c930ed0e06fddd26ec7999358e2fb12cf987
+  reviewed: true
+- doc_id: samsung-ww1-b
+  file: washing_machine/Samsung/OID56233_IB_D-PJT_WASHER-MD.pdf
+  category: washing_machine
+  brand: Samsung
+  title: Samsung Washing Machine
+  model_patterns:
+  - WW1*B*******
+  - WW1*D*******
+  - WW9*D*******
+  - WW9*D****
+  aliases: []
+  language: en
+  pages: 76
+  sha256: cac7a2d25ede71edad9ba6c426e2e4a725e650b6117dabca4942ef95aff73667
+  reviewed: true
+- doc_id: samsung-wd18db8995
+  file: washing_machine/Samsung/OID78671_IB_T-PJT_WD8000D_7LCD.pdf
+  category: washing_machine
+  brand: Samsung
+  title: Samsung Laundry Combo Washing Machine
+  model_patterns:
+  - WD18DB8995*
+  aliases: []
+  language: en
+  pages: 92
+  sha256: a5f82515e637e16d989a249e4dda3490d18dbd411120c8d58881409d4596c537
+  reviewed: true
+- doc_id: samsung-wd5100d
+  file: washing_machine/Samsung/WD5100D_WEB_IB_SU-PJT_COMBO-MD.pdf
+  category: washing_machine
+  brand: Samsung
+  title: Samsung Washing Machine
+  model_patterns:
+  - WD5100D*
+  - WD9*DG*
+  aliases:
+  - WD5100D_WEB_IB_SU-PJT_COMBO-MD(1).pdf
+  language: en
+  pages: 68
+  sha256: e75fa7aa3e6166ff9ab2883ff3f0fc3ac15b9229e1f1c517eff197feca434d50
+  reviewed: true
+  notes: pypdf text extraction is partly garbled; models confirmed from the file name and cover.
+- doc_id: samsung-wf9-f09c
+  file: washing_machine/Samsung/Web_IB_Z-PJT_WF9400F-AD_7LCD.pdf
+  category: washing_machine
+  brand: Samsung
+  title: Samsung Washing Machine
+  model_patterns:
+  - WF9*F09C*
+  - WF9*F11C*
+  aliases: []
+  language: en
+  pages: 72
+  sha256: c573a70138d5b808d9066f3b954989cfaf48b155dd5cece24338befd7bd73653
+  reviewed: true
+  notes: pypdf text extraction is partly garbled.
+- doc_id: aquafilter-fp3-hj-k1
+  file: water_purifier/AquaFilter/aquafilter.pdf
+  category: water_purifier
+  brand: Aquafilter
+  title: Aquafilter Installation Manual
+  model_patterns:
+  - FP3-HJ-K1
+  - FP3-4
+  - FP3-5
+  aliases: []
+  language: en
+  pages: 18
+  sha256: d2f51ce68ba1de888aa345876e29d59bca3b033a4012a86736f99376742d1d3c
+  reviewed: true
+- doc_id: bluewater-pro
+  file: water_purifier/BlueWater/bluewater.pdf
+  category: water_purifier
+  brand: BlueWater
+  title: Bluewater Pro Water Purifier
+  model_patterns:
+  - 400C*
+  - 400BC*
+  - 600C*
+  - 600BC*
+  aliases: []
+  language: en
+  pages: 14
+  sha256: 5edb04de0d06cc22d0319943098d76b9a1bea0e5a214bdd14cdaa5ff16e29e4a
+  reviewed: true
+- doc_id: brita-mypure-max
+  file: water_purifier/Brita/brita.pdf
+  category: water_purifier
+  brand: Brita
+  title: BRITA Mypure Max Water Purifier
+  model_patterns: []
+  aliases: []
+  language: en
+  pages: 36
+  sha256: 6a6169b942c8bfbb1cb1a4a9ffa2f7d0d81e08cc069eab85a18b6fd8d41a53ec
+  reviewed: true
+  notes: Models are named Mypure Max 5S/6S/7S, not model numbers.
+- doc_id: brondell-h630
+  file: water_purifier/Brondell/Brondell.pdf
+  category: water_purifier
+  brand: Brondell
+  title: Brondell Cypress Water Filtration System
+  model_patterns:
+  - H630
+  aliases: []
+  language: en
+  pages: 20
+  sha256: 4e5ab5055923f8eb0aa140386d220f22c9955dcf0536bbcf64819ae05c2b7cc1
+  reviewed: true
+- doc_id: brondell-rc100
+  file: water_purifier/Brondell/brondell2.pdf
+  category: water_purifier
+  brand: Brondell
+  title: Brondell Circle Reverse Osmosis Water Filtration System
+  model_patterns:
+  - RC100
+  aliases: []
+  language: en
+  pages: 28
+  sha256: 95284d00628b82c072b8bcf3f3abf02973cffd77e286d6e3031396dfd0ecc3bd
+  reviewed: true
+- doc_id: brondell-uc300
+  file: water_purifier/Brondell/brondell3.pdf
+  category: water_purifier
+  brand: Brondell
+  title: Brondell UC300 Three-Stage Undercounter Water Filtration System
+  model_patterns:
+  - UC300
+  aliases: []
+  language: en
+  pages: 25
+  sha256: 0c449ee8e2c4b1c4d5528d85536c317b3e562642fb8d717605f64f9f2f05c9d2
+  reviewed: true
+- doc_id: whirlpool-whapsro
+  file: water_purifier/Whirlpool/whirlpool_whapspro.pdf
+  category: water_purifier
+  brand: Whirlpool
+  title: Whirlpool Reverse Osmosis Drinking Water System
+  model_patterns:
+  - WHAPSRO
+  aliases: []
+  language: en
+  pages: 27
+  sha256: 80a57b288e386bf0b99e211dd1e409f97742bfbf111e48b0af793f5110d60255
+  reviewed: true
+- doc_id: whirlpool-wharos5
+  file: water_purifier/Whirlpool/whirlpool_whar.pdf
+  category: water_purifier
+  brand: Whirlpool
+  title: Reverse Osmosis Water Filtration System
+  model_patterns:
+  - WHAROS5
+  aliases: []
+  language: en
+  pages: 30
+  sha256: 10628e4db4c69283495c291e305c08f6f348d0e0feda1bc4b6061a5e267c63ef
+  reviewed: true

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 版本 | v0.3（草稿；變更見附錄 D） |
+| 版本 | v0.4（草稿；變更見附錄 D） |
 | 日期 | 2026-10-21 |
 | 定位 | B2C 家電維修客服 Agent · 個人作品集 |
 | 參考 | Sierra AI 的 Agent OS／Agent SDK 設計理念（見附錄 C） |
@@ -83,9 +83,9 @@
 
 | 類別 ID | 名稱 | 手冊數 | 評估情境數 |
 |---|---|---|---|
-| `dishwasher` | 洗碗機 | 11 | 330 |
+| `dishwasher` | 洗碗機 | 9 | 330 |
 | `washing_machine` | 洗衣機 | 9 | 300 |
-| `dryer` | 乾衣機 | 10 | 300 |
+| `dryer` | 乾衣機 | 9 | 300 |
 | `refrigerator` | 冰箱 | 10 | 300 |
 | `microwave` | 微波爐 | 10 | 300 |
 | `coffee_maker` | 咖啡機 | 10 | 300 |
@@ -94,7 +94,7 @@
 | `television` | 電視 | 9 | 270 |
 | `water_purifier` | 淨水器 | 8 | 240 |
 
-手冊數為去除重複 PDF 後的數量（共 97 本）。v1 有 98 個檔案：Samsung `WD5100D...(1).pdf` 與原檔 hash 相同，已刪除；LG 乾衣機 `DR_ELF_MFL71712132...PRINT (1).pdf` 與原檔是同型號的不同版本（48 頁純英文 vs. 94 頁含韓文工程圖），M1-01 決定保留哪一份。v1 評估資料的正解標籤引用了這些 `(1)` 檔名，manifest 以 `aliases` 對照（§10.1）。
+手冊數為去除重複後的數量（共 **94 本**，見 `data/manuals/manifest.yaml`）。v1 有 98 個檔案，排除 4 個：Samsung `WD5100D...(1).pdf`（與原檔 hash 相同）、LG 乾衣機 94 頁的 `...PRINT.pdf`（英文 + 另一語言，保留 48 頁純英文版 `...PRINT (1).pdf`）、Criterion `CDW2FCMS.pdf` 與 `CDW2FCMW.pdf`（與 `CDW2FCMB.pdf` 文字完全相同，只是顏色版本）。v1 評估資料的正解標籤引用了這些檔名，manifest 以 `aliases` 對照（§10.1）。另外 `refrigerator/LG/LG_French_Fridge.pdf` 其實是 Samsung 手冊（v1 放錯目錄，評估資料也標成 LG），manifest 記為 Samsung；檢索評估因此用類別過濾，不用品牌過濾。
 
 不在清單內的家電：允許以「網路備援」回答一般性問題，但回覆要標示「沒有對應的官方手冊」。
 
@@ -1224,5 +1224,6 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 
 | 版本 | 變更 |
 |---|---|
-| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正為 97 本，manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
+| v0.2 | 系統一律英文，移除 locale 與多語模板（§2.4、§7、§8、§13）；手冊數修正（v0.4 再修正為 94 本），manifest 新增 `aliases`（§2.2、§10.1）；情境數修正、dev/test 依情境分組切分、對話模擬情境待縮減（§16.1）；模擬使用者改用 Haiku（§9.1）；寫入類工具從 `tools_allowed` 移除，預約改由卡片 action 觸發（§7.4）；`respond` 的工具呼叫迴圈（§7.3）；MCP 本機與雲端統一為 sub-app（§12.1、§18.2）；Langfuse 只用 Cloud（§4）；release manifest 不打包進 image（§17.3、§18.4）；新的 private repo（§18.1、M0-01）；新增 Q9、Q10 |
 | v0.3 | Wave 0 + 三條平行開發線（§19）；M3-01 LLM 層與 dev/test 切分提前；新增 `extract` LLM 任務（§9.1）；`models.yaml` 移到 llm 套件內；evals 成為 workspace 套件 `homehelper_evals`（§6）；檢索評估接 CI 延到 M8（§16.5） |
+| v0.4 | M1-01：manifest 完成並人工審查（94 本；排除重複與變體、`aliases`、LG_French_Fridge 實為 Samsung，§2.2） |

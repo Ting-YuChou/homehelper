@@ -9,12 +9,17 @@ dependencies = [
     "langfuse>=5.0.4",
     "litellm>=1.106.2",
     "pydantic-settings>=2.16.1",
+    "pypdf[crypto]>=6.21.1",
     "pyyaml>=6.0.3",
     "redis[hiredis]>=8.1.0",
     "sqlalchemy[asyncio]>=2.1.5",
     "structlog>=26.1.0",
+    "typer>=0.27.3",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.scripts]
+homehelper = "homehelper.cli:app"
 
 [build-system]
 requires = ["hatchling"]

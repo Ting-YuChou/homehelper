@@ -1,5 +1,6 @@
 """LLMClient backed by the LiteLLM SDK (library mode, no proxy)."""
 
+import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import nullcontext
@@ -17,6 +18,7 @@ log = get_logger(__name__)
 
 # Errors are logged by us; LiteLLM's multi-line help banners would only add noise to JSON logs.
 litellm.suppress_debug_info = True
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 CompletionFn = Callable[..., Awaitable[Any]]
 UsageSink = Callable[[LLMUsage], None]
