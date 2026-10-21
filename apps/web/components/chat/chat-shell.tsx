@@ -77,7 +77,7 @@ export function ChatShell() {
                 <Menu />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="w-72 p-0 pt-10">
               <SheetTitle className="sr-only">Conversations</SheetTitle>
               {list}
             </SheetContent>

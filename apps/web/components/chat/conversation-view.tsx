@@ -108,6 +108,7 @@ export function ConversationView({
                 message={message}
                 interactive={message.id === lastAssistantId}
                 onAction={sendAction}
+                conversationId={conversationId ?? undefined}
               />
             ),
           )}

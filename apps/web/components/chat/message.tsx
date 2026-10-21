@@ -8,6 +8,8 @@ import { CitationList } from "@/components/cards/citation-chip";
 import type { Card, Citation, Message, StructuredAction } from "@/lib/api/types";
 import { actionLabel } from "@/lib/chat/actions";
 
+import { FeedbackButtons } from "./feedback-buttons";
+
 type AssistantContent = Pick<Message, "id" | "content"> & {
   cards: Card[];
   citations: Citation[];
@@ -29,11 +31,14 @@ export function AssistantMessage({
   interactive,
   onAction,
   streaming = false,
+  conversationId,
 }: {
   message: AssistantContent;
   interactive: boolean;
   onAction: (action: StructuredAction) => void;
   streaming?: boolean;
+  /** Set for stored messages, which can take feedback; drafts can't yet. */
+  conversationId?: string;
 }) {
   // Sources not already shown on a card (step cards carry their own citations).
   const onCards = new Set(
@@ -55,6 +60,13 @@ export function AssistantMessage({
       )}
       <CardList cards={message.cards} interactive={interactive} onAction={onAction} />
       <CitationList citations={sources} />
+      {conversationId && (
+        <FeedbackButtons
+          conversationId={conversationId}
+          messageId={message.id}
+          rating={message.feedback}
+        />
+      )}
     </article>
   );
 }
