@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Repo-relative by default (commands run from the repo root); a mounted volume in containers.
     data_dir: Path = Path("data")
     releases_dir: Path = Path("releases")
+    web_whitelist_path: Path = Path("config/web_whitelist.yaml")
     # Knowledge-base snapshot to serve; None = the newest `ready` kb_version (spec §10.3, §17.3).
     kb_version: str | None = None
 

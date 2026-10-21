@@ -20,6 +20,7 @@ dependencies = [
     "redis[hiredis]>=8.1.0",
     "sqlalchemy[asyncio]>=2.0.40,<2.1",
     "structlog>=26.1.0",
+    "tavily-python>=0.8.5",
     "typer>=0.27.3",
     "uvicorn[standard]>=0.54.0",
 ]
