@@ -41,7 +41,7 @@ class RetrieverConfig(BaseModel):
     # Sufficiency thresholds (calibrated on the dev split in M1-07): on the rerank relevance
     # score, and on dense cosine similarity when reranking is unavailable.
     tau: float = 0.3
-    tau_without_rerank: float = 0.45
+    tau_without_rerank: float = 0.50  # M1-07: F1-optimal 0.496 on dev (P 0.91, R 0.78)
 
 
 @dataclass

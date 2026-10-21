@@ -38,13 +38,23 @@ make test               # unit tests (pytest, from repo root)
 make test-integration   # + integration tests against the running stack (RUN_INTEGRATION=1)
 make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
+make migrate            # alembic upgrade head (needs `make up`)
 pnpm --filter web build
+
+# Knowledge base (M1) — needs PDFs in data/manuals/pdfs/ (main checkout only) and keys in .env
+uv run homehelper manifest draft   # draft unreviewed manifest entries (Haiku); review, set reviewed: true
+uv run homehelper parse            # LlamaParse → data/parsed/<sha256>.<tier>.json (cached; paid per page)
+make ingest                        # parse (cached) → chunk → embed → new kb_YYYYMMDD_NN table
+uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + τ calibration
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
 - Tests build the app with `create_app(make_settings(...))` from `apps/api/tests/conftest.py`; settings never read `.env` in tests.
 - Integration tests are marked `@pytest.mark.integration` and skipped unless `RUN_INTEGRATION=1` (CI sets it, with Postgres/Redis service containers).
 - `apps/web` uses Next.js 16, which differs from older versions: read `apps/web/AGENTS.md` and the docs in `apps/web/node_modules/next/dist/docs/` before writing web code. `pnpm typecheck` runs `next typegen` first (needed for `LayoutProps` and similar types).
+- LiteLLM would `load_dotenv()` on import; `llm/litellm_client.py` sets `LITELLM_MODE=PRODUCTION` first so secrets only flow through `Settings`. Tests clear all Settings env vars (autouse fixture in `apps/api/tests/conftest.py`).
+- LlamaIndex gotchas: `PGVectorStore` HYBRID mode just concatenates dense + full-text results (we fuse with our own RRF in `knowledge/retriever.py`); stored `doc_id` comes from the node's SOURCE relationship (`ingestion/pipeline.py:to_node`); filter values are interpolated into SQL, so `knowledge/backends.py` whitelists them.
+- `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a trial key (10 rerank calls/min, 1000/month) until upgraded.
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
 ## Shared contracts (Wave 0) — import these, don't redefine them
