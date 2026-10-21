@@ -43,6 +43,7 @@ make seed-mock          # reset the MCP mock tables to data/mock/ (needs `make m
 uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalone (MCP Inspector)
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
+uv run evals run --suite smoke --models models.yaml   # per-task overrides, e.g. `nlu: opencode_go/openai/glm-5.3`
 pnpm --filter web build
 pnpm --filter web test  # vitest (SSE parsing, turn reducer)
 make openapi            # regenerate apps/web/lib/api/{openapi.json,schema.d.ts}; CI fails if stale
@@ -82,7 +83,7 @@ uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # co
 | MCP tool registry: read/write, LLM-callable (`LLM_CALLABLE_TOOLS`, `WRITE_TOOLS`) | `homehelper.mcp_servers.registry` |
 | MCP servers: `build_mcp_servers(settings, engine=..., overrides=McpOverrides(...))`, mounted at `/mcp/<server>/` | `homehelper.mcp_servers.factory`; records in `homehelper.mcp_servers.schemas` |
 | Web API: `ConversationService` (turn → `messages` rows), `WebChannelAdapter` (SSE), `TurnGuards` (rate limits, spend cap, conversation lock) | `homehelper.conversations.service`, `homehelper.channels.web`, `homehelper.ratelimit` |
-| Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext`, returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
+| Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.
 

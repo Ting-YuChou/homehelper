@@ -20,7 +20,7 @@ from homehelper.knowledge.backends import build_retriever
 from homehelper.knowledge.retriever import KnowledgeRetriever
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.knowledge.web import SearchHit, WebKnowledge, Whitelist
-from homehelper.llm import LLMClient, build_llm_client
+from homehelper.llm import LLMClient, ModelRegistry, build_llm_client
 from homehelper_evals.agents import AgentContext, AgentFactory
 from homehelper_evals.cases import EvalCase, WebResult
 
@@ -38,8 +38,9 @@ class MockWebSearch:
 class SharedRetriever:
     """Builds the KB retriever on first use (it needs the event loop) and shares it."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, registry: ModelRegistry | None = None) -> None:
         self._settings = settings
+        self._registry = registry
         self._retriever: KnowledgeRetriever | None = None
         self._lock = asyncio.Lock()
 
@@ -47,7 +48,9 @@ class SharedRetriever:
         async with self._lock:
             if self._retriever is None:
                 engine = create_engine(self._settings.database_url)
-                self._retriever, _ = await build_retriever(self._settings, engine)
+                self._retriever, _ = await build_retriever(
+                    self._settings, engine, registry=self._registry
+                )
             return self._retriever
 
 
@@ -72,8 +75,10 @@ def case_web(case: EvalCase, llm: LLMClient, whitelist: Whitelist) -> WebKnowled
 
 
 def baseline(context: AgentContext) -> AgentFactory:
-    llm = build_llm_client(context.settings, usage_sink=context.usage_sink)
-    shared = SharedRetriever(context.settings)
+    llm = build_llm_client(
+        context.settings, registry=context.registry, usage_sink=context.usage_sink
+    )
+    shared = SharedRetriever(context.settings, context.registry)
     whitelist = Whitelist.load(context.settings.web_whitelist_path)
 
     def factory(case: EvalCase) -> BaselineAgent:

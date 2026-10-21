@@ -8,7 +8,7 @@ from homehelper.agent.protocol import AgentSnapshot
 from homehelper.core.config import Settings
 from homehelper.llm import FakeLLMClient, LLMError, LLMUsage
 from homehelper_evals import cli, langfuse_export, runner
-from homehelper_evals.agents import EchoAgent, OracleStubAgent
+from homehelper_evals.agents import AgentContext, EchoAgent, OracleStubAgent
 from homehelper_evals.conversation import UsageRecorder, run_conversation
 from homehelper_evals.graders import Grade, RubricJudge
 from homehelper_evals.graders.rubric import JUDGE_TASK
@@ -26,7 +26,8 @@ from homehelper_evals.testing import make_case
 
 
 def settings() -> Settings:
-    return Settings(_env_file=None, langfuse_public_key="", anthropic_api_key="", openai_api_key="")  # type: ignore[call-arg]
+    keys = {"anthropic_api_key": "", "openai_api_key": "", "opencode_go_api_key": ""}
+    return Settings(_env_file=None, langfuse_public_key="", **keys)  # type: ignore[call-arg]
 
 
 def result(case, *successes: bool) -> CaseResult:
@@ -174,6 +175,83 @@ def test_cli_smoke_run_writes_report(tmp_path, capsys) -> None:
     out = tmp_path / "review.md"
     assert cli.main(["render", str(path), "--out", str(out)]) == 0
     assert out.read_text().count("### ") == 4
+
+
+def _scripted_run(tmp_path, *extra: str) -> list[str]:
+    return [
+        "run",
+        "--suite",
+        "smoke",
+        "--simulator",
+        "scripted",
+        "--no-judge",
+        "--no-langfuse",
+        "--limit",
+        "1",
+        "--release",
+        "ci",
+        "--out-dir",
+        str(tmp_path),
+        *extra,
+    ]
+
+
+def test_load_model_overrides_accepts_ids_mappings_and_release_manifests(tmp_path) -> None:
+    flat = tmp_path / "flat.yaml"
+    flat.write_text(
+        "nlu: opencode_go/openai/glm-5.3\n"
+        "responder: {model: opencode_go/anthropic/qwen3.8-max, fallbacks: [anthropic/x]}\n"
+    )
+    assert cli.load_model_overrides(flat) == {
+        "nlu": {"model": "opencode_go/openai/glm-5.3", "fallbacks": []},
+        "responder": {"model": "opencode_go/anthropic/qwen3.8-max", "fallbacks": ["anthropic/x"]},
+    }
+    manifest = tmp_path / "release.yaml"
+    manifest.write_text("id: r1\nmodels:\n  judge: anthropic/claude-sonnet-5-5\n")
+    assert cli.load_model_overrides(manifest) == {
+        "judge": {"model": "anthropic/claude-sonnet-5-5", "fallbacks": []}
+    }
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("nlu: [a, b]\n")
+    with pytest.raises(ValueError, match="nlu"):
+        cli.load_model_overrides(bad)
+
+
+def test_cli_models_reach_the_agent_and_the_report(tmp_path, monkeypatch) -> None:
+    models = tmp_path / "models.yaml"
+    models.write_text("nlu: opencode_go/openai/glm-5.3\n")
+    contexts: list[AgentContext] = []
+    real_loader = cli.load_agent_factory
+
+    def capture(name: str, context: AgentContext):
+        contexts.append(context)
+        return real_loader(name, context)
+
+    monkeypatch.setattr(cli, "load_agent_factory", capture)
+    assert cli.main(_scripted_run(tmp_path, "--models", str(models)), settings=settings()) == 0
+    [context] = contexts
+    assert context.registry.for_task("nlu").model == "opencode_go/openai/glm-5.3"
+    assert context.registry.for_task("nlu").fallbacks == []
+    [path] = tmp_path.glob("ci_smoke_*.json")
+    assert json.loads(path.read_text())["config"]["model_overrides"] == {
+        "nlu": {"model": "opencode_go/openai/glm-5.3", "fallbacks": []}
+    }
+
+
+def test_cli_without_models_records_no_overrides(tmp_path) -> None:
+    assert cli.main(_scripted_run(tmp_path), settings=settings()) == 0
+    [path] = tmp_path.glob("ci_smoke_*.json")
+    assert json.loads(path.read_text())["config"]["model_overrides"] is None
+
+
+def test_cli_rejects_bad_models_files(tmp_path, capsys) -> None:
+    unknown = tmp_path / "unknown.yaml"
+    unknown.write_text("nope: anthropic/x\n")
+    missing = tmp_path / "missing.yaml"
+    for path in (unknown, missing):
+        assert cli.main(_scripted_run(tmp_path, "--models", str(path)), settings=settings()) == 2
+    assert "--models" in capsys.readouterr().err
+    assert not list(tmp_path.glob("ci_smoke_*.json"))
 
 
 def test_cli_refuses_llm_simulator_without_keys(tmp_path) -> None:

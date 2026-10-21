@@ -31,6 +31,7 @@ def build_llm_client(
     return LiteLLMClient(
         registry or ModelRegistry.load(),
         settings.provider_api_keys(),
+        opencode_go_base_url=settings.opencode_go_base_url,
         tracer=tracer,
         usage_sink=usage_sink,
     )

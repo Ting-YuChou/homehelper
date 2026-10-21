@@ -1,5 +1,7 @@
 # Task → model mapping (docs/SPEC.md §9.1). A release manifest may override `model`/`fallbacks` per task.
 # Model ids use LiteLLM's "<provider>/<model>" form. Fallbacks whose provider has no API key are skipped.
+# `opencode_go/<openai|anthropic>/<model>` (OpenCode Go subscription) is for eval-experiment
+# overrides only; never use it as a default here.
 tasks:
   nlu:
     model: anthropic/claude-haiku-5-5

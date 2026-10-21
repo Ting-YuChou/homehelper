@@ -3,6 +3,7 @@
 import logging
 import os
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import nullcontext
 from typing import Any
@@ -30,6 +31,14 @@ CompletionFn = Callable[..., Awaitable[Any]]
 UsageSink = Callable[[LLMUsage], None]
 
 
+OPENCODE_GO = "opencode_go"
+# OpenCode Go serves each wire format under its own path (https://opencode.ai/docs/go/).
+# Ids are `opencode_go/<wire>/<model>`, e.g. `opencode_go/openai/glm-5.3`.
+OPENCODE_GO_PATHS = {"openai": "/openai/v1", "anthropic": "/anthropic"}
+# Go asks clients to name themselves and send a stable `x-opencode-session`.
+OPENCODE_GO_USER_AGENT = "homehelper-evals/1.0"
+
+
 def provider_of(model: str) -> str:
     return model.split("/", 1)[0]
 
@@ -43,6 +52,8 @@ class LiteLLMClient:
         registry: ModelRegistry,
         api_keys: Mapping[str, str],
         *,
+        opencode_go_base_url: str = "https://opencode.ai/inference/go",
+        session_id: str | None = None,
         tracer: Tracer | None = None,
         usage_sink: UsageSink | None = None,
         completion_fn: CompletionFn | None = None,
@@ -50,6 +61,9 @@ class LiteLLMClient:
     ) -> None:
         self._registry = registry
         self._api_keys = dict(api_keys)
+        self._opencode_go_base_url = opencode_go_base_url.rstrip("/")
+        # One session per client: an eval run shares a client across its conversations.
+        self._session_id = session_id or uuid.uuid4().hex
         self._tracer = tracer
         self._usage_sink = usage_sink
         self._completion_fn: CompletionFn = completion_fn or litellm.acompletion
@@ -89,6 +103,23 @@ class LiteLLMClient:
             raise LLMError(f"no API key configured for any model in chain: {models}")
         return available
 
+    def _route(self, model: str) -> tuple[str, dict[str, Any]]:
+        """LiteLLM model id and connection kwargs for a registry model id."""
+        provider, _, rest = model.partition("/")
+        kwargs: dict[str, Any] = {"api_key": self._api_keys[provider]}
+        if provider != OPENCODE_GO:
+            return model, kwargs
+        path = OPENCODE_GO_PATHS.get(provider_of(rest))
+        if path is None or "/" not in rest:
+            supported = ", ".join(f"{OPENCODE_GO}/{wire}/<model>" for wire in OPENCODE_GO_PATHS)
+            raise LLMError(f"unsupported OpenCode Go model id {model!r}; use {supported}")
+        kwargs["api_base"] = self._opencode_go_base_url + path
+        kwargs["extra_headers"] = {
+            "User-Agent": OPENCODE_GO_USER_AGENT,
+            "x-opencode-session": self._session_id,
+        }
+        return rest, kwargs
+
     async def _complete(
         self, task: str, messages: list[Message], response_format: type[T] | None
     ) -> tuple[str, str]:
@@ -96,17 +127,18 @@ class LiteLLMClient:
         payload = [m.model_dump() for m in messages]
         errors: list[str] = []
         for model in self._chain(config):
+            litellm_model, connection = self._route(model)
             started = time.perf_counter()
             with self._generation(task, model, payload) as generation:
                 try:
                     response = await self._completion_fn(
-                        model=model,
+                        model=litellm_model,
                         messages=payload,
                         response_format=response_format,
                         timeout=config.timeout_s,
                         max_tokens=config.max_tokens,
                         num_retries=self._num_retries,
-                        api_key=self._api_keys[provider_of(model)],
+                        **connection,
                     )
                     content = response.choices[0].message.content or ""
                 except Exception as exc:

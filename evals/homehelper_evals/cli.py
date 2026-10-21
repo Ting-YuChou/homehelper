@@ -1,6 +1,6 @@
 """`uv run evals ...` (spec §16.4).
 
-evals run --suite {smoke|safety|full} [--k 4] [--concurrency 8] [--agent stub]
+evals run --suite {smoke|safety|full} [--k 4] [--concurrency 8] [--agent stub] [--models x.yaml]
 evals label-root-causes            # M2-01, one-time; writes the frozen labels file
 evals render <report.json>         # Markdown transcripts for manual review
 """
@@ -11,6 +11,9 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 from homehelper.core.config import Settings
 from homehelper.llm import ModelRegistry, build_llm_client
@@ -57,6 +60,11 @@ def _parser() -> argparse.ArgumentParser:
         help="LLM rubric judge (default: on)",
     )
     run.add_argument("--release", help="release id (default: RELEASE_ID / 'dev')")
+    run.add_argument(
+        "--models",
+        type=Path,
+        help="YAML of per-task model overrides (task: model-id, or task: {model, fallbacks, ...})",
+    )
     run.add_argument(
         "--per-category",
         type=int,
@@ -115,25 +123,55 @@ def _summary(report: dict) -> str:
     return "\n".join(lines)
 
 
+def load_model_overrides(path: Path) -> dict[str, dict[str, Any]]:
+    """Per-task overrides for `ModelRegistry.load`. A bare model id replaces the task's whole
+    chain (no fallbacks), so an experiment never silently falls back to the default model.
+    A release manifest works too: its `models:` section is used."""
+    data = yaml.safe_load(path.read_text()) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected a mapping of task -> model")
+    models = data.get("models", data)
+    if not isinstance(models, dict):
+        raise ValueError(f"{path}: `models` must be a mapping of task -> model")
+    overrides: dict[str, dict[str, Any]] = {}
+    for task, value in models.items():
+        if isinstance(value, str):
+            overrides[task] = {"model": value, "fallbacks": []}
+        elif isinstance(value, dict):
+            overrides[task] = dict(value)
+        else:
+            raise ValueError(f"{path}: override for {task!r} must be a model id or a mapping")
+    return overrides
+
+
 async def _run(args: argparse.Namespace, settings: Settings) -> int:
     config = SUITES[args.suite]
     if args.per_category is not None:
         config = config.model_copy(update={"scenarios_per_category": args.per_category})
     k = args.k or config.k
     cases = build_cases(config, seed=args.seed)[: args.limit]
+    try:
+        overrides = load_model_overrides(args.models) if args.models else {}
+        registry = ModelRegistry.load(overrides=overrides)
+    except (OSError, ValueError) as exc:
+        print(f"--models: {exc}", file=sys.stderr)
+        return 2
     recorder = UsageRecorder()
     needs_llm = args.simulator == "llm" or args.judge
     if needs_llm and not settings.provider_api_keys():
         print("no LLM API key configured; use --simulator scripted --no-judge", file=sys.stderr)
         return 2
-    llm = build_llm_client(settings, usage_sink=recorder.sink) if needs_llm else None
+    llm = (
+        build_llm_client(settings, registry=registry, usage_sink=recorder.sink)
+        if needs_llm
+        else None
+    )
     simulator: UserSimulator = (
         LLMUserSimulator(llm) if llm and args.simulator == "llm" else ScriptedUserSimulator()
     )
     judge = RubricJudge(llm) if llm and args.judge else None
-    factory = load_agent_factory(args.agent, AgentContext(settings, recorder.sink))
+    factory = load_agent_factory(args.agent, AgentContext(settings, recorder.sink, registry))
     release = args.release or settings.release_id
-    registry = ModelRegistry.load()
 
     created_at = datetime.now(UTC)
     trial_log = TrialLog(
@@ -169,6 +207,7 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
                 f" ({registry.for_task('user_simulator').model})" if args.simulator == "llm" else ""
             ),
             "judge": registry.for_task("judge").model if judge else None,
+            "model_overrides": overrides or None,
             "concurrency": args.concurrency,
             "seed": args.seed,
             "scenario_split": config.scenario_split,

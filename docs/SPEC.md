@@ -590,6 +590,8 @@ Supervisor 必須在**送出前**檢查，所以回覆文字無法邊生成邊�
 
 另有 `extract` 任務（`claude-haiku-5-5`，備援 `gpt-5.4-mini`）：無工具權限的結構化萃取，用於手冊 metadata 與不可信網頁內容（§10.6）。備援鏈中沒有設定 API key 的供應商會被略過。
 
+**OpenCode Go（只用於評估實驗）**：`opencode_go/<openai|anthropic>/<model>`（例如 `opencode_go/openai/glm-5.3`）透過 OpenCode Go 訂閱呼叫，設定 `OPENCODE_GO_API_KEY`／`OPENCODE_GO_BASE_URL`。只能經由覆寫使用（`evals run --models`，§16.4；之後的 release manifest），**不可放進 `models.yaml` 的預設或備援**（單元測試會檢查）。原因：Go 的條款以 coding agent 與自用為主，不適合服務終端使用者；評估會大量呼叫，要注意 5 小時額度。每個 client 送固定的 `x-opencode-session` 與自己的 User-Agent（Go 要求）；LiteLLM 沒有這些模型的價格，`cost_usd` 記為 0。不使用名稱含 `Contributor` 的模型（會拿資料訓練）。
+
 | 任務代號 | 預設模型 | 備援 | 備註 |
 |---|---|---|---|
 | `nlu` | `claude-haiku-5-5` | 其他供應商的小模型 | 結構化輸出 |
@@ -984,7 +986,7 @@ M4 實作：瀏覽器直接呼叫 API（`NEXT_PUBLIC_API_URL`，`credentials: "i
 
 ### 16.4 評估工具
 
-- CLI：`uv run evals run --suite {smoke|safety|full} --release <id> --k 4 --concurrency 8 --agent <echo|stub|module:builder>`；`--simulator scripted --no-judge` 完全不花錢；`uv run evals render <report>` 輸出 Markdown 對話紀錄供人工檢視；`uv run evals label-root-causes` 是 M2-01 的一次性標註。`retrieval` 套件在 Track A 的 `homehelper_evals.retrieval`。
+- CLI：`uv run evals run --suite {smoke|safety|full} --release <id> --k 4 --concurrency 8 --agent <echo|stub|module:builder>`；`--simulator scripted --no-judge` 完全不花錢；`uv run evals render <report>` 輸出 Markdown 對話紀錄供人工檢視；`uv run evals label-root-causes` 是 M2-01 的一次性標註。`--models <yaml>` 覆寫各任務的模型（`task: model-id` 會清空備援，避免實驗默默退回預設模型；也可寫 `task: {model, fallbacks, ...}`，或直接傳 release manifest，讀它的 `models:`），模擬使用者、judge 與 agent builder（經 `AgentContext.registry`）都用同一份 registry，覆寫內容記在報告的 `config.model_overrides`。`retrieval` 套件在 Track A 的 `homehelper_evals.retrieval`。
 - Agent 透過 `AgentFactory`（收到題目、回傳 `AgentRuntime`）接入：`module:builder` 收到 `AgentContext`（settings、usage sink），讓 Agent 的 LLM 成本記到正確的對話；題目的 mock 資料（例如注入集的 web results）也由 factory 接上。內建 `EchoAgent` 與 `OracleStubAgent`（讀答案逐步給步驟卡，只用來測管線）。目前是 in-process 呼叫，HTTP client 之後補上。
 - MCP 一律使用 mock 模式，並記錄工具呼叫，用來斷言（例如「預約流程一定有呼叫 `service_booking.book`」）。
 - 單一試驗出錯（agent factory、對話、評分）只會讓該試驗記為 `error` 失敗，不會中斷整批；每完成一次試驗就附加到 `<report>.trials.jsonl`，完整報告寫出後刪除。pass^k 對每種題型（一般、安全、注入、範圍外）各算一份。
@@ -1307,5 +1309,6 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.6 | M2 Track B：`root_cause_step` 標註加 `user_fixable`／`troubleshootable` 並凍結為 v1、對話模擬改分層抽樣（smoke 20、full 100，回覆 Q9 的提案）、三個新資料集的實際內容、模擬使用者的按鈕與結束規則、安全題「第一則回覆」的判定方式、CLI 與 Langfuse dataset／experiment 的做法（§16） |
 | v0.7 | M3 Track C：`slot_updates` 改為 list、`AgentState` 新增 `Decision`／`PausedJourney`／`frustrated_turns`／`selected_booking_slot`（§7.2–7.3）；`transition` 簽名與每回合順序、路由與暫停規則、`outcome` 可放在 handoff／inform、step `template`、驗證規則補充、`troubleshoot` 改用 `plan_unavailable` 並新增 `user_requested_technician` 護欄（§7.4）；新增 G-SAFE-07 受傷，G-SAFE-05 不轉介（§8.1）；`skip_to`、`tools_allowed` 改白名單、終點可達性不計護欄、不支援的家電不切換 journey（§7.4） |
 | v0.8 | Wave 2 準備：agent 只寫 checkpointer，`messages` 由 API 依事件寫入（§5.2、§7.3）；每則訊息成本用 `llm.track_usage()`；MCP servers 移到 `homehelper/mcp_servers/`（§6、§12.1）；Wave 2 分線（§19） |
+| v0.8.1 | LLM 層新增 `opencode_go` provider，只供評估實驗以覆寫使用，不進預設（§9.1）；`evals run --models` 與 `AgentContext.registry`（§16.4） |
 | v0.9 | M5 Track E：MCP SDK 固定 1.x（ADR-006）、`MCP_MODE`、stateless 掛載於 `/mcp/<server>/` 與 `MCP_AUTH_TOKEN`、工具 registry 標記寫入工具（含 `cancel`）、工具簽名加上 `user_id`、`web_search` 回傳原始結果且不給 LLM、mock 資料內容與時段產生方式、`make seed-mock`（§12） |
 | v0.10 | M4 Track D：conversation service 的回合流程與成本歸屬（§13.1）；新增 demo-users／me／logout／manuals file 路由、匿名訪客、Origin 檢查、OpenAPI 合約檢查（§13.2）；拒絕時的 error 事件與 HTTP 狀態（§13.3）；app 資料表細節（§14.1）；sliding window、花費上限與對話鎖的實作（§14.2）；前端架構（§15.1）；Q7 預設 USD 5、新增 Q11（§20） |

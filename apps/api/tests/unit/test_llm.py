@@ -14,6 +14,7 @@ from homehelper.llm import (
     ModelRegistry,
     track_usage,
 )
+from tests.conftest import make_settings
 
 MESSAGES = [Message(role="user", content="hi")]
 
@@ -132,6 +133,73 @@ def test_default_registry_covers_spec_tasks() -> None:
     registry = ModelRegistry.load()
     for task in ("nlu", "planner", "responder", "supervisor", "vision", "user_simulator", "judge"):
         assert registry.for_task(task).model
+
+
+def test_default_registry_never_uses_opencode_go() -> None:
+    for config in ModelRegistry.load().tasks.values():
+        assert not any(m.startswith("opencode_go/") for m in [config.model, *config.fallbacks])
+
+
+def test_settings_expose_opencode_go_key_only_when_set() -> None:
+    assert "opencode_go" not in make_settings().provider_api_keys()
+    settings = make_settings(opencode_go_api_key="go-key")
+    assert settings.provider_api_keys()["opencode_go"] == "go-key"
+
+
+def _opencode_client(
+    completion: ScriptedCompletion, model: str, sink: list[LLMUsage] | None = None
+) -> LiteLLMClient:
+    return LiteLLMClient(
+        ModelRegistry.load(overrides={"nlu": {"model": model, "fallbacks": []}}),
+        {"opencode_go": "go-key", "anthropic": "a"},
+        opencode_go_base_url="https://go.test/inference/go/",
+        session_id="s1",
+        completion_fn=completion,
+        usage_sink=sink.append if sink is not None else None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("model", "litellm_model", "api_base"),
+    [
+        ("opencode_go/openai/glm-5.3", "openai/glm-5.3", "https://go.test/inference/go/openai/v1"),
+        (
+            "opencode_go/anthropic/qwen3.8-max",
+            "anthropic/qwen3.8-max",
+            "https://go.test/inference/go/anthropic",
+        ),
+    ],
+)
+async def test_opencode_go_routes_by_wire_format(
+    model: str, litellm_model: str, api_base: str
+) -> None:
+    completion = ScriptedCompletion({litellm_model: ["hi", "again"]})
+    usage: list[LLMUsage] = []
+    client = _opencode_client(completion, model, usage)
+    assert await client.text("nlu", MESSAGES) == "hi"
+    await client.text("nlu", MESSAGES)
+    first, second = completion.calls
+    assert first["api_key"] == "go-key"
+    assert first["api_base"] == api_base
+    assert first["extra_headers"]["x-opencode-session"] == "s1"
+    assert first["extra_headers"]["User-Agent"].startswith("homehelper")
+    assert second["extra_headers"] == first["extra_headers"]
+    assert usage[0].model == model
+
+
+async def test_opencode_go_rejects_unsupported_wire_format() -> None:
+    completion = ScriptedCompletion({})
+    for model in ("opencode_go/google/gemini-x", "opencode_go/glm-5.3"):
+        with pytest.raises(LLMError, match="unsupported OpenCode Go model id"):
+            await _opencode_client(completion, model).text("nlu", MESSAGES)
+    assert completion.calls == []
+
+
+async def test_other_providers_get_no_opencode_go_settings() -> None:
+    completion = ScriptedCompletion({"anthropic/primary": ["hello"]})
+    await _client(completion).text("nlu", MESSAGES)
+    assert "api_base" not in completion.calls[0]
+    assert "extra_headers" not in completion.calls[0]
 
 
 async def test_fake_client_replays_script_and_records_calls() -> None:
