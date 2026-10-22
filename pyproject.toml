@@ -28,7 +28,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["legacy", "*.md"]
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
@@ -38,7 +38,7 @@ known-first-party = ["homehelper", "homehelper_evals", "tests"]
 
 [tool.pyright]
 include = ["apps/api/src", "apps/api/tests", "evals/homehelper_evals", "evals/tests"]
-exclude = ["legacy", "**/node_modules", "**/.venv"]
+exclude = ["**/node_modules", "**/.venv"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 venvPath = "."

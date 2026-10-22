@@ -38,7 +38,7 @@ Health checks: `GET /healthz` (liveness) and `GET /readyz` (Postgres + Redis).
 
 ## Repository layout
 
-See [`CLAUDE.md`](CLAUDE.md) and [`docs/SPEC.md`](docs/SPEC.md) §6. The v1 prototype is kept in `legacy/` for reference.
+See [`CLAUDE.md`](CLAUDE.md) and [`docs/SPEC.md`](docs/SPEC.md) §6.
 
 ## Data
 

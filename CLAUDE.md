@@ -22,7 +22,6 @@ evals/           uv workspace member, package `homehelper_evals`: splits, retrie
 data/            manifest, scenarios, mock data (PDFs/media are git-ignored)
 releases/        release manifests
 infra/           Dockerfiles, docker-compose, Cloud Run config
-legacy/          v1 code, reference only — do not import from it; deleted in M3-12
 docs/            SPEC.md, adr/
 ```
 
