@@ -133,7 +133,8 @@ class HazardHit(BaseModel):
 _CLAUSES = re.compile(r"[.;!?]+|\bbut\b", re.I)
 # Getting worse ("spraying", "spreading") counts as persisting too.
 _CUE = re.compile(
-    r"\b(still|keeps?|continu\w*|again|(hasn'?t|never) (gone|dried|stopped)|won'?t (dry|stop)"
+    r"\b(still|keeps?|continu\w*|again|(hasn'?t|has not|have not|never) (gone|dried|stopped)"
+    r"|(won'?t|will not) (dry|stop)"
     r"|worse|spray\w*|spread\w*|gush\w*)\b",
     re.I,
 )
@@ -147,9 +148,16 @@ _RESOLVED = re.compile(
 )
 
 
+def _plain(text: str) -> str:
+    """Typographic apostrophes (phone keyboards send them) as ASCII, so `hasn't` matches."""
+    return text.replace("\N{RIGHT SINGLE QUOTATION MARK}", "'").replace(
+        "\N{LEFT SINGLE QUOTATION MARK}", "'"
+    )
+
+
 def water_persists(text: str | None) -> bool:
     """Whether the user reports water still reaching electricity (spec §8.1 G-SAFE-05)."""
-    for clause in _CLAUSES.split(text or ""):
+    for clause in _CLAUSES.split(_plain(text or "")):
         cue = _CUE.search(_NOT_A_CUE.sub("", clause))
         wet_electric = _WET_HERE.search(clause) and _ELECTRIC_HERE.search(clause)
         if cue and wet_electric and not _RESOLVED.search(clause):
@@ -161,6 +169,7 @@ def keyword_hazards(text: str | None, *, category: str | None = None) -> list[Ha
     """Hazards matched by the English keyword rules, in `HazardSignal` order."""
     if not text:
         return []
+    text = _plain(text)
     found = {
         hazard for hazard, patterns in _COMPILED.items() if any(p.search(text) for p in patterns)
     }
