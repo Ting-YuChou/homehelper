@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadError, uploadFile } from "@/lib/api/uploads";
-import { ACCEPT, checkFiles, kindOf } from "@/lib/uploads/validate";
+import { ACCEPT, checkFiles, kindOf } from "@/lib/media/validate";
 
 import { AttachmentChips, type PendingAttachment } from "./attachment-chips";
 

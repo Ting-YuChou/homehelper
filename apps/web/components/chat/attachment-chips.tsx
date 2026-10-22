@@ -2,7 +2,7 @@
 
 import { Film, LoaderCircle, TriangleAlert, X } from "lucide-react";
 
-import type { MediaKind } from "@/lib/uploads/validate";
+import type { MediaKind } from "@/lib/media/validate";
 
 export type PendingAttachment = {
   key: string;
