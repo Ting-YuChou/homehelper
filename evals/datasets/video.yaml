@@ -4,11 +4,11 @@
 cases:
   - id: home-issue-microwave
     path: home_issue.mp4
-    reviewed: false
+    reviewed: true
     notes: >
-      Drafted from frames only (no audio heard): a stainless over-the-counter microwave; a finger
-      presses several keypad buttons, then Stop/Clear. Brand isn't legible in the frames. Confirm
-      the symptom (presumably: it doesn't start or respond) and any sounds.
+      A stainless over-the-counter microwave; a finger presses several keypad buttons, then
+      Stop/Clear. The display stays dark and nothing responds. Brand isn't legible. Labels
+      confirmed by a person who watched and listened to the clip.
     expect:
       category: microwave
       symptom_keywords: [button]
