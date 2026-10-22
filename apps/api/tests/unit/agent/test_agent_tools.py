@@ -15,6 +15,7 @@ from homehelper.agent.tools import McpToolbox
 from homehelper.agent.turn import AgentReply
 from homehelper.channels.events import (
     BookingSlotsCard,
+    ErrorEvent,
     HandoffCard,
     InboundMessage,
     PartCard,
@@ -53,7 +54,9 @@ async def _send(
     message = InboundMessage(
         conversation_id="conv-1", text=text, action=action, user_id="demo_alex"
     )
-    return [event async for event in agent.handle(message)]
+    events = [event async for event in agent.handle(message)]
+    assert not [e for e in events if isinstance(e, ErrorEvent)], "the turn failed"
+    return events
 
 
 def _tool_messages(messages: list[Message]) -> list[Message]:
@@ -252,7 +255,7 @@ async def test_profile_prefills_checks_warranty_and_recalls_a_similar_repair() -
                 reply("Last time the drain filter fixed this; let's start there.", "c1"),
                 AgentReply(message="Great, glad it works!"),
             ],
-            "supervisor": [PASS],
+            "supervisor": [PASS, PASS],  # the repair record is a tool result: checked too
         }
     )
     agent = JourneyAgent(AgentDeps.default(llm, retriever, tools=McpToolbox(servers())))
