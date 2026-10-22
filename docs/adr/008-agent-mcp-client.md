@@ -56,6 +56,7 @@ M5-07 connects the journey agent to the MCP servers mounted in the API (ADR-004,
 - The responder makes tool turns at steps with tools (`guide`, `inform` in the tool journeys). Latency and the quality of tool use can only be measured with real models (`evals run --suite tools`).
 - Whether a model calls `reply` without being forced to is measured by the `tools` suite. The retry and the structured fallback cover the turns where it does not.
 - Tool results are data. The responder and supervisor prompts frame them as such, and their tag-like `<` is neutralized in `tool` messages too, which do not pass through the prompt templates. YouTube titles in real mode are an injection surface, like web pages.
+- Known limits of technician requests: a signed-in user who asks for a technician without naming the appliance is referred without visit times (booking needs the appliance, and the handoff step does not look again once it is named); asking for a technician again after a booking opens a new issue and offers times again.
 - Known limit: booking slot ids are not bound to an issue. A stale `BookingSlotsCard` could only book a slot the current issue was also offered.
 - Guests and unlinked issues keep the "contact the manufacturer" handoff. `my_appliances` gives guests a fixed sign-in reply.
 

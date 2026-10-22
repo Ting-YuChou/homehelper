@@ -754,23 +754,14 @@ def test_a_side_question_while_collecting_keeps_the_appliance(catalog: JourneyCa
     assert "brand" not in result.state.slots
 
 
-def test_a_signed_in_technician_request_asks_for_the_appliance_first(
+def test_a_side_question_about_another_appliance_leaves_the_topic(
     catalog: JourneyCatalog,
 ) -> None:
-    state = new_state()
+    state = transition(
+        catalog, new_state(), say("report_problem", slots={"appliance_category": "dishwasher"})
+    ).state
     state.profile = UserContext(zip_code="94110")
-    result = transition(catalog, state, say("book_technician", "send someone please"))
-    assert (result.state.active_journey, result.state.step_id) == ("troubleshoot", "gather")
-
-
-def test_asking_again_after_a_handoff_is_not_a_new_issue(catalog: JourneyCatalog) -> None:
-    ask = say("book_technician", "send a technician", slots={"appliance_category": "dishwasher"})
-    escalated = transition(catalog, new_state(), ask).state
-    assert escalated.step_id == "escalate"
-    escalated.offered_slots = [
-        OfferedSlot(slot_id="s1", starts_at="2026-11-02T09:00", technician="A")
-    ]
-    ended = transition(catalog, escalated, press("select_booking_slot", "s1")).state
-    assert ended.step_id == "escalated_end"
-    again = transition(catalog, ended, say("book_technician", "can they also check the door?"))
-    assert [r.issue_id for r in again.state.issues] == ["iss_1"]
+    parts = say("ask_parts", slots={"appliance_category": "dryer", "symptom": "won't heat"})
+    result = transition(catalog, state, parts)
+    assert result.side_question
+    assert "symptom" not in result.state.slots

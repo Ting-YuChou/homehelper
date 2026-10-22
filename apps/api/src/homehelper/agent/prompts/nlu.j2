@@ -38,8 +38,10 @@ Fields:
   - ask_parts: asks about parts or tools to buy.
   - my_appliances: asks about their registered appliances, warranty or repair history.
   - book_technician: asks for a technician, a repair visit or professional help.
-  When a message both describes a problem and asks for a part to buy or for a technician, the
-  request decides the intent (ask_parts, book_technician); the problem still goes in symptom.
+  When a message describes a problem and explicitly asks which part to buy or for a technician
+  to come, the request decides the intent (ask_parts, book_technician) and the problem still
+  goes in symptom. Asking whether a part is the cause ("do I need a new pump?") is still
+  report_problem.
   - confirm / deny: answers yes or no to a question the assistant asked.
   - small_talk: greetings, thanks and pleasantries about this conversation.
   - out_of_scope: anything unrelated to home appliances: chit-chat or questions about other

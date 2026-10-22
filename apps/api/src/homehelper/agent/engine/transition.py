@@ -233,10 +233,6 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         return Route(kind="stay", journey=active.id, reason="continue the active journey")
 
-    if signals.intent == "book_technician" and active is not None and _escalated_end(active, state):
-        # The last issue just handed off (a visit is booked or the user was referred): asking for
-        # the technician again is about that, not a new problem.
-        return Route(kind="none", reason="a technician was already arranged for the last issue")
     dropped = _dropped_by_name(state, signals)
     if dropped is not None:
         return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
@@ -328,9 +324,10 @@ def _has_hazard_guardrail(journey: Journey) -> bool:
     return _has_guardrail(journey, "hazard_detected")
 
 
-def _escalated_end(journey: Journey, state: AgentState) -> bool:
-    step = journey.step(state.step_id) if state.step_id else None
-    return step is not None and step.type == "end" and step.outcome == "escalated"
+def _names_other_appliance(state: AgentState, signals: TurnSignals) -> bool:
+    named = _category_update(signals)
+    current = state.slots.get(CATEGORY_SLOT)
+    return named is not None and (current is None or named != current.value)
 
 
 def _has_guardrail(journey: Journey, when: str) -> bool:
@@ -397,7 +394,9 @@ class _Run:
             if decided.kind != "side_question":
                 self._apply_slot_updates(journey, signals)
                 self.decisions.extend(link_profile_appliance(self.state, journey))
-            elif self._step_type(journey) in COLLECT_STEP_TYPES:
+            elif self._step_type(journey) in COLLECT_STEP_TYPES and not _names_other_appliance(
+                self.state, signals
+            ):
                 topic = [u for u in signals.slot_updates if u.name in SIDE_QUESTION_SLOTS]
                 self._apply_slot_updates(
                     journey, signals.model_copy(update={"slot_updates": topic})
