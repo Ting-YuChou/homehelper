@@ -28,7 +28,11 @@ from homehelper.agent.engine.predicates import (
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
 from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards
-from homehelper.agent.guardrails.rules import HAZARD_RULES, MAX_FRUSTRATED_TURNS
+from homehelper.agent.guardrails.rules import (
+    ESCALATING_HAZARDS,
+    HAZARD_RULES,
+    MAX_FRUSTRATED_TURNS,
+)
 from homehelper.agent.guardrails.templates import (
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
@@ -292,9 +296,15 @@ class _Run:
         replied_rules: set[str] = set()
         for hit in self.hazards:
             rule_id = HAZARD_RULES[hit.signal]
-            if hit.signal not in self.state.hazard_flags:
+            warned = hit.signal in self.state.hazard_flags
+            if not warned:
                 self.state.hazard_flags.append(hit.signal)
             self._log("guardrail", f"{hit.signal} detected ({hit.source})", rule_id=rule_id)
+            # The G-SAFE-05 "power off first" warning is given once: users keep mentioning the
+            # water and the cord while they follow it, and a repeated warning reads as a loop.
+            # Escalating hazards answer with their template every time.
+            if warned and hit.signal not in ESCALATING_HAZARDS:
+                continue
             if rule_id not in replied_rules:
                 replied_rules.add(rule_id)
                 self.fixed_replies.append(safety_reply(hit.signal))

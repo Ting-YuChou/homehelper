@@ -222,6 +222,14 @@ def test_water_near_electric_prefixes_reply_and_continues(catalog: JourneyCatalo
     assert result.state.hazard_flags == ["water_near_electric"]
     assert [r.rule_id for r in result.fixed_replies] == ["G-SAFE-05"]
     assert not result.skip_respond
+    # Mentioning the water again later is logged but not warned about twice.
+    again = transition(
+        catalog,
+        result.state,
+        say("step_feedback", "I switched off the breaker but the outlet is still wet"),
+    )
+    assert not again.fixed_replies
+    assert again.decisions[0].rule_id == "G-SAFE-05"
 
 
 def test_repeated_hazard_rule_gets_one_template(catalog: JourneyCatalog) -> None:

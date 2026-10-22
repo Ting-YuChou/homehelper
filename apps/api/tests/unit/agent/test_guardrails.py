@@ -176,6 +176,19 @@ def test_postprocess_plan_applies_all_rules() -> None:
     assert all(d.kind == "plan" for d in result.decisions)
 
 
+def test_postprocess_drops_items_not_in_english() -> None:
+    french = item(
+        "fr",
+        instruction="Vérifiez que les portes du réfrigérateur et du congélateur se ferment bien.",
+    )
+    english = item("en", instruction="Check that the fridge and freezer doors close properly.")
+    result = postprocess_plan([french, english], category="refrigerator")
+    assert [i.id for i in result.items] == ["en"]
+    assert [(d.reason, d.rule_id) for d in result.decisions] == [
+        ("dropped fr: not in English", "G-INJ-01")
+    ]
+
+
 def test_postprocess_caps_and_forbids_high_voltage_disassembly() -> None:
     items = [*(item(f"p{i}") for i in range(1, 8)), item("open", requires_disassembly=True)]
     result = postprocess_plan(items, category="microwave")

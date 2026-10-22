@@ -1,6 +1,7 @@
 import pytest
 
-from homehelper.agent.supervisor import code_checks, looks_english
+from homehelper.agent.guardrails import looks_english
+from homehelper.agent.supervisor import code_checks
 from homehelper.agent.turn import AgentReply
 
 

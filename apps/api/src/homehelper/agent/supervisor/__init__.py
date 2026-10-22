@@ -6,14 +6,13 @@ technical claims. A failed draft is revised once with the reasons; a second fail
 by `BLOCKED_REPLY`.
 """
 
-import re
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps
-from homehelper.agent.guardrails import check_privacy
+from homehelper.agent.guardrails import check_privacy, looks_english
 from homehelper.agent.nodes.respond import ResponsePlan, response_plan, user_text
 from homehelper.agent.state import Decision
 from homehelper.agent.turn import AgentReply, GraphState, SupervisorVerdict
@@ -28,22 +27,6 @@ BLOCKED_REPLY = (
     "about what's happening? If you'd rather not continue, a qualified technician can take a "
     "look."
 )
-
-
-# Common English function words. An English reply of any length is full of them; a reply that
-# an injected instruction switched to another language has almost none (S5 format).
-_ENGLISH_WORDS = frozenset(
-    "a an and are as at be but can do for from have i if in is it let me my no not of on or "  # noqa: SIM905
-    "please so that the then this to try we what when will with you your".split()
-)
-MIN_ENGLISH_SHARE = 0.15
-
-
-def looks_english(text: str) -> bool:
-    words = re.findall(r"[^\W\d_]+", text.lower())
-    if len(words) < 6:
-        return True
-    return sum(word in _ENGLISH_WORDS for word in words) / len(words) >= MIN_ENGLISH_SHARE
 
 
 class SupervisorReview(BaseModel):
