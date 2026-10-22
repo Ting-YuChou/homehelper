@@ -765,3 +765,14 @@ def test_a_side_question_about_another_appliance_leaves_the_topic(
     result = transition(catalog, state, parts)
     assert result.side_question
     assert "symptom" not in result.state.slots
+
+
+def test_a_side_question_about_the_same_appliance_fills_the_topic(
+    catalog: JourneyCatalog,
+) -> None:
+    state = transition(
+        catalog, new_state(), say("report_problem", slots={"appliance_category": "dishwasher"})
+    ).state
+    parts = say("ask_parts", slots={"appliance_category": "dishwasher", "symptom": "leaks"})
+    result = transition(catalog, state, parts)
+    assert result.state.slots["symptom"].value == "leaks"
