@@ -19,7 +19,15 @@ from pydantic import BaseModel, ValidationError
 from homehelper.core.logging import get_logger
 from homehelper.core.tracing import Tracer
 from homehelper.llm.registry import ModelRegistry, TaskConfig
-from homehelper.llm.types import LLMError, LLMUsage, Message, T
+from homehelper.llm.types import (
+    LLMError,
+    LLMUsage,
+    Message,
+    T,
+    ToolCallRequest,
+    ToolSpec,
+    ToolTurn,
+)
 from homehelper.llm.usage import record_usage
 
 log = get_logger(__name__)
@@ -67,6 +75,30 @@ def _response_format(config: TaskConfig, schema: type[BaseModel] | None) -> Any:
     return schema
 
 
+def _tool_turn(message: Any) -> ToolTurn:
+    """Parse a LiteLLM (OpenAI-format) assistant message; raises ValueError on bad arguments."""
+    calls = []
+    for call in getattr(message, "tool_calls", None) or []:
+        try:
+            arguments = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{call.function.name}: arguments are not JSON") from exc
+        if not isinstance(arguments, dict):
+            raise ValueError(f"{call.function.name}: arguments are not a JSON object")
+        calls.append(ToolCallRequest(id=call.id, name=call.function.name, arguments=arguments))
+    return ToolTurn(tool_calls=calls, content=getattr(message, "content", None) or "")
+
+
+def _trace_output(message: Any) -> Any:
+    calls = getattr(message, "tool_calls", None)
+    if not calls:
+        return message.content or ""
+    return {
+        "content": message.content or "",
+        "tool_calls": [{"name": c.function.name, "arguments": c.function.arguments} for c in calls],
+    }
+
+
 def provider_of(model: str) -> str:
     return model.split("/", 1)[0]
 
@@ -98,13 +130,14 @@ class LiteLLMClient:
         self._num_retries = num_retries
 
     async def text(self, task: str, messages: list[Message]) -> str:
-        content, _ = await self._complete(task, messages, response_format=None)
-        return content
+        message, _ = await self._complete(task, messages)
+        return message.content or ""
 
     async def structured(self, task: str, messages: list[Message], schema: type[T]) -> T:
         if self._registry.for_task(task).structured_output == "json_object":
             messages = [*messages, _schema_instruction(schema)]
-        content, model = await self._complete(task, messages, response_format=schema)
+        message, model = await self._complete(task, messages, response_format=schema)
+        content = message.content or ""
         try:
             return schema.model_validate_json(_strip_fences(content))
         except ValidationError as exc:
@@ -120,11 +153,38 @@ class LiteLLMClient:
                     ),
                 ),
             ]
-        content, model = await self._complete(task, retry_messages, response_format=schema)
+        message, model = await self._complete(task, retry_messages, response_format=schema)
+        content = message.content or ""
         try:
             return schema.model_validate_json(_strip_fences(content))
         except ValidationError as exc:
             raise LLMError(f"{task}: structured output invalid after retry ({model})") from exc
+
+    async def tool_turn(
+        self,
+        task: str,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        require_tool: bool = True,
+    ) -> ToolTurn:
+        request = {
+            "tools": [{"type": "function", "function": spec.model_dump()} for spec in tools],
+            "tool_choice": "required" if require_tool else "auto",
+        }
+        model = ""
+        for _ in range(2):  # one retry, as for structured output
+            message, model = await self._complete(task, messages, **request)
+            try:
+                turn = _tool_turn(message)
+            except ValueError as exc:
+                log.warning("llm_tool_arguments_invalid", task=task, model=model, error=str(exc))
+                continue
+            if require_tool and not turn.tool_calls:
+                log.warning("llm_tool_call_missing", task=task, model=model)
+                continue
+            return turn
+        raise LLMError(f"{task}: tool call invalid after retry ({model})")
 
     def _chain(self, config: TaskConfig) -> list[str]:
         models = [config.model, *config.fallbacks]
@@ -151,10 +211,15 @@ class LiteLLMClient:
         return rest, kwargs
 
     async def _complete(
-        self, task: str, messages: list[Message], response_format: type[T] | None
-    ) -> tuple[str, str]:
+        self,
+        task: str,
+        messages: list[Message],
+        response_format: type[T] | None = None,
+        **request: Any,
+    ) -> tuple[Any, str]:
+        """The first successful reply message in the task's chain, and the model that wrote it."""
         config = self._registry.for_task(task)
-        payload = [m.model_dump() for m in messages]
+        payload = [m.to_payload() for m in messages]
         errors: list[str] = []
         for model in self._chain(config):
             litellm_model, connection = self._route(model)
@@ -170,9 +235,10 @@ class LiteLLMClient:
                         timeout=config.timeout_s,
                         max_tokens=config.max_tokens,
                         num_retries=self._num_retries,
+                        **request,
                         **connection,
                     )
-                    content = response.choices[0].message.content or ""
+                    message = response.choices[0].message
                 except Exception as exc:
                     errors.append(f"{model}: {type(exc).__name__}")
                     log.warning("llm_call_failed", task=task, model=model, error=repr(exc))
@@ -183,14 +249,14 @@ class LiteLLMClient:
                 usage = self._usage(task, model, response, (time.perf_counter() - started) * 1000)
                 if generation is not None:
                     generation.update(
-                        output=content,
+                        output=_trace_output(message),
                         usage_details={"input": usage.input_tokens, "output": usage.output_tokens},
                         cost_details={"total": usage.cost_usd},
                     )
             record_usage(usage)
             if self._usage_sink:
                 self._usage_sink(usage)
-            return content, model
+            return message, model
         raise LLMError(f"{task}: all models failed: {'; '.join(errors)}")
 
     def _generation(self, task: str, model: str, payload: list[dict[str, Any]]) -> Any:

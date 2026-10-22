@@ -6,10 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from homehelper.llm.types import Message, T
+from homehelper.llm.types import Message, T, ToolSpec, ToolTurn
 
-# A scripted reply: a model instance or dict (structured), a str (text), an exception to raise,
-# or a callable that receives the messages and returns one of those.
+# A scripted reply: a model instance or dict (structured, or a `ToolTurn` for tool turns), a str
+# (text), an exception to raise, or a callable that receives the messages and returns one of those.
 Reply = BaseModel | dict[str, Any] | str | Exception | Callable[[list[Message]], Any]
 
 
@@ -17,6 +17,7 @@ class FakeCall(BaseModel):
     task: str
     messages: list[Message]
     schema_name: str | None
+    tools: list[str] | None = None  # tool names offered in a tool turn
 
 
 class FakeLLMClient:
@@ -48,8 +49,33 @@ class FakeLLMClient:
             return schema.model_validate_json(reply)
         return schema.model_validate(reply)
 
-    def _next(self, task: str, messages: list[Message], schema_name: str | None) -> Any:
-        self.calls.append(FakeCall(task=task, messages=messages, schema_name=schema_name))
+    async def tool_turn(
+        self,
+        task: str,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        require_tool: bool = True,
+    ) -> ToolTurn:
+        reply = self._next(
+            task, messages, schema_name="ToolTurn", tools=[spec.name for spec in tools]
+        )
+        turn = reply if isinstance(reply, ToolTurn) else ToolTurn.model_validate(reply)
+        # Calls to tools that were not offered are passed through: models do hallucinate names.
+        if require_tool and not turn.tool_calls:
+            raise AssertionError(f"FakeLLMClient: tool turn for {task!r} must call a tool")
+        return turn
+
+    def _next(
+        self,
+        task: str,
+        messages: list[Message],
+        schema_name: str | None,
+        tools: list[str] | None = None,
+    ) -> Any:
+        self.calls.append(
+            FakeCall(task=task, messages=messages, schema_name=schema_name, tools=tools)
+        )
         queue = self._queues[task]
         if not queue:
             raise AssertionError(f"FakeLLMClient: no scripted reply left for task {task!r}")
