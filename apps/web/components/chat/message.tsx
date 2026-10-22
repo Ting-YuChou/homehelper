@@ -8,6 +8,7 @@ import { CitationList } from "@/components/cards/citation-chip";
 import type { Card, Citation, Message, StructuredAction } from "@/lib/api/types";
 import { actionLabel } from "@/lib/chat/actions";
 
+import { AttachmentThumb } from "./attachment-thumb";
 import { FeedbackButtons } from "./feedback-buttons";
 
 type AssistantContent = Pick<Message, "id" | "content"> & {
@@ -16,12 +17,30 @@ type AssistantContent = Pick<Message, "id" | "content"> & {
   feedback?: Message["feedback"];
 };
 
-export function UserMessage({ text, action }: { text: string; action: StructuredAction | null }) {
+export function UserMessage({
+  text,
+  action,
+  attachments = [],
+}: {
+  text: string;
+  action: StructuredAction | null;
+  attachments?: string[];
+}) {
+  const bubble = text || action;
   return (
-    <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2 text-primary-foreground">
-        {text || (action ? <span className="italic">{actionLabel(action)}</span> : null)}
-      </div>
+    <div className="flex flex-col items-end gap-2">
+      {attachments.length > 0 && (
+        <div className="flex max-w-[85%] flex-wrap justify-end gap-2">
+          {attachments.map((id) => (
+            <AttachmentThumb key={id} id={id} />
+          ))}
+        </div>
+      )}
+      {bubble && (
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2 text-primary-foreground">
+          {text || (action ? <span className="italic">{actionLabel(action)}</span> : null)}
+        </div>
+      )}
     </div>
   );
 }

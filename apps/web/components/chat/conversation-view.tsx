@@ -56,8 +56,10 @@ export function ConversationView({
   }, [messages.length, turn]);
 
   const sendAction = (action: StructuredAction) => void onSend({ action });
-  const sendText = async (text: string) => {
-    const result = await onSend({ text });
+  const sendText = async (text: string, attachments: string[] = []) => {
+    const body: SendMessageBody = attachments.length ? { attachments } : {};
+    if (text) body.text = text;
+    const result = await onSend(body);
     return result !== null && RETRYABLE.has(result.code);
   };
 
@@ -103,7 +105,12 @@ export function ConversationView({
           )}
           {messages.map((message) =>
             message.role === "user" ? (
-              <UserMessage key={message.id} text={message.content} action={message.action} />
+              <UserMessage
+                key={message.id}
+                text={message.content}
+                action={message.action}
+                attachments={message.attachments?.map((a) => a.id)}
+              />
             ) : (
               <AssistantMessage
                 key={message.id}
@@ -116,7 +123,11 @@ export function ConversationView({
           )}
           {turn && (
             <>
-              <UserMessage text={turn.request.text ?? ""} action={turn.request.action ?? null} />
+              <UserMessage
+                text={turn.request.text ?? ""}
+                action={turn.request.action ?? null}
+                attachments={turn.request.attachments ?? []}
+              />
               {turn.drafts.map((draft) => (
                 <AssistantMessage
                   key={draft.id}

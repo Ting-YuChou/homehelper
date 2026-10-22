@@ -9,6 +9,7 @@ export const queryKeys = {
   conversation: (id: string) => ["conversation", id] as const,
   manual: (docId: string) => ["manual", docId] as const,
   appliances: ["me", "appliances"] as const,
+  attachment: (id: string) => ["attachment", id] as const,
 };
 
 export const meQuery = queryOptions({
@@ -51,5 +52,20 @@ export const manualQuery = (docId: string) =>
     queryKey: queryKeys.manual(docId),
     queryFn: () => unwrap(api.GET("/v1/manuals/{doc_id}", { params: { path: { doc_id: docId } } })),
     staleTime: Infinity,
+    retry: false,
+  });
+
+// Signed URLs expire after 15 minutes (MEDIA_URL_TTL_S); fetch a fresh one before that.
+export const attachmentUrlQuery = (id: string) =>
+  queryOptions({
+    queryKey: queryKeys.attachment(id),
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/attachments/{attachment_id}", {
+          params: { path: { attachment_id: id } },
+        }),
+      ),
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
     retry: false,
   });

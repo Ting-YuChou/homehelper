@@ -16,6 +16,9 @@ export type Citation = Schemas["Citation"];
 export type StructuredAction = Schemas["StructuredAction"];
 export type SendMessageBody = Schemas["SendMessageRequest"];
 export type Rating = NonNullable<Message["feedback"]>;
+export type Attachment = Schemas["AttachmentOut"];
+export type AttachmentRef = Schemas["AttachmentRef"];
+export type AttachmentUrl = Schemas["AttachmentUrlOut"];
 
 export type Card = Message["cards"][number];
 export type StepCard = Schemas["StepCard"];
