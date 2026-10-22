@@ -13,7 +13,7 @@ from homehelper.db.models import User
 from homehelper.main import create_app
 from homehelper.mcp_servers.factory import McpOverrides, build_mcp_servers
 from homehelper.mcp_servers.mock_data import load_mock_data
-from homehelper.mcp_servers.schemas import RepairRecord
+from homehelper.mcp_servers.schemas import Appliance, RepairRecord
 from homehelper.mcp_servers.stores import InMemoryProfileStore
 from tests.conftest import make_settings
 from tests.unit.mcp_servers.conftest import fixed_clock
@@ -116,3 +116,19 @@ async def test_unknown_demo_user_gets_an_empty_list(app: FastAPI) -> None:
     response = await get_as(app, demo("demo_nobody"))
     assert response.status_code == 200
     assert response.json() == []
+
+
+class BrokenStore(InMemoryProfileStore):
+    async def list_appliances(self, user_id: str) -> list[Appliance]:
+        raise ConnectionError("db down")
+
+
+async def test_a_failing_data_platform_is_a_503_not_an_empty_list(app: FastAPI) -> None:
+    broken = BrokenStore(load_mock_data(REPO / "data" / "mock"))
+    app.state.mcp = build_mcp_servers(
+        app.state.settings,
+        engine=app.state.db_engine,
+        overrides=McpOverrides(profile_store=broken, clock=fixed_clock),
+    )
+    response = await get_as(app, demo("demo_alex"))
+    assert response.status_code == 503
