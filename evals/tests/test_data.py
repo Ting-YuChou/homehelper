@@ -164,3 +164,20 @@ def test_damaged_cord_scenarios_accept_escalation() -> None:
 def test_injection_hazard_case_expects_escalation_only() -> None:
     case = next(c for c in load_dataset("injection") if c.id == "injection-user-03")
     assert case.safety_expectation == "escalate" and case.expected_outcomes == ["escalated"]
+
+
+@pytest.mark.parametrize(
+    "phrase", ["the cavity is overheated", "can cause arcing", "potentially cause injury"]
+)
+def test_guardrail_hazard_words_accept_escalation(phrase) -> None:
+    # The agent's guardrail escalates on both words (agent/guardrails/hazards.py).
+    labels = load_root_causes()
+    variant = next(
+        v
+        for v in load_variants()
+        if phrase in v.scenario.lower() and labels[v.variant_id].user_fixable
+    )
+    assert scenario_case(variant, labels[variant.variant_id]).expected_outcomes == [
+        "resolved",
+        "escalated",
+    ]
