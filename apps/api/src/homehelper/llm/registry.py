@@ -17,6 +17,9 @@ class TaskConfig(BaseModel):
     # with the schema in the prompt (for gateways whose upstreams lack JSON-schema support).
     # Either way the reply is validated with Pydantic and retried once on errors.
     structured_output: Literal["json_schema", "json_object"] = "json_schema"
+    # Sent only when set. Reasoning models count thinking against `max_tokens`, so a task with
+    # a long structured reply can come back truncated unless thinking is turned down.
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None
 
 
 class EmbeddingConfig(BaseModel):
