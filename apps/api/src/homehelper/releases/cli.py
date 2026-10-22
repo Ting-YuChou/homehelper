@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 from pydantic import ValidationError
 
 from homehelper.core.config import get_settings
@@ -34,7 +35,7 @@ def check(
     """Check the manifest's gates against its eval reports; exit 1 if any gate fails."""
     try:
         release = read_manifest(manifest)
-    except (OSError, ValueError, ValidationError) as exc:
+    except (OSError, ValueError, ValidationError, yaml.YAMLError) as exc:
         raise typer.BadParameter(str(exc), param_hint="MANIFEST") from exc
     results = check_gates(release, load_reports(release, Path.cwd()))
     typer.echo(f"release {release.id} (git {release.git_sha})")

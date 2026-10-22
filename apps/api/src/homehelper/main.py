@@ -54,7 +54,10 @@ def create_app(
     app.state.settings = settings
     app.state.tracer = tracer
     app.state.release = release.manifest
-    # LLM clients built for this app use this registry: models.yaml plus the release's overrides.
+    # models.yaml plus the release's overrides. Nothing built here calls an LLM or embeds yet, so
+    # nothing reads it in this function. The journey agent factory (M3) must build its LLM client
+    # and retriever from it (`build_llm_client(..., registry=app.state.model_registry)`,
+    # `knowledge.backends.build_retriever(..., registry=...)`); both default to plain models.yaml.
     app.state.model_registry = release.registry
     # The scripted stub until the journey agent lands (M3); tests and evals inject their own.
     app.state.agent = agent or StubAgent()

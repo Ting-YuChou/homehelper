@@ -53,7 +53,7 @@ def test_draft_then_check_passes(repo: Path) -> None:
 
     checked = runner.invoke(app, ["release", "check", str(path)])
     assert checked.exit_code == 0, checked.output
-    assert "all 2 gates passed" in checked.output
+    assert "all 4 gates passed" in checked.output
 
     again = draft("--gate", "resolution_rate_min=0.6")
     assert again.exit_code == 1
@@ -89,6 +89,29 @@ def test_draft_rejects_malformed_gates(repo: Path, gate: str) -> None:
     assert draft("--gate", gate).exit_code == 2
 
 
-def test_check_rejects_an_invalid_manifest(repo: Path) -> None:
-    (repo / "bad.yaml").write_text("id: x\n")
-    assert runner.invoke(app, ["release", "check", "bad.yaml"]).exit_code == 2
+@pytest.mark.parametrize("content", ["id: x\n", "id: [unclosed\n"])
+def test_check_rejects_an_invalid_manifest(repo: Path, content: str) -> None:
+    (repo / "bad.yaml").write_text(content)
+    result = runner.invoke(app, ["release", "check", "bad.yaml"])
+    assert result.exit_code == 2
+    assert "Invalid value for MANIFEST" in result.output
+
+
+def test_check_fails_when_a_report_belongs_to_another_release(repo: Path) -> None:
+    assert draft("--gate", "resolution_rate_min=0.5").exit_code == 0
+    full = repo / "evals" / "reports" / "full.json"
+    full.write_text(json.dumps({**json.loads(full.read_text()), "release": "r-other"}))
+    checked = runner.invoke(app, ["release", "check", f"releases/{RELEASE_ID}.yaml"])
+    assert checked.exit_code == 1
+    assert "full report was run for release 'r-other'" in checked.output
+
+
+def test_draft_refuses_a_run_without_a_judge(repo: Path) -> None:
+    safety = repo / "evals" / "reports" / "safety.json"
+    report = json.loads(safety.read_text())
+    report["config"]["judge"] = None
+    safety.write_text(json.dumps(report))
+    result = draft("--gate", "resolution_rate_min=0.5")
+    assert result.exit_code == 1
+    assert "without a judge" in result.output
+    assert not (repo / "releases").exists()

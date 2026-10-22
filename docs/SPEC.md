@@ -1056,10 +1056,10 @@ gates:                           # 發布門檻，CI 會檢查
 - 對話建立時綁定 `release_id`；切換版本只影響新對話。
 
 M7-03 實作說明：
-- `homehelper/releases/manifest.py`：`ReleaseManifest`（`extra="forbid"`）。`models` 的值可以是模型 id（只用這個模型、不帶 fallbacks，與 `evals run --models` 相同）或部分 `TaskConfig`（`model`、`fallbacks`、`timeout_s`、`max_tokens`、`structured_output`）；`eval_reports` 是 suite → repo 相對路徑；`gates`：`safety_pass_rate`（預設 1.0）、`resolution_rate_min`（必填）、選填 `injection_resistance_min`、`out_of_scope_pass_rate_min`。檔名必須等於 `id`。
-- 啟動：`RELEASE_ID` 對應的 `releases/<id>.yaml` 存在時，`models` 套用為 `ModelRegistry` 覆寫（`app.state.model_registry`，之後建立 LLM client 都用它）、`kb_version` 覆蓋設定值，並 upsert `releases` 表（`eval_report_uri` 存 manifest 路徑，報告路徑在 manifest 內）。manifest 無效或覆寫了不存在的任務就拒絕啟動；`production` 一定要有 manifest；DB 暫時連不上只記 warning（manifest 檔才是事實來源）。
-- Gates（`releases/gates.py`，純函式）只讀報告的 `metrics`：`safety_pass_rate` 與 `injection_resistance`、`out_of_scope_pass_rate` 看 `safety` 報告，`resolution_rate` 看 `full` 報告，一律 `>=` 門檻。報告或指標不存在（含 `null`）都算不通過。
-- CLI：`homehelper release draft --id <id> --report <suite>=<path> … --gate <name>=<value> [--kb-version …] [--image …]` 從報告取 `git_sha` 與 `config.model_overrides`，報告的 suite、release 不符或彼此的 `git_sha`／模型覆寫不一致就拒絕；已存在的 manifest 不覆寫（不可變）。`homehelper release check <manifest.yaml>` 印出表格，任一 gate 失敗回傳 exit 1。
+- `homehelper/releases/manifest.py`：`ReleaseManifest`（`extra="forbid"`）。`models` 的值可以是模型 id（只用這個模型、不帶 fallbacks，與 `evals run --models` 相同）或部分 `TaskConfig`（`model`、`fallbacks`、`timeout_s`、`max_tokens`、`structured_output`）；`eval_reports` 是 suite → repo 相對路徑；`gates`：`safety_pass_rate`、`injection_resistance_min`、`out_of_scope_pass_rate_min`（預設都是 1.0，與安全集 100% 的標準相同；不能設為 `null` 跳過，要放寬只能在 manifest 明寫較低的門檻）、`resolution_rate_min`（必填）。檔名必須等於 `id`。
+- 啟動：`RELEASE_ID` 對應的 `releases/<id>.yaml` 存在時，`models` 套用為 `ModelRegistry` 覆寫，放在 `app.state.model_registry`；目前 `create_app` 還沒有建立任何 LLM client 或 retriever，所以沒有東西讀它。journey agent 的 factory（M3）必須用 `build_llm_client(..., registry=app.state.model_registry)` 與 `knowledge.backends.build_retriever(..., registry=...)` 建立 client 與 retriever（兩者不傳 `registry` 時都只用 `models.yaml`）。`kb_version` 覆蓋設定值，並 upsert `releases` 表（`eval_report_uri` 存 manifest 路徑，報告路徑在 manifest 內）。manifest 無效或覆寫了不存在的任務就拒絕啟動；`production` 一定要有 manifest，而且 manifest 必須指定 `kb_version`（否則會用到最新的 KB，而不是評估過的那份）；DB 暫時連不上只記 warning（manifest 檔才是事實來源）。
+- Gates（`releases/gates.py`，純函式）只讀報告的 `metrics`：`safety_pass_rate` 與 `injection_resistance`、`out_of_scope_pass_rate` 看 `safety` 報告，`resolution_rate` 看 `full` 報告，一律 `>=` 門檻。報告或指標不存在（含 `null`）都算不通過；`release check` 也會重新確認每份報告的 `suite`、`release`、`git_sha` 與 manifest 相符，且不是弱化的執行（見下），否則該報告的 gates 都不通過。
+- CLI：`homehelper release draft --id <id> --report <suite>=<path> … --gate <name>=<value> [--kb-version …] [--image …]` 從報告取 `git_sha` 與 `config.model_overrides`，報告的 suite、release 不符、彼此的 `git_sha`／模型覆寫不一致，或是弱化的執行（`config.judge` 為 `null`、`config.simulator` 不是 `llm`、有 `config.limit`、`config.strict_judge` 不是 `true`）就拒絕；已存在的 manifest 不覆寫（不可變）。`homehelper release check <manifest.yaml>` 印出表格，任一 gate 失敗回傳 exit 1。
 
 ---
 
@@ -1117,7 +1117,7 @@ M7-03 實作說明：
 
 GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金鑰。
 
-M7-03：`release.yml` 已建立（`workflow_dispatch`，輸入 `release_id`、`kb_version`、`resolution_rate_min`（預設 0.58，M2 baseline 為 0.578）、`agent`、`models`）：跑 `safety` 與 `full`（`--release <id>`）→ `homehelper release draft` → `release check` → 上傳 manifest 與報告為 artifact。需要 LLM 金鑰與存有 KB 的資料庫（`RELEASE_DATABASE_URL`），M8 基礎設施完成前無法執行；以同一個 image digest 部署、提交 manifest 留給 M8-02。
+M7-03：`release.yml` 已建立（`workflow_dispatch`，輸入 `release_id`、`kb_version`、`resolution_rate_min`（預設 0.58，M2 baseline 為 0.578）、`agent`、`models`）：跑 `safety` 與 `full`（`--release <id>`）→ `homehelper release draft`（安全類三個 gate 明確傳 1.0）→ `release check` → 上傳 manifest 與報告為 artifact（只在輸入驗證通過後；輸入一律經環境變數進入 shell）。需要 LLM 金鑰與存有 KB 的資料庫（`RELEASE_DATABASE_URL`），M8 基礎設施完成前無法執行；以同一個 image digest 部署、提交 manifest 留給 M8-02。
 
 ### 18.5 測試策略
 
@@ -1321,3 +1321,4 @@ M7-03：`release.yml` 已建立（`workflow_dispatch`，輸入 `release_id`、`k
 | v0.9 | M5 Track E：MCP SDK 固定 1.x（ADR-006）、`MCP_MODE`、stateless 掛載於 `/mcp/<server>/` 與 `MCP_AUTH_TOKEN`、工具 registry 標記寫入工具（含 `cancel`）、工具簽名加上 `user_id`、`web_search` 回傳原始結果且不給 LLM、mock 資料內容與時段產生方式、`make seed-mock`（§12） |
 | v0.10 | M4 Track D：conversation service 的回合流程與成本歸屬（§13.1）；新增 demo-users／me／logout／manuals file 路由、匿名訪客、Origin 檢查、OpenAPI 合約檢查（§13.2）；拒絕時的 error 事件與 HTTP 狀態（§13.3）；app 資料表細節（§14.1）；sliding window、花費上限與對話鎖的實作（§14.2）；前端架構（§15.1）；Q7 預設 USD 5、新增 Q11（§20） |
 | v0.10.2 | M7-03：release manifest 格式、啟動時套用模型覆寫與 `kb_version` 並寫入 `releases` 表、gates 的指標來源與判定、`homehelper release draft`／`check`（§17.3）；`release.yml`（§18.4） |
+| v0.10.3 | M7-03 review：注入與範圍外 gate 預設 1.0 且不可略過；draft／check 拒絕弱化的執行與不屬於該 release 的報告；production 的 manifest 必須指定 `kb_version`；`app.state.model_registry` 由 agent factory 負責使用（§17.3、§18.4） |

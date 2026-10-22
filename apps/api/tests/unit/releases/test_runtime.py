@@ -72,6 +72,23 @@ def test_production_needs_a_manifest(tmp_path: Path) -> None:
         load_active_release(settings)
 
 
+def test_production_needs_a_pinned_kb_version(tmp_path: Path) -> None:
+    data = {k: v for k, v in MANIFEST.items() if k != "kb_version"}
+    (tmp_path / f"{RELEASE_ID}.yaml").write_text(yaml.safe_dump(data))
+    production = make_settings(app_env="production", release_id=RELEASE_ID, releases_dir=tmp_path)
+    with pytest.raises(RuntimeError, match="does not pin a kb_version"):
+        load_active_release(production)
+    # Outside production the configured (or newest ready) KB is used.
+    dev = make_settings(release_id=RELEASE_ID, releases_dir=tmp_path)
+    assert load_active_release(dev).manifest is not None
+
+
+def test_production_boots_with_a_complete_manifest(releases_dir: Path) -> None:
+    settings = make_settings(app_env="production", release_id=RELEASE_ID, releases_dir=releases_dir)
+    release = load_active_release(settings)
+    assert release.settings.kb_version == "kb_20261030_01"
+
+
 def test_unknown_task_override_does_not_boot(tmp_path: Path) -> None:
     data = {**MANIFEST, "models": {"no_such_task": "x"}}
     (tmp_path / f"{RELEASE_ID}.yaml").write_text(yaml.safe_dump(data))

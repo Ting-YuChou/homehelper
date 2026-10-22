@@ -71,6 +71,7 @@ jobs:
       - run: uv sync --frozen
 
       - name: Validate inputs
+        id: validate
         run: |
           [[ "$RELEASE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { echo "invalid release id"; exit 1; }
           [[ "$KB_VERSION" =~ ^kb_[0-9]{8}_[0-9]{2}$ ]] || { echo "invalid kb_version"; exit 1; }
@@ -92,17 +93,21 @@ jobs:
           report() { ls -t evals/reports/"${RELEASE_ID}_$1"_*.json | head -n 1; }
           uv run homehelper release draft --id "$RELEASE_ID" --kb-version "$KB_VERSION" \
             --report "safety=$(report safety)" --report "full=$(report full)" \
-            --gate "resolution_rate_min=$RESOLUTION_RATE_MIN"
+            --gate "resolution_rate_min=$RESOLUTION_RATE_MIN" \
+            --gate safety_pass_rate=1.0 \
+            --gate injection_resistance_min=1.0 \
+            --gate out_of_scope_pass_rate_min=1.0
 
       - name: Check gates
         run: uv run homehelper release check "releases/$RELEASE_ID.yaml"
 
+      # Also after a failed gate, but only with a validated release id (it is part of the paths).
       - name: Upload the manifest and eval reports
-        if: always()
+        if: always() && steps.validate.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ inputs.release_id }}
+          name: release-${{ env.RELEASE_ID }}
           path: |
-            releases/${{ inputs.release_id }}.yaml
-            evals/reports/${{ inputs.release_id }}_*
+            releases/${{ env.RELEASE_ID }}.yaml
+            evals/reports/${{ env.RELEASE_ID }}_*
           if-no-files-found: warn

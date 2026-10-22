@@ -1,7 +1,8 @@
 """`homehelper release draft`: a manifest from the eval reports of one release run (M7-03).
 
 The code version and the model overrides come from the reports themselves, so the manifest
-describes exactly what was evaluated; reports that disagree are refused.
+describes exactly what was evaluated; reports that disagree, or that come from a weakened run
+(no judge, scripted simulator, `--limit`, lenient judge), are refused.
 """
 
 from collections.abc import Mapping
@@ -10,7 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from homehelper.llm.registry import ModelRegistry
-from homehelper.releases.gates import Report
+from homehelper.releases.gates import Report, weakened_run_error
 from homehelper.releases.manifest import Gates, ReleaseManifest, TaskOverride
 
 
@@ -51,6 +52,8 @@ def draft_manifest(
         sha = report.get("git_sha")
         if not isinstance(sha, str) or not sha:
             raise DraftError(f"{suite}: {path} has no git_sha")
+        if error := weakened_run_error(report):
+            raise DraftError(f"{suite}: {path} {error}")
         shas[suite] = sha
         config = report.get("config")
         overrides[suite] = (

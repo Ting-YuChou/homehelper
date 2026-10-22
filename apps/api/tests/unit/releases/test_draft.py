@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import pytest
@@ -26,6 +27,8 @@ def test_draft_takes_git_sha_and_models_from_the_reports(
         "full": "evals/reports/f.json",
     }
     assert manifest.gates.safety_pass_rate == 1.0
+    assert manifest.gates.injection_resistance_min == 1.0
+    assert manifest.gates.out_of_scope_pass_rate_min == 1.0
     assert manifest.gates.resolution_rate_min == 0.58
     assert manifest.kb_version == "kb_20261030_01"
 
@@ -64,10 +67,6 @@ def test_git_sha_mismatch_is_refused(
         ({"release": "dev"}, "was run for release 'dev'"),
         ({"suite": "smoke"}, "is a 'smoke' report"),
         ({"git_sha": None}, "has no git_sha"),
-        (
-            {"config": {"model_overrides": {"nlu": {"model": "x", "fallbacks": []}}}},
-            "model overrides",
-        ),
     ],
 )
 def test_inconsistent_reports_are_refused(
@@ -75,6 +74,41 @@ def test_inconsistent_reports_are_refused(
 ) -> None:
     full_report.update(change)
     with pytest.raises(DraftError, match=message):
+        draft_manifest(RELEASE_ID, reports(safety_report, full_report), gates=GATES)
+
+
+def test_model_override_mismatch_is_refused(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    full_report["config"]["model_overrides"] = {"nlu": {"model": "x", "fallbacks": []}}
+    with pytest.raises(DraftError, match="disagree on model overrides"):
+        draft_manifest(RELEASE_ID, reports(safety_report, full_report), gates=GATES)
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({"judge": None}, "full: evals/reports/f.json was run without a judge"),
+        ({"simulator": "scripted"}, "with the 'scripted' simulator"),
+        ({"simulator": None}, "with the None simulator"),
+        ({"limit": 10}, "with --limit 10"),
+        ({"strict_judge": False}, "without strict judging"),
+        ({"strict_judge": None}, "without strict judging"),
+    ],
+)
+def test_weakened_runs_are_refused(
+    safety_report: dict[str, Any], full_report: dict[str, Any], config: dict[str, Any], message: str
+) -> None:
+    full_report["config"].update(config)
+    with pytest.raises(DraftError, match=re.escape(message)):
+        draft_manifest(RELEASE_ID, reports(safety_report, full_report), gates=GATES)
+
+
+def test_report_without_config_is_refused(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    del full_report["config"]
+    with pytest.raises(DraftError, match="has no run config"):
         draft_manifest(RELEASE_ID, reports(safety_report, full_report), gates=GATES)
 
 

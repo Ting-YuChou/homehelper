@@ -29,12 +29,16 @@ class ActiveRelease:
 
 def load_active_release(settings: Settings) -> ActiveRelease:
     """Raises on an invalid manifest or unknown task override: a bad release must not boot.
-    In production the manifest is required."""
+    In production the manifest is required and must pin `kb_version`: otherwise the API would
+    serve whichever KB is newest, not the one the release was evaluated on."""
+    production = settings.app_env == "production"
     manifest = load_manifest(settings.releases_dir, settings.release_id)
     if manifest is None:
-        if settings.app_env == "production":
+        if production:
             raise RuntimeError(f"no release manifest for RELEASE_ID={settings.release_id!r}")
         return ActiveRelease(settings=settings, registry=ModelRegistry.load())
+    if production and not manifest.kb_version:
+        raise RuntimeError(f"release {manifest.id!r} does not pin a kb_version")
     registry = ModelRegistry.load(overrides=manifest.model_overrides())
     if manifest.kb_version and manifest.kb_version != settings.kb_version:
         if settings.kb_version:
