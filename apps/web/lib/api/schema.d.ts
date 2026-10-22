@@ -288,7 +288,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My Appliances */
+        /**
+         * My Appliances
+         * @description Guests have no profile, so they get an empty list, as does a demo user the data platform
+         *     does not know (e.g. one removed from `data/mock/` after they signed in). Any other tool
+         *     failure (e.g. the database is down) is a 503, not an empty list.
+         */
         get: operations["my_appliances_v1_me_appliances_get"];
         put?: never;
         post?: never;
@@ -385,7 +390,10 @@ export interface components {
              */
             type: "appliance_confirm";
         };
-        /** ApplianceOut */
+        /**
+         * ApplianceOut
+         * @description A registered appliance with its warranty and latest repairs (newest first).
+         */
         ApplianceOut: {
             /** Appliance Id */
             appliance_id: string;
@@ -393,11 +401,14 @@ export interface components {
             brand: string;
             category: components["schemas"]["CategoryId"];
             /** Model Number */
-            model_number?: string | null;
+            model_number: string;
+            /** Nickname */
+            nickname?: string | null;
             /** Purchase Date */
             purchase_date?: string | null;
-            /** Warranty Until */
-            warranty_until?: string | null;
+            /** Recent Repairs */
+            recent_repairs: components["schemas"]["RepairOut"][];
+            warranty: components["schemas"]["WarrantyOut"];
         };
         /** BookingSlot */
         BookingSlot: {
@@ -690,6 +701,35 @@ export interface components {
             status: "ok" | "error";
         };
         /**
+         * RepairOut
+         * @description One `user_profile.list_repair_history` record.
+         */
+        RepairOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Error Code */
+            error_code?: string | null;
+            /** Issue */
+            issue: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "resolved" | "unresolved" | "technician_booked";
+            /**
+             * Performed By
+             * @enum {string}
+             */
+            performed_by: "self" | "technician";
+            /** Record Id */
+            record_id: string;
+            /** Resolution */
+            resolution: string;
+        };
+        /**
          * SSEEvent
          * @description One `data:` payload of the message stream; the SSE `event:` name equals its `type`.
          */
@@ -806,6 +846,22 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * WarrantyOut
+         * @description `user_profile.get_warranty_status`, as of today.
+         */
+        WarrantyOut: {
+            /** Days Remaining */
+            days_remaining?: number | null;
+            status: components["schemas"]["WarrantyState"];
+            /** Warranty Until */
+            warranty_until?: string | null;
+        };
+        /**
+         * WarrantyState
+         * @enum {string}
+         */
+        WarrantyState: "active" | "expired" | "unknown";
     };
     responses: never;
     parameters: never;

@@ -6,9 +6,10 @@ that starts every server's session manager (once per server instance).
 """
 
 import hmac
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -19,6 +20,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from homehelper.core.config import Settings
 from homehelper.knowledge.web import TavilySearchClient, WebSearchClient, Whitelist
+from homehelper.mcp_servers.client import McpClient, connect
 from homehelper.mcp_servers.common import Clock, utc_now
 from homehelper.mcp_servers.mock_data import MockData, load_mock_data
 from homehelper.mcp_servers.parts_catalog import build_parts_catalog_server
@@ -92,6 +94,18 @@ class McpServers:
             app: ASGIApp = server.streamable_http_app()
             router.mount(f"{prefix}/{name}", _RequireBearer(app, auth_token) if auth_token else app)
             self._mounted.append(server)
+
+    @asynccontextmanager
+    async def client(self, name: str) -> AsyncIterator[McpClient]:
+        """An in-memory client session to one server (see `mcp_servers.client`). It needs no
+        running session manager, so it also works outside the app lifespan."""
+        async with connect(name, self.servers[name]) as client:
+            yield client
+
+    async def call(self, server: str, tool: str, arguments: Mapping[str, Any] | None = None) -> Any:
+        """One tool call in its own session; raises `McpToolError` when the tool fails."""
+        async with self.client(server) as client:
+            return await client.call(tool, arguments)
 
     @asynccontextmanager
     async def run(self) -> AsyncIterator[None]:

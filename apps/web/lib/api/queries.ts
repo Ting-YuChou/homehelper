@@ -8,6 +8,7 @@ export const queryKeys = {
   conversations: ["conversations"] as const,
   conversation: (id: string) => ["conversation", id] as const,
   manual: (docId: string) => ["manual", docId] as const,
+  appliances: ["me", "appliances"] as const,
 };
 
 export const meQuery = queryOptions({
@@ -38,6 +39,12 @@ export const conversationQuery = (id: string) =>
       ),
     retry: false,
   });
+
+export const appliancesQuery = queryOptions({
+  queryKey: queryKeys.appliances,
+  queryFn: () => unwrap(api.GET("/v1/me/appliances")),
+  retry: false, // show the error state at once instead of a long skeleton
+});
 
 export const manualQuery = (docId: string) =>
   queryOptions({
