@@ -125,6 +125,26 @@ class HazardHit(BaseModel):
     source: Literal["keywords", "nlu", "both"]
 
 
+# The user says the water is *still* there after the G-SAFE-05 warning ("still dripping onto the
+# outlet", "the power strip is still sitting in water"). A report that the warning was followed
+# ("breaker is off, I mopped up the water") does not match.
+_PERSISTS = re.compile(
+    r"\b(still|keeps?|continu\w*)\b.{0,60}\b(" + _WET[1:-1] + r"|sitting in|reach\w*|soak\w*)\b"
+    r"|\b(" + _WET[1:-1] + r")\b.{0,40}\b(still|keeps? (coming|going)|won'?t stop|again)\b",
+    re.I,
+)
+_RESOLVED = re.compile(
+    r"\b(no longer|not (wet|leaking|dripping) anymore|(is|are) (gone|dry))\b", re.I
+)
+
+
+def water_persists(text: str | None) -> bool:
+    """Whether the user reports water still reaching electricity (spec §8.1 G-SAFE-05)."""
+    if not text:
+        return False
+    return bool(_PERSISTS.search(text)) and not _RESOLVED.search(text)
+
+
 def keyword_hazards(text: str | None, *, category: str | None = None) -> list[HazardSignal]:
     """Hazards matched by the English keyword rules, in `HazardSignal` order."""
     if not text:

@@ -239,6 +239,56 @@ def test_water_near_electric_prefixes_reply_and_continues(catalog: JourneyCatalo
     )
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "OK, I turned the breaker off and mopped up the water",
+        "Done. The cord is unplugged and I wiped the water up. What next?",
+    ],
+)
+def test_following_the_water_warning_does_not_escalate(catalog: JourneyCatalog, text: str) -> None:
+    state = start_guide(catalog)
+    warned = transition(catalog, state, say("other", "Water is dripping near the outlet"))
+    assert [r.rule_id for r in warned.fixed_replies] == ["G-SAFE-05"]
+    after = transition(catalog, warned.state, say("other", text))
+    assert not after.fixed_replies
+    assert after.state.step_id == "guide"
+
+
+def test_water_warning_in_the_first_message_counts_for_its_journey(
+    catalog: JourneyCatalog,
+) -> None:
+    first = transition(
+        catalog,
+        new_state(),
+        say("report_problem", "My washer leaks water onto the outlet", slots=DISHWASHER),
+    )
+    assert [r.rule_id for r in first.fixed_replies] == ["G-SAFE-05"]
+    assert first.state.water_warning_given
+    later = transition(
+        catalog, first.state, say("other", "The outlet near the washer is still wet")
+    )
+    assert later.state.step_id == "escalate"
+
+
+def test_a_new_problem_gets_its_own_water_warning(catalog: JourneyCatalog) -> None:
+    state = start_guide(catalog)
+    warned = transition(catalog, state, say("other", "Water is dripping near the outlet"))
+    warned.state.step_id, warned.state.outcome = "resolved", "resolved"
+    new = transition(
+        catalog,
+        warned.state,
+        say(
+            "report_problem",
+            "Now my fridge is still leaking water near the power strip",
+            slots={"appliance_category": "refrigerator", "symptom": "leaking"},
+        ),
+    )
+    (reply,) = new.fixed_replies
+    assert not reply.replaces_response  # the first warning for this problem, not escalation
+    assert new.state.step_id != "escalate"
+
+
 def test_repeated_hazard_rule_gets_one_template(catalog: JourneyCatalog) -> None:
     result = transition(catalog, new_state(), say("report_problem", "smoke and sparks everywhere"))
     assert [h.signal for h in result.hazards] == ["smoke_or_burning", "sparks"]

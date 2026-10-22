@@ -27,7 +27,7 @@ from homehelper.agent.engine.predicates import (
 )
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
-from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards
+from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards, water_persists
 from homehelper.agent.guardrails.rules import (
     ESCALATING_HAZARDS,
     HAZARD_RULES,
@@ -299,18 +299,27 @@ class _Run:
         persisting: list[HazardSignal] = []
         for hit in self.hazards:
             rule_id = HAZARD_RULES[hit.signal]
-            warned = hit.signal in self.state.hazard_flags
-            if not warned:
+            if hit.signal not in self.state.hazard_flags:
                 self.state.hazard_flags.append(hit.signal)
             self._log("guardrail", f"{hit.signal} detected ({hit.source})", rule_id=rule_id)
             reply = safety_reply(hit.signal)
-            # The G-SAFE-05 "power off first" warning is given once. Water still reaching
-            # electricity after it means the hazard persists: DIY stops and the journey escalates.
-            # Escalating hazards answer with their template every time.
-            if warned and hit.signal not in ESCALATING_HAZARDS:
-                persisting.append(hit.signal)
-                reply = PERSISTING_WATER_REPLY
-                self._log("guardrail", f"{hit.signal} persists after the warning", rule_id=rule_id)
+            if hit.signal not in ESCALATING_HAZARDS:
+                # G-SAFE-05: the power-off warning is given once per problem; users keep
+                # mentioning the water and the cord while they follow it. Water that is *still*
+                # reaching electricity after the warning means the hazard persists: DIY stops
+                # and the journey escalates. Escalating hazards answer every time.
+                journey = self._journey()
+                ongoing = journey is not None and not is_ended(journey, self.state)
+                if not (self.state.water_warning_given and ongoing):
+                    self.state.water_warning_given = True
+                elif water_persists(turn.text):
+                    persisting.append(hit.signal)
+                    reply = PERSISTING_WATER_REPLY
+                    self._log(
+                        "guardrail", f"{hit.signal} persists after the warning", rule_id=rule_id
+                    )
+                else:
+                    continue
             if rule_id not in replied_rules:
                 replied_rules.add(rule_id)
                 self.fixed_replies.append(reply)
@@ -385,6 +394,9 @@ class _Run:
         state.outcome = None
         state.last_retrieval = None
         state.selected_booking_slot = None
+        # A new problem gets its own warning (hazards are detected before routing, so a warning
+        # given on this very turn counts for the journey it starts).
+        state.water_warning_given = any(h.signal == "water_near_electric" for h in self.hazards)
         self._log("route", f"started {journey.id}: {decided.reason}")
 
     # --- input effects --------------------------------------------------------------------
