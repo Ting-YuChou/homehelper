@@ -70,6 +70,51 @@ class VisionResult(BaseModel):
         return value
 
 
+class VideoResult(BaseModel):
+    """What a short video shows and sounds like (spec §11.3), plus hazards and a confidence."""
+
+    category: str | None = Field(
+        default=None, description="Appliance category id from the allowed list, or null."
+    )
+    brand: str | None = Field(default=None, description="Brand if visible, or null.")
+    symptom_description: str | None = Field(
+        default=None, description="One sentence on what goes wrong in the video, or null."
+    )
+    audio_cues: list[str] = Field(
+        default_factory=list,
+        description="Sounds that matter, e.g. 'rhythmic metal scraping during spin'. Max 5.",
+    )
+    visible_error_codes: list[str] = Field(
+        default_factory=list, description="Error codes shown on a display. Max 3."
+    )
+    key_timestamps: list[str] = Field(
+        default_factory=list, description="'m:ss what happens' for the key moments. Max 5."
+    )
+    hazard_signals: list[HazardSignal] = Field(
+        default_factory=list, description="Dangers seen or heard in the video, if any."
+    )
+    confidence: float = Field(
+        ge=0, le=1, description="How sure you are of the category and brand together."
+    )
+
+    @field_validator("category", "brand", mode="before")
+    @classmethod
+    def _short(cls, value: str | None) -> str | None:
+        return _cut(value, 60)
+
+    @field_validator("symptom_description", mode="before")
+    @classmethod
+    def _symptom(cls, value: str | None) -> str | None:
+        return _cut(value, 200)
+
+    @field_validator("audio_cues", "key_timestamps", "visible_error_codes", mode="before")
+    @classmethod
+    def _items(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [str(item)[:120] for item in value[:MAX_ISSUES]]
+        return value
+
+
 MediaError = Literal["analysis_failed", "timeout", "unavailable"]
 
 
@@ -79,4 +124,5 @@ class MediaObservation(BaseModel):
     attachment_id: str
     kind: MediaKind
     vision: VisionResult | None = None
+    video: VideoResult | None = None
     error: MediaError | None = None

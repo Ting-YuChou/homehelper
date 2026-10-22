@@ -12,6 +12,7 @@ from homehelper.agent.tools import Toolbox
 from homehelper.core.tracing import Tracer
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.llm import LLMClient
+from homehelper.media.gemini import VideoAnalyzer
 from homehelper.media.source import MediaSource
 
 
@@ -30,6 +31,7 @@ class AgentDeps:
     tracer: Tracer | None = None  # Langfuse spans per node (M3-11); None in evals and tests
     tools: Toolbox | None = None  # MCP tools (M5-07); None runs without them
     media: MediaSource | None = None  # uploaded photos and videos (M6); None: they can't be read
+    video: VideoAnalyzer | None = None  # Gemini (M6-03); None: videos get M-MEDIA-01
 
     @classmethod
     def default(
@@ -40,6 +42,7 @@ class AgentDeps:
         tracer: Tracer | None = None,
         tools: Toolbox | None = None,
         media: MediaSource | None = None,
+        video: VideoAnalyzer | None = None,
     ) -> "AgentDeps":
         return cls(
             llm=llm,
@@ -49,6 +52,7 @@ class AgentDeps:
             tracer=tracer,
             tools=tools,
             media=media,
+            video=video,
         )
 
     @contextmanager

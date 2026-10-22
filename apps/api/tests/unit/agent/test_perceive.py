@@ -1,5 +1,6 @@
 """The `perceive` node and photos end to end through the journey agent (M6-02, spec §11.2)."""
 
+import asyncio
 import base64
 
 import pytest
@@ -21,7 +22,7 @@ from homehelper.channels.events import (
 )
 from homehelper.llm import FakeLLMClient, LLMError
 from homehelper.media.fake import FakeMediaSource
-from homehelper.media.schemas import VisionResult
+from homehelper.media.schemas import VideoResult, VisionResult
 from tests.unit.agent.test_journey_agent import PASS, PLAN, FakeRetriever
 
 JPEG = b"\xff\xd8\xff\xe0fake-jpeg"
@@ -128,7 +129,7 @@ async def test_someone_elses_attachment_is_ignored() -> None:
     assert update["turn"].media == []
 
 
-async def test_videos_fail_until_a_video_model_is_configured() -> None:
+async def test_videos_fail_without_a_video_model() -> None:
     media = _media()
     media.add("att_v", "video", "video/mp4", b"\x00\x00\x00\x18ftypmp42")
     update = await perceive(_graph("att_v"), _deps(FakeLLMClient(), media), Events())
@@ -247,3 +248,133 @@ async def test_a_failed_photo_alone_asks_for_words() -> None:
     text = "".join(e.text for e in events if isinstance(e, MessageDeltaEvent))
     assert "describe" in text
     assert llm.calls_for("nlu") == [] and llm.calls_for("responder") == []
+
+
+# --- video (M6-03) ---------------------------------------------------------------------------
+
+
+class FakeVideoAnalyzer:
+    def __init__(self, result: object = None, *, delay: float = 0, timeout_s: float = 60) -> None:
+        self.result = result
+        self.delay = delay
+        self.timeout_s = timeout_s
+        self.calls: list[tuple[bytes, str]] = []
+        self.started = asyncio.Event()
+        self.finished = False
+
+    async def analyze(self, data: bytes, mime: str, prompt: str) -> VideoResult:
+        self.calls.append((data, mime))
+        self.started.set()
+        await asyncio.sleep(self.delay)
+        self.finished = True
+        if isinstance(self.result, Exception):
+            raise self.result
+        assert isinstance(self.result, VideoResult)
+        return self.result
+
+
+VIDEO = VideoResult(
+    category="washing_machine",
+    brand="LG",
+    symptom_description="loud banging during spin",
+    audio_cues=["rhythmic knocking"],
+    visible_error_codes=["UE"],
+    confidence=0.8,
+)
+
+
+def _with_video() -> FakeMediaSource:
+    media = _media()
+    media.add("att_v", "video", "video/mp4", b"\x00\x00\x00\x18ftypmp42video")
+    return media
+
+
+async def test_a_video_is_analyzed_with_its_own_status() -> None:
+    video, events = FakeVideoAnalyzer(VIDEO), Events()
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=_with_video(), video=video)
+    update = await perceive(_graph("att_v"), deps, events)
+    labels = [e.label for e in events if isinstance(e, StatusEvent)]
+    assert any("video" in label.lower() for label in labels)
+    [observation] = update["turn"].media
+    assert observation.video == VIDEO
+    assert video.calls == [(b"\x00\x00\x00\x18ftypmp42video", "video/mp4")]
+
+
+async def test_a_slow_video_times_out_and_the_turn_goes_on() -> None:
+    video = FakeVideoAnalyzer(VIDEO, delay=1, timeout_s=0.05)
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=_with_video(), video=video)
+    update = await perceive(_graph("att_v"), deps, Events())
+    assert [o.error for o in update["turn"].media] == ["timeout"]
+
+
+async def test_a_failed_video_is_recorded() -> None:
+    from homehelper.media.gemini import VideoAnalysisError
+
+    video = FakeVideoAnalyzer(VideoAnalysisError("FAILED"))
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=_with_video(), video=video)
+    update = await perceive(_graph("att_v"), deps, Events())
+    assert [o.error for o in update["turn"].media] == ["analysis_failed"]
+
+
+async def test_photos_and_a_video_are_analyzed_together() -> None:
+    video = FakeVideoAnalyzer(VIDEO, delay=0.2)
+
+    class PhotoCallWaitsForTheVideo(FakeLLMClient):
+        async def structured(self, task, messages, schema):  # type: ignore[no-untyped-def]
+            await asyncio.wait_for(video.started.wait(), 1)  # fails unless both run at once
+            return await super().structured(task, messages, schema)
+
+    llm = PhotoCallWaitsForTheVideo({"vision": [_vision()]})
+    deps = AgentDeps.default(llm, FakeRetriever(), media=_with_video(), video=video)
+    update = await perceive(_graph("att_1", "att_v"), deps, Events())
+    assert [o.kind for o in update["turn"].media] == ["image", "video"]
+    assert all(o.error is None for o in update["turn"].media)
+
+
+async def test_a_saved_video_analysis_is_reused() -> None:
+    media = _with_video()
+    first = FakeVideoAnalyzer(VIDEO)
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=media, video=first)
+    await perceive(_graph("att_v"), deps, Events())
+    again = FakeVideoAnalyzer(RuntimeError("must not be called"))
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=media, video=again)
+    update = await perceive(_graph("att_v"), deps, Events())
+    assert again.calls == []
+    assert update["turn"].media[0].video == VIDEO
+
+
+async def test_video_slots_come_from_the_video() -> None:
+    from homehelper.agent.engine.perception import media_input
+    from homehelper.media.schemas import MediaObservation
+
+    media = media_input([MediaObservation(attachment_id="att_v", kind="video", video=VIDEO)])
+    assert media is not None
+    slots = {(s.name, s.value, s.source) for s in media.slot_updates}
+    assert slots == {
+        ("appliance_category", "washing_machine", "video"),
+        ("brand", "LG", "video"),
+        ("error_code", "UE", "video"),
+        ("symptom", "loud banging during spin", "video"),
+    }
+
+
+async def test_the_status_is_streamed_before_the_video_is_done() -> None:
+    video = FakeVideoAnalyzer(VIDEO, delay=0.3)
+    llm = FakeLLMClient(
+        {
+            "nlu": [NLUResult(intent="report_problem")],
+            "planner": [PLAN],
+            "responder": [AgentReply(message="Let's check the load balance.", citation_ids=["c1"])],
+            "supervisor": [PASS],
+        }
+    )
+    agent = JourneyAgent(AgentDeps.default(llm, FakeRetriever(), media=_with_video(), video=video))
+    message = InboundMessage(conversation_id="conv-v", attachments=["att_v"], user_id="u1")
+    stream = agent.handle(message)
+    while True:
+        event = await asyncio.wait_for(anext(stream), 2)
+        if isinstance(event, StatusEvent) and event.stage == "analyzing_media":
+            break
+    assert not video.finished  # the user saw "analyzing" while the video was still running
+    rest = [event async for event in stream]
+    assert any(isinstance(e, MessageDeltaEvent) for e in rest)

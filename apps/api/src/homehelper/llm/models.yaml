@@ -35,6 +35,12 @@ tasks:
     fallbacks: [openai/gpt-5.4-mini]
     timeout_s: 45
     max_tokens: 1024
+  video:
+    # Videos → VideoResult through the Gemini Files API (spec §11.3; media/gemini.py, not
+    # LiteLLM). timeout_s is the whole budget: upload, processing and the answer.
+    model: gemini/gemini-3.8-flash
+    timeout_s: 60
+    max_tokens: 1024
   user_simulator:
     model: anthropic/claude-haiku-5-5
     fallbacks: []

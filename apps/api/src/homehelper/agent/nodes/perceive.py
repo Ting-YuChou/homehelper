@@ -1,10 +1,13 @@
-"""`perceive` (M6-02, spec §11.2): what the message's photos show, before NLU reads its words.
+"""`perceive` (M6-02/03, spec §11.2-11.3): what the message's photos and video show, before NLU
+reads its words.
 
-All photos of a message go to the vision model in one call. The answer is cached on the
-attachments, so a retried turn reuses it. A failed analysis is recorded, not raised: the engine
-answers with M-MEDIA-01 and the conversation goes on.
+All photos of a message go to the vision model in one call; a video goes to Gemini at the same
+time, bounded by the `video` task's timeout (60 s), with an "analyzing" status first. Answers are
+cached on the attachments, so a retried turn reuses them. A failed or slow analysis is recorded,
+not raised: the engine answers with M-MEDIA-01 and the conversation goes on.
 """
 
+import asyncio
 import base64
 from collections.abc import Callable
 from typing import Any
@@ -17,7 +20,8 @@ from homehelper.channels.events import AgentEvent, StatusEvent
 from homehelper.core.logging import get_logger
 from homehelper.knowledge.schemas import CategoryId
 from homehelper.llm import LLMClient, LLMError, Message
-from homehelper.media.schemas import MediaObservation, VisionResult
+from homehelper.media.gemini import VideoAnalysisError
+from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
 from homehelper.media.source import LoadedMedia
 
 log = get_logger(__name__)
@@ -75,6 +79,35 @@ async def _photos(deps: AgentDeps, photos: list[LoadedMedia]) -> list[MediaObser
     ]
 
 
+async def _video(deps: AgentDeps, video: LoadedMedia) -> MediaObservation:
+    def failed(error: str) -> MediaObservation:
+        return MediaObservation(attachment_id=video.attachment_id, kind="video", error=error)  # type: ignore[arg-type]
+
+    assert deps.media is not None
+    cached = (video.analysis or {}).get("video")
+    if cached is not None:
+        return MediaObservation(
+            attachment_id=video.attachment_id,
+            kind="video",
+            video=VideoResult.model_validate(cached),
+        )
+    if deps.video is None:
+        return failed("unavailable")
+    prompt = prompts.render("video", categories=CATEGORIES)
+    try:
+        async with asyncio.timeout(deps.video.timeout_s):
+            data = await deps.media.read(video)
+            result = await deps.video.analyze(data, video.mime, prompt)
+    except TimeoutError:
+        log.warning("video_timeout", attachment_id=video.attachment_id)
+        return failed("timeout")
+    except (VideoAnalysisError, OSError) as exc:
+        log.warning("video_failed", attachment_id=video.attachment_id, error=str(exc))
+        return failed("analysis_failed")
+    await deps.media.save_analysis(video.attachment_id, {"video": result.model_dump(mode="json")})
+    return MediaObservation(attachment_id=video.attachment_id, kind="video", video=result)
+
+
 async def perceive(
     state: GraphState, deps: AgentDeps, emit: Callable[[AgentEvent], None]
 ) -> dict[str, Any]:
@@ -92,15 +125,17 @@ async def perceive(
     loaded = await deps.media.load(message.attachments, message.user_id)
     if len(loaded) < len(message.attachments):
         log.warning("media_not_loaded", requested=len(message.attachments), loaded=len(loaded))
-    observations: list[MediaObservation] = []
-    if loaded:
-        emit(StatusEvent(stage="analyzing_media", label="Looking at what you sent…"))
     photos = [m for m in loaded if m.kind == "image"]
-    if photos:
-        observations.extend(await _photos(deps, photos))
-    for video in (m for m in loaded if m.kind == "video"):
-        # Video understanding arrives with M6-03.
-        observations.append(
-            MediaObservation(attachment_id=video.attachment_id, kind="video", error="unavailable")
-        )
+    videos = [m for m in loaded if m.kind == "video"]
+    if videos:
+        emit(StatusEvent(stage="analyzing_media", label="Watching your video… (up to a minute)"))
+    elif photos:
+        emit(StatusEvent(stage="analyzing_media", label="Looking at your photo…"))
+    jobs = [_photos(deps, photos)] if photos else []
+    results = await asyncio.gather(*jobs, *(_one(deps, v) for v in videos))
+    observations = [o for result in results for o in result]
     return {"turn": state.turn.model_copy(update={"media": observations})}
+
+
+async def _one(deps: AgentDeps, video: LoadedMedia) -> list[MediaObservation]:
+    return [await _video(deps, video)]

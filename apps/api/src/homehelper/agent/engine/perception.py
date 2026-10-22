@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from homehelper.agent.state import HazardSignal
 from homehelper.knowledge.model_numbers import normalize_error_code, normalize_model
-from homehelper.media.schemas import MediaObservation, VisionResult
+from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
 from homehelper.media.validation import MediaKind
 
 MAX_SYMPTOM_ISSUES = 3
@@ -51,12 +51,34 @@ def _vision_slots(result: VisionResult) -> list[PerceivedSlot]:
     ]
 
 
+def _video_slots(result: VideoResult) -> list[PerceivedSlot]:
+    codes = [c for c in result.visible_error_codes if c.strip()]
+    values = {
+        "appliance_category": result.category.strip() if result.category else None,
+        "brand": result.brand.strip() if result.brand else None,
+        "error_code": normalize_error_code(codes[0]) if codes else None,
+        "symptom": result.symptom_description.strip() if result.symptom_description else None,
+    }
+    return [
+        PerceivedSlot(name=name, value=value, source="video", confidence=result.confidence)
+        for name, value in values.items()
+        if value
+    ]
+
+
 def media_input(observations: list[MediaObservation]) -> MediaInput | None:
     if not observations:
         return None
     media = MediaInput()
     results: list[VisionResult] = []  # one vision answer covers all the photos of a message
     for observation in observations:
+        if observation.video is not None:
+            media.analyzed += 1
+            media.slot_updates.extend(_video_slots(observation.video))
+            for hazard in observation.video.hazard_signals:
+                if hazard not in media.hazard_signals:
+                    media.hazard_signals.append(hazard)
+            continue
         if observation.error is not None or observation.vision is None:
             if observation.kind not in media.failures:
                 media.failures.append(observation.kind)

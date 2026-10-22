@@ -23,6 +23,7 @@ from homehelper.knowledge.retriever import ResultCache
 from homehelper.knowledge.web import build_web_fallback
 from homehelper.llm import ModelRegistry, build_llm_client
 from homehelper.mcp_servers.factory import McpServers
+from homehelper.media.gemini import build_video_analyzer
 from homehelper.media.source import MediaSource
 
 
@@ -67,8 +68,15 @@ async def journey_agent(
     try:
         async with postgres_checkpointer(settings.database_url) as checkpointer:
             tools = McpToolbox(mcp) if mcp is not None else None
+            video = build_video_analyzer(settings, registry or ModelRegistry.load())
             deps = AgentDeps.default(
-                llm, retriever, settings.release_id, tracer=tracer, tools=tools, media=media
+                llm,
+                retriever,
+                settings.release_id,
+                tracer=tracer,
+                tools=tools,
+                media=media,
+                video=video,
             )
             yield JourneyAgent(deps, checkpointer)
     finally:
