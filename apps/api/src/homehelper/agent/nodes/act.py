@@ -219,6 +219,10 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     assert message is not None
     result = transition(deps.catalog, graph.state, TurnInput.from_message(message, graph.turn.nlu))
     state = result.state
+    fresh_query = graph.turn.nlu is not None and graph.turn.nlu.search_query_en is not None
+    if state.active_issue_id != graph.state.active_issue_id and not fresh_query:
+        # The query from an earlier turn was about another issue; search by this one's slots.
+        graph = graph.model_copy(update={"search_query": None})
     turn = graph.turn.model_copy(
         update={
             "fixed_replies": list(result.fixed_replies),
@@ -249,4 +253,9 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             record(span, output=retrieval_summary(side))
         _remember_citations(graph, side)
         turn.retrieval = side
-    return {"agent": state, "turn": turn, "citations": graph.citations}
+    return {
+        "agent": state,
+        "turn": turn,
+        "citations": graph.citations,
+        "search_query": graph.search_query,
+    }

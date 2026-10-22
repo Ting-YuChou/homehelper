@@ -10,6 +10,12 @@ from typing import Any
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
+from homehelper.agent.engine.issues import find_record
+from homehelper.agent.engine.transition import (
+    NOTICE_REMIND_PAUSED,
+    NOTICE_RESUME_PAUSED,
+    NOTICE_RESUMED_ISSUE,
+)
 from homehelper.agent.guardrails import HAZARD_RULES
 from homehelper.agent.state import AgentState
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
@@ -145,9 +151,30 @@ def _previous_result(graph: GraphState) -> str | None:
 def user_text(graph: GraphState) -> str:
     message = graph.turn.message
     assert message is not None
-    if message.action is not None:
-        return f"[pressed {message.action.type}: {message.action.value}]"
+    action = message.action
+    if action is not None:
+        record = find_record(graph.state, action.value)
+        if action.type in ("resume_issue", "close_issue") and record is not None:
+            verb = "go back to" if action.type == "resume_issue" else "close"
+            return f"[pressed {verb}: {record.summary}]"
+        return f"[pressed {action.type}: {action.value}]"
     return message.text or ""
+
+
+def open_issue_summaries(graph: GraphState) -> list[str]:
+    """Paused issues the reply should mention (most recent first), or none."""
+    notices = graph.turn.notices
+    if NOTICE_RESUME_PAUSED not in notices and NOTICE_REMIND_PAUSED not in notices:
+        return []
+    return [paused.summary for paused in reversed(graph.state.paused_issues)]
+
+
+def resumed_summary(graph: GraphState) -> str | None:
+    state = graph.state
+    if NOTICE_RESUMED_ISSUE not in graph.turn.notices or state.active_issue_id is None:
+        return None
+    record = find_record(state, state.active_issue_id)
+    return record.summary if record else None
 
 
 def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> list[Message]:
@@ -178,6 +205,8 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
         notices=turn.notices,
         prefix=prefix,
         power_off_first=power_off_first,
+        open_issues=open_issue_summaries(graph),
+        resumed_issue=resumed_summary(graph),
         feedback=turn.verdict.reasons if turn.verdict and turn.verdict.action == "revise" else [],
         transcript=graph.transcript[-MAX_TRANSCRIPT_LINES:],
         user_text=user_text(graph),
