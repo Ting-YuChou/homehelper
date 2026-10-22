@@ -53,7 +53,8 @@ uv run homehelper manifest draft   # draft unreviewed manifest entries (Haiku); 
 uv run homehelper parse            # LlamaParse → data/parsed/<sha256>.<tier>.json (cached; paid per page)
 make ingest                        # parse (cached) → chunk → embed → new kb_YYYYMMDD_NN table
 uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + τ calibration
-uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # conversation sim against the M2-06 baseline (needs the KB in Postgres)
+uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # or :journey; conversation sim against a real agent (needs the KB in Postgres)
+uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   # NLU accuracy on evals/datasets/nlu.yaml (M3-03)
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
