@@ -61,6 +61,7 @@ def normalize_image(data: bytes, mime: str) -> ProcessedImage:
     upright.thumbnail((MAX_EDGE, MAX_EDGE))
     if fmt == "JPEG" and upright.mode != "RGB":
         upright = upright.convert("RGB")
+    upright.info.clear()  # JPEG comments and the like ride in `info` and would be saved again
     out = io.BytesIO()
     options = {"quality": JPEG_QUALITY} if fmt in ("JPEG", "WEBP") else {}
     upright.save(out, fmt, **options)  # no exif=, icc_profile=, pnginfo=: nothing is carried over

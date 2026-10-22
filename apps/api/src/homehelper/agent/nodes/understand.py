@@ -22,16 +22,22 @@ MEDIA_ONLY_TEXT = "(The user sent a photo or video without any text.)"
 
 
 def media_notes(state: GraphState) -> list[str]:
-    """Visible problems and displayed codes from the turn's media, for NLU."""
+    """What the turn's photos and video show and sound like, for NLU: never the appliance's
+    identity (brand, model, nameplate), which reaches the engine only as perceived slots."""
     results: list[VisionResult] = []
+    notes: list[str] = []
     for observation in state.turn.media:
         if observation.vision is not None and observation.vision not in results:
             results.append(observation.vision)
-    notes: list[str] = []
-    for result in results:
-        if result.displayed_error_code:
-            notes.append(f"the display shows {result.displayed_error_code}")
-        notes.extend(result.visible_issues)
+            if observation.vision.displayed_error_code:
+                notes.append(f"the display shows {observation.vision.displayed_error_code}")
+            notes.extend(observation.vision.visible_issues)
+        if observation.video is not None:
+            video = observation.video
+            if video.symptom_description:
+                notes.append(f"the video shows: {video.symptom_description}")
+            notes.extend(f"it sounds like: {cue}" for cue in video.audio_cues)
+            notes.extend(f"the display shows {code}" for code in video.visible_error_codes)
     return notes
 
 
@@ -61,7 +67,7 @@ async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
         return {}
     text = (message.text or "").strip()
     if not text:
-        if not any(o.vision is not None for o in state.turn.media):
+        if not any(o.vision is not None or o.video is not None for o in state.turn.media):
             return {}
         text = MEDIA_ONLY_TEXT
     nlu = await deps.llm.structured("nlu", nlu_messages(state, deps, text), NLUResult)

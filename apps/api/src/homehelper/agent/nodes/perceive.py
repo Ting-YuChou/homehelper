@@ -19,8 +19,7 @@ from homehelper.agent.turn import GraphState
 from homehelper.channels.events import AgentEvent, StatusEvent
 from homehelper.core.logging import get_logger
 from homehelper.knowledge.schemas import CategoryId
-from homehelper.llm import LLMClient, LLMError, Message
-from homehelper.media.gemini import VideoAnalysisError
+from homehelper.llm import LLMClient, Message
 from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
 from homehelper.media.source import LoadedMedia
 
@@ -60,8 +59,8 @@ async def _photos(deps: AgentDeps, photos: list[LoadedMedia]) -> list[MediaObser
         try:
             images = [(p.mime, await deps.media.read(p)) for p in photos]
             vision = await analyze_images(deps.llm, images)
-        except (LLMError, OSError) as exc:
-            log.warning("vision_failed", error=str(exc), photos=len(photos))
+        except Exception as exc:  # storage, provider or schema: never fails the turn
+            log.warning("vision_failed", error=f"{type(exc).__name__}: {exc}", photos=len(photos))
             return [
                 MediaObservation(
                     attachment_id=p.attachment_id, kind="image", error="analysis_failed"
@@ -73,10 +72,19 @@ async def _photos(deps: AgentDeps, photos: list[LoadedMedia]) -> list[MediaObser
             "photos": [p.attachment_id for p in photos],
         }
         for photo in photos:
-            await deps.media.save_analysis(photo.attachment_id, analysis)
+            await _save(deps, photo.attachment_id, analysis)
     return [
         MediaObservation(attachment_id=p.attachment_id, kind="image", vision=vision) for p in photos
     ]
+
+
+async def _save(deps: AgentDeps, attachment_id: str, analysis: dict[str, Any]) -> None:
+    """The cache only saves a repeat call; losing it must not lose the analysis."""
+    assert deps.media is not None
+    try:
+        await deps.media.save_analysis(attachment_id, analysis)
+    except Exception as exc:
+        log.warning("media_cache_failed", attachment_id=attachment_id, error=str(exc))
 
 
 async def _video(deps: AgentDeps, video: LoadedMedia) -> MediaObservation:
@@ -101,10 +109,12 @@ async def _video(deps: AgentDeps, video: LoadedMedia) -> MediaObservation:
     except TimeoutError:
         log.warning("video_timeout", attachment_id=video.attachment_id)
         return failed("timeout")
-    except (VideoAnalysisError, OSError) as exc:
-        log.warning("video_failed", attachment_id=video.attachment_id, error=str(exc))
+    except Exception as exc:  # VideoAnalysisError, storage errors: never fail the turn
+        log.warning(
+            "video_failed", attachment_id=video.attachment_id, error=f"{type(exc).__name__}: {exc}"
+        )
         return failed("analysis_failed")
-    await deps.media.save_analysis(video.attachment_id, {"video": result.model_dump(mode="json")})
+    await _save(deps, video.attachment_id, {"video": result.model_dump(mode="json")})
     return MediaObservation(attachment_id=video.attachment_id, kind="video", video=result)
 
 

@@ -2,13 +2,21 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ImageOff } from "lucide-react";
+import { useRef } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { attachmentUrlQuery } from "@/lib/api/queries";
 
 /** A sent photo or video, read through its short-lived signed URL (spec §11.1). */
 export function AttachmentThumb({ id }: { id: string }) {
-  const { data, isError } = useQuery(attachmentUrlQuery(id));
+  const { data, isError, refetch } = useQuery(attachmentUrlQuery(id));
+  // An expired URL (e.g. seeking a video after 15 minutes) gets one fresh URL, not a loop.
+  const renewed = useRef(false);
+  const renew = () => {
+    if (renewed.current) return;
+    renewed.current = true;
+    void refetch();
+  };
   if (isError) {
     return (
       <div
@@ -26,6 +34,7 @@ export function AttachmentThumb({ id }: { id: string }) {
         src={data.url}
         controls
         preload="metadata"
+        onError={renew}
         className="h-24 max-w-48 rounded-lg bg-black"
         aria-label="Attached video"
       />
@@ -34,7 +43,12 @@ export function AttachmentThumb({ id }: { id: string }) {
   return (
     <a href={data.url} target="_blank" rel="noreferrer">
       {/* eslint-disable-next-line @next/next/no-img-element -- signed URL that expires; nothing to optimize */}
-      <img src={data.url} alt="Attached photo" className="size-24 rounded-lg object-cover" />
+      <img
+        src={data.url}
+        alt="Attached photo"
+        className="size-24 rounded-lg object-cover"
+        onError={renew}
+      />
     </a>
   );
 }

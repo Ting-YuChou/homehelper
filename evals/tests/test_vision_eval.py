@@ -180,3 +180,12 @@ def test_main_writes_a_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert main(["--out", str(out), "--media-dir", str(tmp_path)]) == 0
     report = json.loads(out.read_text())
     assert report["summary"]["identification_rate"] == 1.0
+
+
+def test_failed_calls_are_kept_out_of_calibration() -> None:
+    failed = {**_row(0.0, True), "error": "LLMError: down"}
+    summary = summarize([_row(0.9, False), _row(0.95, True), failed])
+    calibration = summary["calibration"]
+    assert calibration["graded"] == 2
+    assert calibration["catch_rate"] == 0.0  # the one real error was confident
+    assert summary["errors"] == 1

@@ -7,6 +7,7 @@ URI can never point outside the media directory or bucket.
 
 import asyncio
 import re
+import shutil
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -72,7 +73,7 @@ class LocalMediaStore:
     @staticmethod
     def _copy(source: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(source.read_bytes())
+        shutil.copyfile(source, target)  # streams; a 100 MB video never sits in memory
 
     async def read(self, uri: str) -> bytes:
         return await asyncio.to_thread(self.path(uri).read_bytes)

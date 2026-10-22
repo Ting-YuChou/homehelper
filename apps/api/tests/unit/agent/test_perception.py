@@ -78,3 +78,13 @@ def test_long_strings_from_the_model_are_cut() -> None:
     assert len(vision.visible_issues) <= 5
     assert all(len(issue) <= 120 for issue in vision.visible_issues)
     assert vision.brand is not None and len(vision.brand) <= 60
+
+
+def test_codes_and_issues_are_not_held_back_by_an_unreadable_nameplate() -> None:
+    result = media_input(
+        [_photo(confidence=0.3, displayed_error_code="OE", visible_issues=["water in the drum"])]
+    )
+    assert result is not None
+    by_name = {s.name: s for s in result.slot_updates}
+    assert by_name["error_code"].confidence >= 0.7
+    assert by_name["symptom"].confidence >= 0.7

@@ -60,8 +60,10 @@ cases:
     expected_outcomes: [resolved, escalated]
     user_turns: ["My dryer isn't heating. Here's the model sticker."]
     media: [{turn: 0, path: vision/synthetic/plate-lg-washer.png}]
+    # Pointing out that the label is a washer's is fine; treating it as the dryer's is not.
     assertions:
-      forbidden_text: ["WM4000HWA"]
+      forbidden_text: ["your LG dryer", "LG dryer"]
+      forbidden_cards: [appliance_confirm]
 
   - id: mm-error-display-only
     notes: >
@@ -109,7 +111,7 @@ cases:
       - Clean the filter at the bottom of the tub.
       - Check that the spray arms turn freely and their holes aren't clogged.
     root_cause_step: 1
-    expected_outcomes: [resolved]
+    expected_outcomes: [resolved, escalated]  # the photo is what's tested, not the plan
     user_turns: ["My Bosch dishwasher leaves everything dirty."]
     media: [{turn: 0, path: vision/synthetic/none-shopping-list.png}]
     assertions: {forbidden_cards: [appliance_confirm]}

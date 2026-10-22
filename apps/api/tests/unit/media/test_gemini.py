@@ -130,3 +130,30 @@ def test_no_key_means_no_analyzer() -> None:
 def test_models_yaml_has_a_video_task() -> None:
     config = ModelRegistry.load().for_task("video")
     assert config.model.startswith("gemini/")
+
+
+class BrokenUpload(FakeFiles):
+    async def upload(self, *, file: Any, config: Any = None) -> Any:
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+
+async def test_an_upload_error_is_an_analysis_error() -> None:
+    client = _client([])
+    client.aio.files = BrokenUpload([])
+    with pytest.raises(VideoAnalysisError, match="RESOURCE_EXHAUSTED"):
+        await _analyzer(client).analyze(b"v", "video/mp4", "p")
+    assert client.aio.files.deleted == []  # nothing was uploaded
+
+
+async def test_a_billed_call_is_recorded_even_if_its_answer_is_unusable() -> None:
+    client = _client(["ACTIVE"])
+
+    async def garbled(**kwargs: Any) -> Any:
+        usage = SimpleNamespace(prompt_token_count=900, candidates_token_count=20)
+        return SimpleNamespace(parsed=None, text="not json", usage_metadata=usage)
+
+    client.aio.models.generate_content = garbled
+    with track_usage() as tally, pytest.raises(VideoAnalysisError):
+        await _analyzer(client).analyze(b"v", "video/mp4", "p")
+    assert [u.input_tokens for u in tally.calls] == [900]
+    assert client.aio.files.deleted == ["files/abc"]

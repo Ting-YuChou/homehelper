@@ -77,7 +77,10 @@ def spread(cases: list[EvalCase], limit: int | None) -> list[EvalCase]:
     return picked
 
 
-def build_cases(config: SuiteConfig, *, seed: str = "v1") -> list[EvalCase]:
+def build_cases(
+    config: SuiteConfig, *, seed: str = "v1", skipped: list[str] | None = None
+) -> list[EvalCase]:
+    """`skipped` collects the ids of cases left out because their media aren't present."""
     cases: list[EvalCase] = []
     if config.scenarios_per_category:
         root_causes = load_root_causes()
@@ -100,6 +103,8 @@ def build_cases(config: SuiteConfig, *, seed: str = "v1") -> list[EvalCase]:
         if missing:
             # Not the agent's failure: the images aren't on this machine (they're not in git).
             print(f"skipped {case.id}: missing media {', '.join(missing)}", file=sys.stderr)
+            if skipped is not None:
+                skipped.append(case.id)
         else:
             ready.append(case)
     return ready

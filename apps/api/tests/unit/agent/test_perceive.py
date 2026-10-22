@@ -378,3 +378,78 @@ async def test_the_status_is_streamed_before_the_video_is_done() -> None:
     assert not video.finished  # the user saw "analyzing" while the video was still running
     rest = [event async for event in stream]
     assert any(isinstance(e, MessageDeltaEvent) for e in rest)
+
+
+# --- failures never fail the turn (review) ---------------------------------------------------
+
+
+async def test_any_video_error_becomes_a_failure() -> None:
+    video = FakeVideoAnalyzer(RuntimeError("APIError 500"))
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=_with_video(), video=video)
+    update = await perceive(_graph("att_v"), deps, Events())
+    assert [o.error for o in update["turn"].media] == ["analysis_failed"]
+
+
+async def test_a_storage_error_on_a_photo_becomes_a_failure() -> None:
+    class BrokenStore(FakeMediaSource):
+        async def read(self, media):  # type: ignore[no-untyped-def]
+            raise ValueError("not a media object of this store")
+
+    media = BrokenStore(owner="u1")
+    media.add("att_1", "image", "image/jpeg", JPEG)
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=media)
+    update = await perceive(_graph("att_1"), deps, Events())
+    assert [o.error for o in update["turn"].media] == ["analysis_failed"]
+
+
+async def test_a_cache_write_error_keeps_the_analysis() -> None:
+    class NoCache(FakeMediaSource):
+        async def save_analysis(self, attachment_id, analysis):  # type: ignore[no-untyped-def]
+            raise RuntimeError("db down")
+
+    media = NoCache(owner="u1")
+    media.add("att_1", "image", "image/jpeg", JPEG)
+    deps = AgentDeps.default(FakeLLMClient({"vision": [_vision()]}), FakeRetriever(), media=media)
+    update = await perceive(_graph("att_1"), deps, Events())
+    assert update["turn"].media[0].vision is not None
+
+
+def test_an_analyzed_video_is_described_not_reported_as_failed() -> None:
+    from homehelper.agent.nodes.respond import media_marker
+    from homehelper.media.schemas import MediaObservation
+
+    graph = _graph("att_v")
+    graph.turn.media = [MediaObservation(attachment_id="att_v", kind="video", video=VIDEO)]
+    marker = media_marker(graph)
+    assert marker is not None
+    assert "couldn't" not in marker
+    assert "loud banging during spin" in marker and "rhythmic knocking" in marker
+
+
+def test_nlu_hears_the_video_but_not_its_identity() -> None:
+    from homehelper.media.schemas import MediaObservation
+
+    graph = _graph("att_v")
+    graph.turn.media = [MediaObservation(attachment_id="att_v", kind="video", video=VIDEO)]
+    [message] = nlu_messages(graph, _deps(FakeLLMClient(), None), MEDIA_ONLY_TEXT)
+    prompt = message.content
+    assert isinstance(prompt, str)
+    assert "loud banging during spin" in prompt and "rhythmic knocking" in prompt and "UE" in prompt
+    assert "LG" not in prompt.split("<media_analysis>")[1].split("</media_analysis>")[0]
+
+
+async def test_a_video_alone_still_gets_understood() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [NLUResult(intent="report_problem")],
+            "planner": [PLAN],
+            "responder": [AgentReply(message="Let's check the load.", citation_ids=["c1"])],
+            "supervisor": [PASS],
+        }
+    )
+    deps = AgentDeps.default(
+        llm, FakeRetriever(), media=_with_video(), video=FakeVideoAnalyzer(VIDEO)
+    )
+    message = InboundMessage(conversation_id="conv-vo", attachments=["att_v"], user_id="u1")
+    [event async for event in JourneyAgent(deps).handle(message)]
+    assert len(llm.calls_for("nlu")) == 1

@@ -15,6 +15,17 @@ from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
 from homehelper.media.validation import MediaKind
 
 MAX_SYMPTOM_ISSUES = 3
+# Slots below this need the user's confirmation unless already confirmed (spec §11.2). Defined
+# here, the lowest engine module that needs it; `predicates` re-exports it.
+LOW_CONFIDENCE = 0.7
+# The model's confidence is about the appliance's identity. A legible error code or a visible
+# problem doesn't get less true because the nameplate is unreadable, so those are not held back
+# for confirmation (which only troubleshooting has).
+IDENTITY_SLOTS = frozenset({"appliance_category", "brand", "model_number"})
+
+
+def _confidence(name: str, confidence: float) -> float:
+    return confidence if name in IDENTITY_SLOTS else max(confidence, LOW_CONFIDENCE)
 
 
 class PerceivedSlot(BaseModel):
@@ -45,7 +56,12 @@ def _vision_slots(result: VisionResult) -> list[PerceivedSlot]:
         "symptom": "; ".join(issues) if issues else None,
     }
     return [
-        PerceivedSlot(name=name, value=value, source="vision", confidence=result.confidence)
+        PerceivedSlot(
+            name=name,
+            value=value,
+            source="vision",
+            confidence=_confidence(name, result.confidence),
+        )
         for name, value in values.items()
         if value
     ]
@@ -60,7 +76,12 @@ def _video_slots(result: VideoResult) -> list[PerceivedSlot]:
         "symptom": result.symptom_description.strip() if result.symptom_description else None,
     }
     return [
-        PerceivedSlot(name=name, value=value, source="video", confidence=result.confidence)
+        PerceivedSlot(
+            name=name,
+            value=value,
+            source="video",
+            confidence=_confidence(name, result.confidence),
+        )
         for name, value in values.items()
         if value
     ]

@@ -65,43 +65,45 @@ class GeminiVideoAnalyzer:
         self._usage_sink = usage_sink
 
     async def analyze(self, data: bytes, mime: str, prompt: str) -> VideoResult:
+        """Any provider or SDK error becomes `VideoAnalysisError`; cancellation passes through."""
         from google.genai import types
 
         files = self._client.aio.files
         started = time.perf_counter()
-        uploaded = await files.upload(file=io.BytesIO(data), config={"mime_type": mime})
+        uploaded: Any = None
         try:
-            while uploaded.state.name == "PROCESSING":
+            uploaded = await files.upload(file=io.BytesIO(data), config={"mime_type": mime})
+            while getattr(uploaded.state, "name", None) == "PROCESSING":
                 await asyncio.sleep(self._poll_s)
                 uploaded = await files.get(name=uploaded.name)
-            if uploaded.state.name != "ACTIVE":
-                raise VideoAnalysisError(f"video processing ended in {uploaded.state.name}")
-            try:
-                response = await self._client.aio.models.generate_content(
-                    model=self.model,
-                    contents=[uploaded, prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=VideoResult,
-                        max_output_tokens=self._max_tokens,
-                    ),
-                )
-                result = (
-                    response.parsed
-                    if isinstance(response.parsed, VideoResult)
-                    else VideoResult.model_validate_json(response.text or "")
-                )
-            except VideoAnalysisError:
-                raise
-            except Exception as exc:
-                raise VideoAnalysisError(f"{type(exc).__name__}: {exc}") from exc
+            state = getattr(uploaded.state, "name", None)
+            if state != "ACTIVE":
+                raise VideoAnalysisError(f"video processing ended in {state}")
+            response = await self._client.aio.models.generate_content(
+                model=self.model,
+                contents=[uploaded, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=VideoResult,
+                    max_output_tokens=self._max_tokens,
+                ),
+            )
+            # Billed whether or not the answer is usable.
             self._record(response, time.perf_counter() - started)
-            return result
+            if isinstance(response.parsed, VideoResult):
+                return response.parsed
+            return VideoResult.model_validate_json(response.text or "")
+        except VideoAnalysisError:
+            raise
+        except Exception as exc:
+            raise VideoAnalysisError(f"{type(exc).__name__}: {exc}") from exc
         finally:
-            try:
-                await files.delete(name=uploaded.name)
-            except Exception:
-                log.warning("gemini_file_delete_failed", name=uploaded.name)
+            # A timeout during the upload leaves no name to delete; Gemini expires it in 48 h.
+            if uploaded is not None:
+                try:
+                    await files.delete(name=uploaded.name)
+                except Exception:
+                    log.warning("gemini_file_delete_failed", name=uploaded.name)
 
     def _record(self, response: Any, seconds: float) -> None:
         tokens = getattr(response, "usage_metadata", None)

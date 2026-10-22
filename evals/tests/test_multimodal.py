@@ -84,8 +84,23 @@ def test_cases_with_missing_media_are_skipped(
 ) -> None:
     monkeypatch.setattr("homehelper_evals.runner.MEDIA_ROOT", tmp_path)
     assert "multimodal" in SUITES
-    assert build_cases(SUITES["multimodal"]) == []
+    skipped: list[str] = []
+    assert build_cases(SUITES["multimodal"], skipped=skipped) == []
+    assert "mm-sharp-nameplate" in skipped
     assert "skipped" in capsys.readouterr().err
+
+
+def test_a_strict_suite_with_skipped_cases_has_no_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from homehelper_evals.cli import main
+
+    monkeypatch.setattr("homehelper_evals.runner.MEDIA_ROOT", tmp_path)
+    code = main(
+        ["run", "--suite", "multimodal", "--simulator", "scripted", "--no-judge", "--agent", "echo"]
+    )
+    assert code != 0
+    assert "missing media" in capsys.readouterr().err
 
 
 class RecordingAgent:

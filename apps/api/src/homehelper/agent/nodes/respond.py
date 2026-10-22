@@ -264,13 +264,27 @@ def media_marker(graph: GraphState) -> str | None:
         if n
     )
     seen = next((o.vision for o in media if o.vision is not None), None)
-    if seen is None:
+    video = next((o.video for o in media if o.video is not None), None)
+    if seen is None and video is None:
         return f"[sent {sent}; it couldn't be analyzed]"
-    identity = " ".join(v for v in (seen.brand, seen.category, seen.model_number) if v)
-    details = [f"shows {identity} (confidence {seen.confidence:.1f})"] if identity else []
-    details.extend(seen.visible_issues)
-    if seen.displayed_error_code:
-        details.append(f"display shows {seen.displayed_error_code}")
+    details: list[str] = []
+    if seen is not None:
+        identity = " ".join(v for v in (seen.brand, seen.category, seen.model_number) if v)
+        if identity:
+            details.append(f"photo shows {identity} (confidence {seen.confidence:.1f})")
+        details.extend(seen.visible_issues)
+        if seen.displayed_error_code:
+            details.append(f"display shows {seen.displayed_error_code}")
+    if video is not None:
+        identity = " ".join(v for v in (video.brand, video.category) if v)
+        if identity:
+            details.append(f"video shows {identity} (confidence {video.confidence:.1f})")
+        if video.symptom_description:
+            details.append(video.symptom_description)
+        details.extend(f"sound: {cue}" for cue in video.audio_cues)
+        details.extend(f"display shows {code}" for code in video.visible_error_codes)
+    if any(o.error for o in media):
+        details.append("some of it couldn't be analyzed")
     return f"[sent {sent}: {'; '.join(details) or 'nothing recognizable'}]"
 
 

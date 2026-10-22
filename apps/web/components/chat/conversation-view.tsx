@@ -15,7 +15,7 @@ import type {
   SendMessageBody,
   StructuredAction,
 } from "@/lib/api/types";
-import type { PendingTurn } from "@/lib/chat/turn";
+import { type PendingTurn, restoresComposer } from "@/lib/chat/turn";
 
 import { Composer } from "./composer";
 import { AssistantMessage, StatusLine, UserMessage } from "./message";
@@ -25,8 +25,6 @@ const SUGGESTIONS = [
   "The washer shows an OE error",
   "My fridge isn't cooling",
 ];
-// Refusals where the message was never processed, so its text goes back into the composer.
-const RETRYABLE = new Set(["rate_limited", "maintenance", "conversation_busy", "network_error"]);
 
 export function ConversationView({
   conversationId,
@@ -60,7 +58,7 @@ export function ConversationView({
     const body: SendMessageBody = attachments.length ? { attachments } : {};
     if (text) body.text = text;
     const result = await onSend(body);
-    return result !== null && RETRYABLE.has(result.code);
+    return result !== null && restoresComposer(result.code);
   };
 
   if (conversation.error instanceof ApiError && conversation.error.status === 404) {

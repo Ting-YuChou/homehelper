@@ -45,7 +45,12 @@ MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp
 # Licences that allow reuse without asking (spec: only these images are fetched, never stored in
 # git). Non-commercial and no-derivatives licences are refused.
 ALLOWED_LICENCES = frozenset({"cc0", "pdm", "cc-by", "cc-by-sa"})
-ALLOWED_HOSTS = ("upload.wikimedia.org", "live.staticflickr.com", "images.openverse.org")
+ALLOWED_HOSTS = (
+    "upload.wikimedia.org",
+    "thumb.wikimedia.org",  # Commons thumbnails (the API's `thumburl`)
+    "live.staticflickr.com",
+    "images.openverse.org",
+)
 
 
 def normalize_licence(raw: str) -> str:
@@ -176,7 +181,11 @@ def calibration(rows: list[dict[str, Any]], threshold: float = LOW_CONFIDENCE) -
     """Over photos that show an appliance: the confidence is about its identity, so a confident
     "nothing here" on an empty photo says nothing about calibration."""
     graded = [
-        r for r in rows if r["grade"]["identifiable"] and r["grade"]["identity_wrong"] is not None
+        r
+        for r in rows
+        if not r.get("error")  # a failed call has no confidence; it would look "caught"
+        and r["grade"]["identifiable"]
+        and r["grade"]["identity_wrong"] is not None
     ]
     wrong = [r for r in graded if r["grade"]["identity_wrong"]]
 

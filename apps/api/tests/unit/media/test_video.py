@@ -72,3 +72,14 @@ def test_remux_drops_location_and_other_metadata(
         assert container.streams.video[0].frames in (0, 10)  # stream copied, not re-encoded away
     assert result.duration_s == pytest.approx(1.0, abs=0.2)
     assert LOCATION.encode() not in out.read_bytes()
+
+
+def test_a_video_longer_than_its_header_says_is_caught_while_remuxing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    src = write_video(tmp_path / "a.mp4", seconds=3.0)
+    lying = FakeProbe(VideoInfo(duration_s=1.0, width=64, height=48))
+    monkeypatch.setattr("homehelper.media.video.MAX_VIDEO_SECONDS", 2)
+    with pytest.raises(UploadRejected) as raised:
+        process_video(src, "video/mp4", tmp_path / "out.mp4", probe=lying)
+    assert raised.value.code == "too_long"

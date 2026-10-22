@@ -286,3 +286,27 @@ def test_a_photo_of_another_appliance_than_the_one_typed_adds_nothing(
     assert slots["appliance_category"].value == "dryer"
     assert "brand" not in slots and "model_number" not in slots
     assert any("photo" in d.reason and "washing_machine" in d.reason for d in result.decisions)
+
+
+def test_a_yes_does_not_confirm_details_from_a_photo_sent_with_it(
+    catalog: JourneyCatalog,
+) -> None:
+    state = new_state(
+        active_journey="troubleshoot",
+        active_issue_id="iss_1",
+        step_id="confirm_appliance",
+        slots={
+            "appliance_category": SlotValue(
+                value="washing_machine", source="vision", confidence=0.6
+            ),
+            "brand": SlotValue(value="LG", source="vision", confidence=0.6),
+            "symptom": user("won't drain"),
+        },
+    )
+    turn = photo(*seen(0.5, brand="Samsung"), text="yes", nlu=say("confirm").nlu)
+    result = transition(catalog, state, turn)
+    assert (result.state.slots["brand"].value, result.state.slots["brand"].confirmed) == (
+        "LG",
+        True,
+    )
+    assert any("yes or no" in d.reason for d in result.decisions)

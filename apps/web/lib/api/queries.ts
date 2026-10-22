@@ -55,7 +55,8 @@ export const manualQuery = (docId: string) =>
     retry: false,
   });
 
-// Signed URLs expire after 15 minutes (MEDIA_URL_TTL_S); fetch a fresh one before that.
+// Signed URLs expire after 15 minutes (MEDIA_URL_TTL_S). A new URL would reload a playing video,
+// so the URL is not refreshed in the background: a remount after 10 minutes gets a fresh one.
 export const attachmentUrlQuery = (id: string) =>
   queryOptions({
     queryKey: queryKeys.attachment(id),
@@ -66,6 +67,7 @@ export const attachmentUrlQuery = (id: string) =>
         }),
       ),
     staleTime: 10 * 60 * 1000,
-    refetchInterval: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
   });

@@ -40,7 +40,8 @@ from homehelper_evals.vision import (
 
 __all__ = ["fetch_case", "normalize_licence", "render_case", "verify"]
 
-USER_AGENT = "HomeHelper-eval/0.1 (portfolio project; image fetch for a private eval set)"
+# Wikimedia's API policy wants a URL or contact in the User-Agent; without one it answers 403.
+USER_AGENT = "HomeHelper-eval/0.1 (https://github.com/Ting-YuChou/homehelper; private eval set)"
 SIZE = (960, 600)
 
 
@@ -205,6 +206,19 @@ def verify(cases: list[VisionCase], media_dir: Path = MEDIA_DIR) -> dict[str, st
 def discover(query: str, limit: int, http: HttpxClient) -> list[dict[str, Any]]:
     """Candidate photos with an allowed licence, for a person to review (not added anywhere)."""
     found: list[dict[str, Any]] = []
+    try:
+        found.extend(_commons(query, limit, http))
+    except httpx.HTTPError as exc:
+        print(f"Wikimedia Commons: {exc}", file=sys.stderr)
+    try:
+        found.extend(_openverse(query, limit, http))
+    except httpx.HTTPError as exc:
+        print(f"Openverse: {exc}", file=sys.stderr)
+    return found
+
+
+def _commons(query: str, limit: int, http: HttpxClient) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
     commons = http.get_json(
         "https://commons.wikimedia.org/w/api.php",
         {
@@ -233,6 +247,11 @@ def discover(query: str, limit: int, http: HttpxClient) -> list[dict[str, Any]]:
                     "title": page.get("title"),
                 }
             )
+    return found
+
+
+def _openverse(query: str, limit: int, http: HttpxClient) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
     openverse = http.get_json(
         "https://api.openverse.org/v1/images/",
         {"q": query, "license": "cc0,pdm,by,by-sa", "page_size": limit},

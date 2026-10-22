@@ -693,6 +693,11 @@ class _Run:
     def _apply_perceived(self, journey: Journey, signals: TurnSignals) -> None:
         """Slots seen in photos and videos (spec §11.2): kept with the model's confidence and
         unconfirmed, so the `confirm` step asks about the uncertain ones."""
+        if self._step_type(journey) == "confirm" and signals.confirmed is not None:
+            # The yes or no answers the card the user saw; a photo sent with it must not slip
+            # unseen values into what gets confirmed (or deleted).
+            self._log("slot", "ignored a photo sent with a yes or no to the confirmation")
+            return
         typed = {u.name: u.value for u in signals.slot_updates if u.value.strip()}
         has_confirm = any(step.type == "confirm" for step in journey.steps)
         working = self._step_type(journey) in SWITCH_STEP_TYPES

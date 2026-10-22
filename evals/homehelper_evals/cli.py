@@ -154,7 +154,16 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     if args.per_category is not None:
         config = config.model_copy(update={"scenarios_per_category": args.per_category})
     k = args.k or config.k
-    cases = build_cases(config, seed=args.seed)[: args.limit]
+    skipped: list[str] = []
+    cases = build_cases(config, seed=args.seed, skipped=skipped)[: args.limit]
+    if skipped and args.suite in STRICT_JUDGE_SUITES:
+        # A release gate must not pass on whichever cases happened to be runnable here.
+        print(
+            f"{len(skipped)} cases have missing media; generate or fetch them first "
+            "(python -m homehelper_evals.vision_media)",
+            file=sys.stderr,
+        )
+        return 5
     try:
         overrides = load_model_overrides(args.models) if args.models else {}
         registry = ModelRegistry.load(overrides=overrides)

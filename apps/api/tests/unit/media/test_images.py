@@ -69,3 +69,11 @@ def test_rejects_corrupt_images() -> None:
     with pytest.raises(UploadRejected) as raised:
         normalize_image(data[: len(data) // 3], "image/jpeg")
     assert raised.value.code == "unreadable"
+
+
+def test_jpeg_comments_are_dropped_too() -> None:
+    out = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(out, "JPEG", comment=b"Shot at 221B Baker St by alice")
+    result = normalize_image(out.getvalue(), "image/jpeg")
+    assert b"Baker" not in result.data
+    assert "comment" not in _open(result.data).info

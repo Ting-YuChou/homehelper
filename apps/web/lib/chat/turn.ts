@@ -69,3 +69,17 @@ export function applyEvent(turn: PendingTurn, event: AgentEvent): PendingTurn {
 export function finishTurn(turn: PendingTurn): PendingTurn {
   return { ...turn, done: true, status: null };
 }
+
+// Refusals where the message was never processed, so the composer gets its text and attachments
+// back. `invalid_attachment`: the user can remove the bad attachment and send again.
+const RETRYABLE = new Set([
+  "rate_limited",
+  "maintenance",
+  "conversation_busy",
+  "network_error",
+  "invalid_attachment",
+]);
+
+export function restoresComposer(code: string): boolean {
+  return RETRYABLE.has(code);
+}
