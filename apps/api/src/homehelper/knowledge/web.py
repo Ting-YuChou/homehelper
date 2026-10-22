@@ -103,7 +103,9 @@ EXTRACTION_SYSTEM = (
 def _prompt(query: RetrievalQuery, hits: Sequence[SearchHit]) -> list[Message]:
     appliance = " ".join(p for p in (query.brand, query.category, query.model_number) if p)
     results = "\n\n".join(
-        f'<result url="{hit.url}">\n{hit.title}\n{hit.content[:MAX_CONTENT_CHARS]}\n</result>'
+        # Page text cannot close the tags around it.
+        f'<result url="{neutralize_tags(hit.url)}">\n{neutralize_tags(hit.title)}\n'
+        f"{neutralize_tags(hit.content[:MAX_CONTENT_CHARS])}\n</result>"
         for hit in hits
     )
     return [

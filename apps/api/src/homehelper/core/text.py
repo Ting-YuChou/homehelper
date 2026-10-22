@@ -2,7 +2,8 @@
 
 import re
 
-_TAG = re.compile(r"<(?=/?[A-Za-z])")
+# Also `< /tag` and zero-width characters between `<` and the name.
+_TAG = re.compile(r"<(?=[\s\u200b-\u200d\u2060\ufeff]*/?[\s\u200b-\u200d\u2060\ufeff]*[A-Za-z])")
 # A look-alike of `<` that no tag parser reads as one.
 ANGLE_QUOTE = "\N{SINGLE LEFT-POINTING ANGLE QUOTATION MARK}"
 
