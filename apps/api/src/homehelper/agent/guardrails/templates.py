@@ -164,6 +164,15 @@ PERSISTING_WATER_REPLY = FixedReply(
 )
 
 
+# G-SAFE-05 after its warning, when the water is mentioned again but not reported as still
+# reaching electricity: a one-line reminder before the reply, instead of the whole warning.
+WATER_REMINDER_REPLY = FixedReply(
+    rule_id="G-SAFE-05",
+    text="Keep the breaker off until the outlet, cord and floor around them are completely dry.",
+    replaces_response=False,
+)
+
+
 def safety_reply(hazard: HazardSignal) -> FixedReply:
     template = SAFETY_TEMPLATES[hazard]
     return FixedReply(

@@ -131,14 +131,19 @@ class HazardHit(BaseModel):
 # standing water in the tub" (the symptom) or "I mopped up the water" (the warning was followed)
 # does not count.
 _CLAUSES = re.compile(r"[.;!?]+|\bbut\b", re.I)
+# Getting worse ("spraying", "spreading") counts as persisting too.
 _CUE = re.compile(
-    r"\b(still|keeps?|continu\w*|again|hasn'?t (gone|dried|stopped)|won'?t (dry|stop))\b", re.I
+    r"\b(still|keeps?|continu\w*|again|(hasn'?t|never) (gone|dried|stopped)|won'?t (dry|stop)"
+    r"|worse|spray\w*|spread\w*|gush\w*)\b",
+    re.I,
 )
 _NOT_A_CUE = re.compile(r"\bstill (off|unplugged|disconnected|switched off|turned off)\b", re.I)
 _WET_HERE = re.compile(r"\b(" + _WET[1:-1] + r"|pool\w*|soak\w*|sitting in)\b", re.I)
 _ELECTRIC_HERE = re.compile(r"\b" + _ELECTRIC + r"\b", re.I)
 _RESOLVED = re.compile(
-    r"\b(no longer|not (wet|leaking|dripping|pooling) anymore|(is|are) (gone|dry)|stopped)\b", re.I
+    r"\b(no longer|not (wet|leaking|dripping|pooling) anymore|(is|are) (gone|dry)"
+    r"|(?<!n't )(?<!nt )(?<!not )(?<!never )stopped)\b",
+    re.I,
 )
 
 

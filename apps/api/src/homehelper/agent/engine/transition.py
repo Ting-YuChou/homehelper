@@ -38,6 +38,7 @@ from homehelper.agent.guardrails.templates import (
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
     UNSUPPORTED_APPLIANCE_REPLY,
+    WATER_REMINDER_REPLY,
     FixedReply,
     safety_reply,
 )
@@ -305,9 +306,10 @@ class _Run:
             reply = safety_reply(hit.signal)
             if hit.signal not in ESCALATING_HAZARDS:
                 # G-SAFE-05: the power-off warning is given once per problem; users keep
-                # mentioning the water and the cord while they follow it. Water that is *still*
-                # reaching electricity after the warning means the hazard persists: DIY stops
-                # and the journey escalates. Escalating hazards answer every time.
+                # mentioning the water and the cord while they follow it, so later mentions get
+                # a one-line reminder. Water that is *still* reaching electricity after the
+                # warning means the hazard persists: DIY stops and the journey escalates.
+                # Escalating hazards answer every time.
                 journey = self._journey()
                 switched = (
                     category is not None and current is not None and category != current.value
@@ -323,7 +325,7 @@ class _Run:
                         "guardrail", f"{hit.signal} persists after the warning", rule_id=rule_id
                     )
                 else:
-                    continue
+                    reply = WATER_REMINDER_REPLY
             if rule_id not in replied_rules:
                 replied_rules.add(rule_id)
                 self.fixed_replies.append(reply)
@@ -364,6 +366,10 @@ class _Run:
                 state.paused_journey = None
                 state.outcome = None
                 state.selected_booking_slot = None
+                # The paused problem's warning was not saved: warn again rather than assume.
+                state.water_warning_given = any(
+                    h.signal == "water_near_electric" for h in self.hazards
+                )
                 self._log("route", decided.reason, to_step=state.step_id)
                 return
             case "switch":

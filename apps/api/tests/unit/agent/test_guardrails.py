@@ -250,6 +250,11 @@ def test_nlu_schema_has_no_free_form_maps() -> None:
         ),
         ("Water keeps pooling around the power strip", True),
         ("The puddle around the plug hasn't gone away", True),
+        ("Water still hasn't stopped dripping onto the outlet", True),
+        ("The leak onto the power strip never stopped", True),
+        ("Now water is spraying all over the outlet", True),
+        ("The water around the cord is spreading", True),
+        ("The water stopped and the outlet is dry", False),
         ("OK, I turned the breaker off and mopped up the water", False),
         ("Breaker is off, the floor is dry now, water is gone", False),
         (

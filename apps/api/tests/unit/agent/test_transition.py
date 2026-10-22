@@ -12,6 +12,7 @@ from homehelper.agent.engine import (
 )
 from homehelper.agent.engine.transition import NOTICE_OFFER_HANDOFF, NOTICE_RESUME_PAUSED
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
+from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
 from homehelper.agent.state import AgentState, PausedJourney
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import new_state, plan, press, run_turn, say, vision_slot
@@ -251,7 +252,9 @@ def test_following_the_water_warning_does_not_escalate(catalog: JourneyCatalog, 
     warned = transition(catalog, state, say("other", "Water is dripping near the outlet"))
     assert [r.rule_id for r in warned.fixed_replies] == ["G-SAFE-05"]
     after = transition(catalog, warned.state, say("other", text))
-    assert not after.fixed_replies
+    # A one-line reminder instead of the whole warning, and the step goes on.
+    assert after.fixed_replies == [WATER_REMINDER_REPLY]
+    assert not after.skip_respond
     assert after.state.step_id == "guide"
 
 
@@ -434,7 +437,9 @@ def test_switching_appliance_pauses_and_resumes(catalog: JourneyCatalog) -> None
     assert done.state.step_id == "resolved"
     assert NOTICE_RESUME_PAUSED in done.notices
 
+    done.state.water_warning_given = True  # given for the dryer
     resumed = transition(catalog, done.state, say("confirm", "yes, back to the dishwasher"))
+    assert not resumed.state.water_warning_given  # the dishwasher gets its own warning
     assert resumed.state.step_id == "guide"
     assert resumed.state.slots["appliance_category"].value == "dishwasher"
     assert resumed.state.plan[0].status == "presented"
