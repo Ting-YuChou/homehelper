@@ -346,6 +346,11 @@ def _normalize_enum(value: str) -> str:
     return value.strip().lower().replace("-", "_").replace(" ", "_")
 
 
+def _stands(slot: SlotValue) -> bool:
+    """What the user said, or confirmed on a card: a photo doesn't override it."""
+    return slot.confirmed and slot.source != "profile"
+
+
 def _category_update(signals: TurnSignals) -> str | None:
     for update in signals.slot_updates:
         if update.name == CATEGORY_SLOT:
@@ -710,7 +715,7 @@ class _Run:
             _normalize_enum(typed[CATEGORY_SLOT])
             if CATEGORY_SLOT in typed
             else current.value
-            if current is not None and (working or current.source == "user")
+            if current is not None and (working or _stands(current))
             else None
         )
         shown = next((p for p in signals.perceived if p.name == CATEGORY_SLOT), None)
@@ -720,7 +725,7 @@ class _Run:
         # Another brand than the user's: its model number belongs to some other unit.
         brand = self.state.slots.get("brand")
         user_brand = typed.get("brand") or (
-            brand.value if brand is not None and brand.source == "user" else None
+            brand.value if brand is not None and _stands(brand) else None
         )
         shown_brand = next((p.value for p in signals.perceived if p.name == "brand"), None)
         other_unit = bool(
@@ -773,8 +778,7 @@ class _Run:
         if working and seen.name in APPLIANCE_SLOTS and current.source != "profile":
             self._log("slot", f"ignored {seen.name}={value!r} from a photo during this step")
             return True
-        if current.confirmed and current.source != "profile":
-            # What the user said, or confirmed on a card, stands.
+        if _stands(current):
             if current.value != value:
                 self._log("slot", f"kept the user's {seen.name}; the photo showed {value!r}")
             return True
@@ -791,7 +795,8 @@ class _Run:
             pending = [
                 name
                 for name, shown in self.shown_for_confirmation.items()
-                if state.slots.get(name) == shown
+                if (slot := state.slots.get(name)) is not None
+                and (slot.value, slot.source) == (shown.value, shown.source)
             ]
             if signals.confirmed:
                 for name in pending:

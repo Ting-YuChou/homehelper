@@ -341,3 +341,34 @@ def test_a_confirmed_photo_value_is_not_overwritten_by_a_later_photo(
     )
     result = transition(catalog, state, photo(*seen(0.9, brand="Samsung")))
     assert result.state.slots["brand"].value == "LG"
+
+
+def test_a_photo_of_another_appliance_than_a_confirmed_one_adds_nothing(
+    catalog: JourneyCatalog,
+) -> None:
+    state = new_state(
+        active_journey="troubleshoot",
+        active_issue_id="iss_1",
+        step_id="gather",
+        slots={
+            "appliance_category": SlotValue(
+                value="washing_machine", source="vision", confidence=0.6, confirmed=True
+            ),
+            "brand": SlotValue(value="LG", source="vision", confidence=0.6, confirmed=True),
+        },
+    )
+    turn = photo(
+        *seen(0.9, appliance_category="dryer", brand="Samsung", model_number="DVE45R6100C"),
+        *seen(0.9, symptom="lint everywhere"),
+    )
+    slots = transition(catalog, state, turn).state.slots
+    assert "model_number" not in slots and "symptom" not in slots
+
+
+def test_a_yes_with_a_photo_of_the_same_value_is_not_asked_again(
+    catalog: JourneyCatalog,
+) -> None:
+    turn = photo(*seen(0.65, brand="LG"), text="yes", nlu=say("confirm").nlu)
+    result = transition(catalog, _at_confirm(), turn)  # type: ignore[arg-type]
+    assert result.state.slots["brand"].confirmed is True
+    assert result.state.step_id != "confirm_appliance"

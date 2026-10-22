@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 
 import av
@@ -89,3 +90,17 @@ def test_a_clip_that_starts_late_is_measured_from_its_start(tmp_path: Path) -> N
     src = write_video(tmp_path / "a.mp4", seconds=10.0, start_s=55.0)
     result = process_video(src, "video/mp4", tmp_path / "out.mp4")
     assert result.duration_s < 11
+
+
+def test_an_early_huge_timestamp_does_not_hide_the_length(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from homehelper.media import video
+
+    class Packet:
+        def __init__(self, pts: int) -> None:
+            self.pts, self.dts, self.time_base = pts, pts, Fraction(1, 1)
+            self.stream = type("S", (), {"index": 0})()
+
+    spans = video.packet_span([Packet(p) for p in (10_000, 0, 30, 3600)])
+    assert spans == 10_000
