@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from homehelper.agent.engine import JourneyCatalog, default_catalog
 from homehelper.agent.engine.schema import Journey, Step
 from homehelper.agent.state import AgentState, PlanItem
+from homehelper.agent.tools import Toolbox
 from homehelper.core.tracing import Tracer
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.llm import LLMClient
@@ -26,6 +27,7 @@ class AgentDeps:
     catalog: JourneyCatalog
     release_id: str = "dev"
     tracer: Tracer | None = None  # Langfuse spans per node (M3-11); None in evals and tests
+    tools: Toolbox | None = None  # MCP tools (M5-07); None runs without them
 
     @classmethod
     def default(
@@ -34,6 +36,7 @@ class AgentDeps:
         retriever: Retriever,
         release_id: str = "dev",
         tracer: Tracer | None = None,
+        tools: Toolbox | None = None,
     ) -> "AgentDeps":
         return cls(
             llm=llm,
@@ -41,6 +44,7 @@ class AgentDeps:
             catalog=default_catalog(),
             release_id=release_id,
             tracer=tracer,
+            tools=tools,
         )
 
     @contextmanager

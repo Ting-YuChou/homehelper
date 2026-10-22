@@ -52,6 +52,7 @@ def create_app(
                             tracer=tracer,
                             cache=app.state.redis,
                             registry=app.state.model_registry,
+                            mcp=app.state.mcp,
                         )
                     )
                 )
