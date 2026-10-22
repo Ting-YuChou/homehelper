@@ -125,24 +125,31 @@ class HazardHit(BaseModel):
     source: Literal["keywords", "nlu", "both"]
 
 
-# The user says the water is *still* there after the G-SAFE-05 warning ("still dripping onto the
-# outlet", "the power strip is still sitting in water"). A report that the warning was followed
-# ("breaker is off, I mopped up the water") does not match.
-_PERSISTS = re.compile(
-    r"\b(still|keeps?|continu\w*)\b.{0,60}\b(" + _WET[1:-1] + r"|sitting in|reach\w*|soak\w*)\b"
-    r"|\b(" + _WET[1:-1] + r")\b.{0,40}\b(still|keeps? (coming|going)|won'?t stop|again)\b",
-    re.I,
+# The user says the water is *still* reaching electricity after the G-SAFE-05 warning ("still
+# dripping onto the outlet", "the power strip is still in the water"). One clause must hold a
+# persistence cue, a wet term and an electric term, so "the breaker is off, but there's still
+# standing water in the tub" (the symptom) or "I mopped up the water" (the warning was followed)
+# does not count.
+_CLAUSES = re.compile(r"[.;!?]+|\bbut\b", re.I)
+_CUE = re.compile(
+    r"\b(still|keeps?|continu\w*|again|hasn'?t (gone|dried|stopped)|won'?t (dry|stop))\b", re.I
 )
+_NOT_A_CUE = re.compile(r"\bstill (off|unplugged|disconnected|switched off|turned off)\b", re.I)
+_WET_HERE = re.compile(r"\b(" + _WET[1:-1] + r"|pool\w*|soak\w*|sitting in)\b", re.I)
+_ELECTRIC_HERE = re.compile(r"\b" + _ELECTRIC + r"\b", re.I)
 _RESOLVED = re.compile(
-    r"\b(no longer|not (wet|leaking|dripping) anymore|(is|are) (gone|dry))\b", re.I
+    r"\b(no longer|not (wet|leaking|dripping|pooling) anymore|(is|are) (gone|dry)|stopped)\b", re.I
 )
 
 
 def water_persists(text: str | None) -> bool:
     """Whether the user reports water still reaching electricity (spec §8.1 G-SAFE-05)."""
-    if not text:
-        return False
-    return bool(_PERSISTS.search(text)) and not _RESOLVED.search(text)
+    for clause in _CLAUSES.split(text or ""):
+        cue = _CUE.search(_NOT_A_CUE.sub("", clause))
+        wet_electric = _WET_HERE.search(clause) and _ELECTRIC_HERE.search(clause)
+        if cue and wet_electric and not _RESOLVED.search(clause):
+            return True
+    return False
 
 
 def keyword_hazards(text: str | None, *, category: str | None = None) -> list[HazardSignal]:

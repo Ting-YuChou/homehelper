@@ -289,6 +289,26 @@ def test_a_new_problem_gets_its_own_water_warning(catalog: JourneyCatalog) -> No
     assert new.state.step_id != "escalate"
 
 
+def test_another_appliance_mid_journey_gets_its_own_water_warning(
+    catalog: JourneyCatalog,
+) -> None:
+    state = start_guide(catalog)
+    warned = transition(catalog, state, say("other", "Water is dripping near the outlet"))
+    switched = transition(
+        catalog,
+        warned.state,
+        say(
+            "report_problem",
+            "Also my fridge is still leaking water near the power strip",
+            slots={"appliance_category": "refrigerator", "symptom": "leaking"},
+        ),
+    )
+    (reply,) = switched.fixed_replies
+    assert not reply.replaces_response  # the fridge's first warning, not an escalation
+    assert switched.state.active_journey == "troubleshoot"
+    assert switched.state.step_id != "escalate"
+
+
 def test_repeated_hazard_rule_gets_one_template(catalog: JourneyCatalog) -> None:
     result = transition(catalog, new_state(), say("report_problem", "smoke and sparks everywhere"))
     assert [h.signal for h in result.hazards] == ["smoke_or_burning", "sparks"]

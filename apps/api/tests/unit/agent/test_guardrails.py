@@ -12,6 +12,7 @@ from homehelper.agent.guardrails import (
     postprocess_plan,
     safety_reply,
 )
+from homehelper.agent.guardrails.hazards import water_persists
 from homehelper.agent.guardrails.plan import (
     POWER_OFF_INSTRUCTION,
     drop_high_risk,
@@ -235,3 +236,33 @@ def test_nlu_schema_has_no_free_form_maps() -> None:
     )
     assert parsed.slot_updates[0].name == "symptom"
     assert parsed.user_sentiment == "neutral"
+
+
+@pytest.mark.parametrize(
+    ("text", "persists"),
+    [
+        ("I switched off the breaker but the outlet is still wet", True),
+        ("There's still water on the floor and the power strip is still in it.", True),
+        ("It's still dripping onto the outlet, so I'm worried.", True),
+        (
+            "The hose is fine, but the water and the power strip are still there.",
+            True,
+        ),
+        ("Water keeps pooling around the power strip", True),
+        ("The puddle around the plug hasn't gone away", True),
+        ("OK, I turned the breaker off and mopped up the water", False),
+        ("Breaker is off, the floor is dry now, water is gone", False),
+        (
+            "I dried the outlet, but the dishwasher still won't drain the water.",
+            False,
+        ),
+        ("I unplugged the cord, but there's still standing water in the tub.", False),
+        ("The power is still off and the water near the plug is cleaned up.", False),
+        ("I unplugged the plug, but it's still leaking from the hose.", False),
+        (None, False),
+    ],
+)
+def test_water_persists_needs_cue_water_and_electricity_in_one_clause(
+    text: str | None, persists: bool
+) -> None:
+    assert water_persists(text) is persists

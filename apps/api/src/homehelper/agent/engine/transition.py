@@ -309,7 +309,11 @@ class _Run:
                 # reaching electricity after the warning means the hazard persists: DIY stops
                 # and the journey escalates. Escalating hazards answer every time.
                 journey = self._journey()
-                ongoing = journey is not None and not is_ended(journey, self.state)
+                switched = (
+                    category is not None and current is not None and category != current.value
+                )
+                # Another appliance mid-journey is a new problem: it gets its own warning.
+                ongoing = journey is not None and not is_ended(journey, self.state) and not switched
                 if not (self.state.water_warning_given and ongoing):
                     self.state.water_warning_given = True
                 elif water_persists(turn.text):
