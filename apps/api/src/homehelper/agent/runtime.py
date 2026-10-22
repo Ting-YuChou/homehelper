@@ -26,7 +26,8 @@ def _config(conversation_id: str) -> RunnableConfig:
 class JourneyAgent:
     def __init__(self, deps: AgentDeps, checkpointer: BaseCheckpointSaver | None = None) -> None:
         self._deps = deps
-        self._graph = build_graph(deps, checkpointer or InMemorySaver(serde=checkpoint_serde()))
+        self._checkpointer = checkpointer or InMemorySaver(serde=checkpoint_serde())
+        self._graph = build_graph(deps, self._checkpointer)
 
     async def handle(self, message: InboundMessage) -> AsyncIterator[AgentEvent]:
         # The graph runs in its own task: the turn's tracing context then lives in that task
@@ -46,17 +47,19 @@ class JourneyAgent:
         # A new TurnScratch resets everything per-turn; the rest of the state comes from the
         # checkpoint of this conversation.
         turn = {"turn": TurnScratch(message=message)}
+        config = _config(message.conversation_id)
+        before = await self._graph.aget_state(config)
         try:
             with self._turn_span(message):
                 async for event in self._graph.astream(
                     turn,  # type: ignore[arg-type]  # a partial update, not a whole GraphState
-                    _config(message.conversation_id),
+                    config,
                     stream_mode="custom",
                 ):
                     await queue.put(cast(AgentEvent, event))
         except Exception as exc:
-            # The failed turn is not checkpointed, so the conversation can simply be retried.
             log.exception("agent_turn_failed", conversation_id=message.conversation_id)
+            await self._roll_back(message.conversation_id, before.values)
             await queue.put(
                 ErrorEvent(
                     code="agent_error", message=f"The assistant failed: {type(exc).__name__}"
@@ -64,6 +67,19 @@ class JourneyAgent:
             )
         finally:
             await queue.put(None)
+
+    async def _roll_back(self, conversation_id: str, values: dict[str, Any] | None) -> None:
+        """Undo a failed turn so it can simply be retried. LangGraph checkpoints after every node,
+        so the nodes that ran before the failure (step results, plan position, tool calls) are
+        already saved; writing the previous values back as `emit` puts the thread where the turn
+        started, with nothing pending."""
+        try:
+            if values:
+                await self._graph.aupdate_state(_config(conversation_id), values, as_node="emit")
+            else:  # the conversation's first turn
+                await self._checkpointer.adelete_thread(conversation_id)
+        except Exception:
+            log.exception("agent_turn_rollback_failed", conversation_id=conversation_id)
 
     def _turn_span(self, message: InboundMessage) -> AbstractContextManager[Any]:
         tracer = self._deps.tracer

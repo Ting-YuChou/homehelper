@@ -235,3 +235,39 @@ async def test_checkpoints_revive_without_blocked_types() -> None:
     finally:
         unregister()
     assert [e for e in events if "blocked" in str(e.get("kind", ""))] == []
+
+
+async def test_a_turn_that_fails_after_a_step_result_is_rolled_back() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT],
+            "planner": [PLAN],
+            "responder": [
+                AgentReply(message="Try it."),
+                RuntimeError("down"),
+                AgentReply(message="Next."),
+            ],
+            "supervisor": [PASS, PASS],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "My Bosch dishwasher won't drain")
+    before = await agent.state("conv-1")
+    failed = await _send(agent, result="not_fixed")  # step_executor ran, then respond failed
+    assert isinstance(failed[-1], ErrorEvent)
+    after = await agent.state("conv-1")
+    assert before is not None and after is not None
+    assert after.state == before.state  # the first step is not marked failed yet
+    retried = await _send(agent, result="not_fixed")
+    assert _text(retried) == "Next."
+    state = await agent.state("conv-1")
+    assert state is not None
+    assert [item.status for item in state.state.plan][:2] == ["done_not_fixed", "presented"]
+
+
+async def test_a_failed_first_turn_leaves_no_checkpoint() -> None:
+    llm = FakeLLMClient({"nlu": [REPORT], "planner": [RuntimeError("down")]})
+    agent = _agent(llm)
+    failed = await _send(agent, "My Bosch dishwasher won't drain")
+    assert isinstance(failed[-1], ErrorEvent)
+    assert await agent.state("conv-1") is None
