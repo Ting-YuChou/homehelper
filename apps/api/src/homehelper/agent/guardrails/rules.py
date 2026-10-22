@@ -6,6 +6,7 @@ Rules are enforced in different places; `enforced_by` says where, so a reader ca
 from dataclasses import dataclass
 from typing import Literal
 
+from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
 from homehelper.agent.state import HazardSignal
 
 RuleKind = Literal["hard", "soft", "structural"]
@@ -88,7 +89,7 @@ RULES: dict[str, GuardrailRule] = {
         ),
         GuardrailRule(
             "G-LOOP-01",
-            "4 failed steps, or 2 consecutive frustrated turns",
+            "6 failed steps (every planned step), or 2 consecutive frustrated turns",
             "Offer a referral",
             "soft",
             "journey guardrail max_failed_steps_reached; engine notice for frustration",
@@ -123,5 +124,6 @@ HAZARD_RULES: dict[HazardSignal, str] = {
 # Hazards that end DIY help. Water near electricity only requires a power-off first (G-SAFE-05).
 ESCALATING_HAZARDS: frozenset[HazardSignal] = frozenset(HAZARD_RULES) - {"water_near_electric"}
 
-MAX_FAILED_STEPS = 4  # G-LOOP-01
+# G-LOOP-01: every planned step was tried (the plan cap, so no step is cut off unseen).
+MAX_FAILED_STEPS = MAX_PLAN_ITEMS
 MAX_FRUSTRATED_TURNS = 2  # G-LOOP-01

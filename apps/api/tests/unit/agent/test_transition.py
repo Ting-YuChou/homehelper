@@ -11,6 +11,7 @@ from homehelper.agent.engine import (
     transition,
 )
 from homehelper.agent.engine.transition import NOTICE_OFFER_HANDOFF, NOTICE_RESUME_PAUSED
+from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.state import AgentState, PausedJourney
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import new_state, plan, press, run_turn, say, vision_slot
@@ -187,8 +188,8 @@ def test_correction_at_confirm_step_moves_on(catalog: JourneyCatalog) -> None:
 
 
 def test_max_failed_steps_overrides_step_transition(catalog: JourneyCatalog) -> None:
-    state = start_guide(catalog, n_items=6)
-    for _ in range(3):
+    state = start_guide(catalog, n_items=MAX_FAILED_STEPS + 1)
+    for _ in range(MAX_FAILED_STEPS - 1):
         state = transition(catalog, state, press("step_result", "not_fixed")).state
         assert state.step_id == "guide"
     result = transition(catalog, state, press("step_result", "not_fixed"))

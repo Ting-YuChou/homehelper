@@ -36,7 +36,12 @@ Rules:
   appliance. Among steps that are about equally simple and safe, put first the one the
   excerpts tie most directly to this exact symptom (the most likely fix), not generic checks.
 - Leave out steps the user has already done or ruled out, and setup prerequisites the user's
-  messages show are already in place.
+  messages show are already in place. If the appliance turns on or runs, leave out power,
+  plug and outlet checks.
+- Every item is something to try that could fix the problem. Leave out warnings, safety-only
+  steps (code adds power-off steps), "contact service" and "stop using it" items.
+- `targets_symptom`: true when the excerpts tie this step to this exact symptom or error code;
+  false for generic checks. Code puts these steps first.
 - Every item must be supported by the excerpts; list the supporting excerpt ids in
   `citation_ids`. Leave out anything the excerpts do not support, even if you know it.
 - If the excerpts come from a different appliance or do not address this problem, return no

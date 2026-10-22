@@ -32,6 +32,7 @@ class PlanDraftItem(BaseModel):
     requires_disassembly: bool = False
     requires_tools: list[str] = Field(default_factory=list)
     risk_level: Literal["low", "medium", "high"] = "low"
+    targets_symptom: bool = False  # the excerpts tie this step to this exact symptom
 
 
 class PlanDraft(BaseModel):
@@ -78,6 +79,22 @@ def retrieval_summary(retrieval: RetrievalResult) -> dict[str, Any]:
     }
 
 
+def rank_draft(items: list[PlanDraftItem]) -> list[PlanDraftItem]:
+    """Steps aimed at this symptom go first, disassembly last; otherwise the planner's order.
+
+    G-LOOP-01 stops after `MAX_FAILED_STEPS`, so generic checks ahead of the likely fix cost
+    the user the fix itself.
+    """
+    return sorted(items, key=lambda item: (item.requires_disassembly, not item.targets_symptom))
+
+
+def plan_summary(items: list[PlanItem]) -> str:
+    """One line per item for the decision log, so eval reports show the whole plan."""
+    return "; ".join(
+        f"{item.id} [{','.join(item.citation_ids)}] {item.instruction[:80]}" for item in items
+    )
+
+
 def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
     return [
         {
@@ -122,7 +139,7 @@ async def build_plan(
             requires_tools=item.requires_tools,
             risk_level=item.risk_level,
         )
-        for index, item in enumerate(draft.items, start=1)
+        for index, item in enumerate(rank_draft(draft.items), start=1)
     ]
     # Warranty status comes from the user profile (M5); until then nothing is under warranty.
     edit = postprocess_plan(items, category=_slot(state, "appliance_category"))
@@ -133,6 +150,9 @@ async def build_plan(
             reason=f"planner drafted {len(items)} items; {len(edit.items)} kept",
         ),
         *edit.decisions,
+        Decision(
+            kind="plan", journey=state.active_journey, reason=f"plan: {plan_summary(edit.items)}"
+        ),
     ]
     return edit.items, decisions
 
@@ -156,7 +176,8 @@ async def run_action(
                     f"retrieved {len(state.last_retrieval.chunks)} chunks "
                     f"(source={state.last_retrieval.source}, "
                     f"level={state.last_retrieval.filter_level}, "
-                    f"sufficient={state.last_retrieval.sufficient})"
+                    f"sufficient={state.last_retrieval.sufficient}): "
+                    f"{', '.join(c.chunk_id for c in state.last_retrieval.chunks)}"
                 ),
             )
         )
