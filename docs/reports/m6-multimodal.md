@@ -90,11 +90,30 @@ The share of photos sent to the confirm step is 31%. ECE is 0.05 in v2.
 
 ## Video (`homehelper_evals.video`)
 
-Not run: `GEMINI_API_KEY` is not set yet. The code path (upload, processing, structured answer,
-deleting the remote file, the 60 s budget, M-MEDIA-01 on failure) is covered by unit tests
-with a fake Gemini client. `evals/datasets/video.yaml` has one clip, `data/media/home_issue.mp4`
-(a microwave keypad). Its labels were drafted from frames only and are marked `reviewed: false`.
-Someone who has heard the audio needs to confirm them.
+One clip, `data/media/home_issue.mp4`: a microwave whose display stays dark while the keypad is
+pressed. Its labels were confirmed by a person who watched and listened to it (`reviewed: true`).
+Model: `gemini/gemini-3.8-flash`, 60 s budget.
+
+**When it answered, the answer was right, but it answered within 60 s only once in four runs.**
+
+| Run | Result | Time |
+|---|---|---|
+| 1 | 503 "model is currently experiencing high demand" | – |
+| 2 | Correct: microwave, "display completely off and buttons are unresponsive", three timestamped presses, no hazards, confidence 0.65 | 49.4 s |
+| 3, 4 | Timed out | > 60 s |
+
+- **The time goes to Gemini's answer, not the upload.** Timed outside the turn:
+  - the upload took about 2 s, and processing about 2 s;
+  - `generate_content` took 150–164 s, for about 150 output tokens. That looks like queueing on
+    Google's side.
+  - Lowering the thinking level made no difference (`low` 149 s; `minimal` isn't supported).
+  - In the same hour, `gemini-3.5-flash` and `3.7-flash` also returned 503.
+- **`gemini-3.5-flash-lite` answered in 2–18 s but isn't a substitute.** In 3 runs it got the
+  category right but left the symptom empty, at confidence 0.8–0.9: confident and not useful.
+- **What a user sees:** a video turn ends in M-MEDIA-01 ("please describe it in words") after the
+  60 s budget, so the conversation isn't blocked, but the video is rarely used while Gemini is
+  this loaded. Whether a paid tier gets better latency hasn't been measured.
+- Cost when it answered: $0.0013.
 
 ## Not yet measured
 
@@ -104,7 +123,7 @@ Someone who has heard the audio needs to confirm them.
   - Bosch fridge-freezer photos (CC BY-SA 4.0), for real brand recognition.
 
   Openverse returned 504 at the time. Candidates go into `vision.yaml` only after review.
-- **Video accuracy and latency** against the 60 s budget, once a Gemini key is set.
+- **Video latency** at a quieter time, or on a paid tier: the runs above were during a 503 spike.
 
 ## Browser check
 
