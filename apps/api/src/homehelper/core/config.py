@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     # OpenCode Go subscription gateway; eval experiments only, via `opencode_go/...` model
     # overrides (docs/SPEC.md §9.1). Never a default in models.yaml.
     opencode_go_api_key: SecretStr = SecretStr("")
+    openrouter_api_key: SecretStr = SecretStr("")
     opencode_go_base_url: str = "https://opencode.ai/inference/go"
 
     langfuse_public_key: str = ""
@@ -94,6 +95,7 @@ class Settings(BaseSettings):
             "openai": self.openai_api_key,
             "gemini": self.gemini_api_key,
             "opencode_go": self.opencode_go_api_key,
+            "openrouter": self.openrouter_api_key,
         }
         values = {provider: key.get_secret_value() for provider, key in keys.items()}
         return {provider: value for provider, value in values.items() if value}

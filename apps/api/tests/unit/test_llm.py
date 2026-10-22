@@ -186,6 +186,49 @@ def test_settings_expose_opencode_go_key_only_when_set() -> None:
     assert settings.provider_api_keys()["opencode_go"] == "go-key"
 
 
+def test_settings_expose_openrouter_key_only_when_set() -> None:
+    assert "openrouter" not in make_settings().provider_api_keys()
+    settings = make_settings(openrouter_api_key="or-key")
+    assert settings.provider_api_keys()["openrouter"] == "or-key"
+
+
+def test_claude_tasks_fall_back_to_the_same_model_on_openrouter_first() -> None:
+    """Same model through another account before switching models (e.g. Anthropic out of
+    credit). OpenRouter spells versions with dots: claude-sonnet-5-5 -> claude-sonnet-5.5."""
+    claude_tasks = 0
+    for task, config in ModelRegistry.load().tasks.items():
+        provider, _, name = config.model.partition("/")
+        if provider != "anthropic":
+            continue
+        claude_tasks += 1
+        family, _, version = name.rpartition("-")
+        major = family.rpartition("-")[2]
+        dotted = f"{family.rpartition('-')[0]}-{major}.{version}"
+        assert config.fallbacks[:1] == [f"openrouter/anthropic/{dotted}"], task
+    assert claude_tasks >= 7
+
+
+async def test_openrouter_is_skipped_without_its_key() -> None:
+    completion = ScriptedCompletion({"anthropic/primary": [RuntimeError("no credit")]})
+    registry = ModelRegistry.load(
+        overrides={
+            "nlu": {
+                "model": "anthropic/primary",
+                "fallbacks": ["openrouter/anthropic/primary", "openai/backup"],
+            }
+        }
+    )
+    completion.script["openai/backup"] = ["from openai"]
+    completion.script["openrouter/anthropic/primary"] = ["from openrouter"]
+    without = LiteLLMClient(registry, {"anthropic": "a", "openai": "o"}, completion_fn=completion)
+    assert await without.text("nlu", MESSAGES) == "from openai"
+    completion.script["anthropic/primary"] = [RuntimeError("no credit")]
+    keys = {"anthropic": "a", "openrouter": "r", "openai": "o"}
+    with_key = LiteLLMClient(registry, keys, completion_fn=completion)
+    assert await with_key.text("nlu", MESSAGES) == "from openrouter"
+    assert completion.calls[-1]["api_key"] == "r"
+
+
 def _opencode_client(
     completion: ScriptedCompletion, model: str, sink: list[LLMUsage] | None = None
 ) -> LiteLLMClient:
