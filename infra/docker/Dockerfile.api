@@ -31,6 +31,8 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/config /app/config
 COPY --from=builder --chown=app:app /app/data/mock /app/data/mock
+# Local uploads only (MEDIA_BACKEND=local); Cloud Run uses a GCS bucket.
+RUN mkdir -p /app/data/media/uploads && chown -R app:app /app/data/media
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080
 USER app
 EXPOSE 8080

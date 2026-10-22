@@ -141,6 +141,7 @@ class TurnGuards:
     ip_limiter: SlidingWindowLimiter
     user_limiter: SlidingWindowLimiter
     login_limiter: SlidingWindowLimiter
+    upload_limiter: SlidingWindowLimiter
     spend: SpendLedger
     lock: ConversationLock
 
@@ -155,6 +156,9 @@ class TurnGuards:
             user_limiter=SlidingWindowLimiter(redis, windows),
             login_limiter=SlidingWindowLimiter(
                 redis, [Window(limit=settings.login_rate_limit_per_hour, seconds=3600)]
+            ),
+            upload_limiter=SlidingWindowLimiter(
+                redis, [Window(limit=settings.upload_rate_limit_per_hour, seconds=3600)]
             ),
             spend=SpendLedger(redis, settings.daily_spend_cap_usd),
             lock=ConversationLock(redis),

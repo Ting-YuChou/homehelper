@@ -41,6 +41,10 @@ async def test_routes_need_a_session(client: httpx.AsyncClient, method: str, pat
     assert response.status_code == 401
 
 
+async def test_media_route_needs_a_valid_token(client: httpx.AsyncClient) -> None:
+    assert (await client.get("/v1/media/forged.token.value")).status_code == 404
+
+
 async def test_forged_cookie_is_rejected(client: httpx.AsyncClient) -> None:
     client.cookies.set("hh_session", "not-a-signed-value")
     assert (await client.get("/v1/conversations")).status_code == 401

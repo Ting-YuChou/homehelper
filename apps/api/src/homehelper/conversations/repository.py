@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from homehelper.db.models import Conversation, Feedback, Message, User
+from homehelper.db.models import Attachment, Conversation, Feedback, Message, User
 
 TITLE_CHARS = 80
 
@@ -156,3 +156,76 @@ async def upsert_feedback(
         .returning(Feedback)
     )
     return (await session.execute(stmt)).scalar_one()
+
+
+async def add_attachment(session: AsyncSession, attachment: Attachment) -> Attachment:
+    session.add(attachment)
+    await session.flush()
+    return attachment
+
+
+async def get_attachment(
+    session: AsyncSession, attachment_id: str, *, user_id: str | None = None
+) -> Attachment | None:
+    """The attachment, or None if it doesn't exist or (with `user_id`) isn't that user's."""
+    attachment = await session.get(Attachment, attachment_id)
+    if attachment is None or (user_id is not None and attachment.user_id != user_id):
+        return None
+    return attachment
+
+
+async def claim_attachments(
+    session: AsyncSession, ids: Sequence[str], *, user_id: str, conversation_id: str
+) -> str | None:
+    """Bind uploads to the conversation a message is about to be sent in.
+
+    All or nothing: returns why they can't be sent (and changes nothing), or None. An upload may be
+    sent once. A turn refused after this point (busy, rate limited) leaves it claimed by the
+    conversation, where it can be sent again.
+    """
+    if len(set(ids)) != len(ids):
+        return "Each attachment can be sent once."
+    rows = (
+        await session.scalars(select(Attachment).where(Attachment.id.in_(ids)).with_for_update())
+    ).all()
+    usable = [
+        a
+        for a in rows
+        if a.user_id == user_id
+        and a.status == "ready"
+        and a.message_id is None
+        and a.conversation_id in (None, conversation_id)
+    ]
+    if len(usable) != len(ids):
+        return "That attachment isn't available. Please upload it again."
+    if sum(a.kind == "video" for a in usable) > 1:
+        return "Send one video per message."
+    for attachment in usable:
+        attachment.conversation_id = conversation_id
+    await session.flush()
+    return None
+
+
+async def bind_attachments(session: AsyncSession, ids: Sequence[str], message_id: str) -> None:
+    if ids:
+        await session.execute(
+            update(Attachment)
+            .where(Attachment.id.in_(ids), Attachment.message_id.is_(None))
+            .values(message_id=message_id)
+        )
+
+
+async def attachments_by_message(
+    session: AsyncSession, message_ids: Sequence[str]
+) -> dict[str, list[Attachment]]:
+    if not message_ids:
+        return {}
+    stmt = (
+        select(Attachment)
+        .where(Attachment.message_id.in_(message_ids))
+        .order_by(Attachment.created_at, Attachment.id)
+    )
+    grouped: dict[str, list[Attachment]] = {}
+    for attachment in (await session.scalars(stmt)).all():
+        grouped.setdefault(attachment.message_id or "", []).append(attachment)
+    return grouped

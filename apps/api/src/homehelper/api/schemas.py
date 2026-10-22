@@ -12,6 +12,7 @@ from homehelper.mcp_servers.schemas import RepairOutcome, WarrantyState
 
 Rating = Literal["up", "down"]
 Role = Literal["user", "assistant", "system"]
+AttachmentKind = Literal["image", "video"]
 
 
 class _FromRow(BaseModel):
@@ -50,6 +51,28 @@ class ConversationOut(_FromRow):
     updated_at: datetime
 
 
+class AttachmentRef(_FromRow):
+    """An attachment as listed on its message; fetch `/v1/attachments/{id}` for a URL."""
+
+    id: str
+    kind: AttachmentKind
+    mime: str
+
+
+class AttachmentOut(AttachmentRef):
+    size: int
+    width: int | None
+    height: int | None
+    duration_s: float | None
+    status: str
+    created_at: datetime
+
+
+class AttachmentUrlOut(AttachmentRef):
+    url: str  # signed; expires at `expires_at`
+    expires_at: datetime
+
+
 class MessageOut(_FromRow):
     id: str
     role: Role
@@ -59,6 +82,7 @@ class MessageOut(_FromRow):
     action: StructuredAction | None
     created_at: datetime
     feedback: Rating | None = None
+    attachments: list[AttachmentRef] = Field(default_factory=list)
 
 
 class ConversationDetail(ConversationOut):
@@ -128,3 +152,7 @@ class AnnotationCreate(BaseModel):
 
 class ErrorOut(BaseModel):
     detail: str
+
+
+class UploadErrorOut(ErrorOut):
+    code: str  # unsupported_type, too_large, too_long, unreadable, empty, rate_limited

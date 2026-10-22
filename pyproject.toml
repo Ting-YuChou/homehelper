@@ -18,6 +18,7 @@ homehelper-evals = { workspace = true }
 dev = [
     "fakeredis[lua]>=2.40.0",
     "httpx>=0.28.1",
+    "pillow-heif>=1.8.1",  # writes HEIC test fixtures; the app decodes with pi-heif
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",

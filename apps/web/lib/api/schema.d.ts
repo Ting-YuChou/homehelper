@@ -303,6 +303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/media/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media
+         * @description Serve a locally stored upload to whoever holds an unexpired token (no session needed).
+         */
+        get: operations["get_media_v1_media__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/messages/{message_id}/feedback": {
         parameters: {
             query?: never;
@@ -346,7 +366,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload */
+        /**
+         * Upload
+         * @description Upload one photo or video as the multipart field `file`.
+         */
         post: operations["upload_v1_uploads_post"];
         delete?: never;
         options?: never;
@@ -409,6 +432,67 @@ export interface components {
             /** Recent Repairs */
             recent_repairs: components["schemas"]["RepairOut"][];
             warranty: components["schemas"]["WarrantyOut"];
+        };
+        /** AttachmentOut */
+        AttachmentOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Height */
+            height: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video";
+            /** Mime */
+            mime: string;
+            /** Size */
+            size: number;
+            /** Status */
+            status: string;
+            /** Width */
+            width: number | null;
+        };
+        /**
+         * AttachmentRef
+         * @description An attachment as listed on its message; fetch `/v1/attachments/{id}` for a URL.
+         */
+        AttachmentRef: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video";
+            /** Mime */
+            mime: string;
+        };
+        /** AttachmentUrlOut */
+        AttachmentUrlOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video";
+            /** Mime */
+            mime: string;
+            /** Url */
+            url: string;
         };
         /** BookingSlot */
         BookingSlot: {
@@ -662,6 +746,8 @@ export interface components {
         /** MessageOut */
         MessageOut: {
             action: components["schemas"]["StructuredAction"] | null;
+            /** Attachments */
+            attachments?: components["schemas"]["AttachmentRef"][];
             /** Cards */
             cards: (components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"] | components["schemas"]["IssuesCard"])[];
             /** Citations */
@@ -831,6 +917,13 @@ export interface components {
             type: "step_result" | "confirm_appliance" | "select_booking_slot" | "resume_issue" | "close_issue";
             /** Value */
             value: string;
+        };
+        /** UploadErrorOut */
+        UploadErrorOut: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
         };
         /** UserOut */
         UserOut: {
@@ -1087,6 +1180,24 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrlOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1094,15 +1205,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Successful Response */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };
@@ -1342,14 +1444,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description `invalid_attachment`: an attachment can't be sent with this message. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
             /** @description `rate_limited` (see `Retry-After`). */
             429: {
@@ -1449,6 +1549,35 @@ export interface operations {
             };
         };
     };
+    get_media_v1_media__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     give_feedback_v1_messages__message_id__feedback_post: {
         parameters: {
             query?: never;
@@ -1511,15 +1640,67 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
-            501: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AttachmentOut"];
+                };
+            };
+            /** @description Length Required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadErrorOut"];
                 };
             };
         };

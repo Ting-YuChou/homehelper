@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     login_rate_limit_per_hour: int = 20  # demo logins per IP (each guest login is a new user)
     daily_spend_cap_usd: float = 5.0
 
+    # Photo and video uploads (spec §11.1): a local directory (under `data_dir` unless set), or a
+    # private GCS bucket read through signed URLs that expire after `media_url_ttl_s`.
+    media_backend: Literal["local", "gcs"] = "local"
+    media_root: Path | None = None
+    gcs_media_bucket: str = ""
+    media_url_ttl_s: int = 900
+    upload_rate_limit_per_hour: int = 30
+
     # OpenCode Go subscription gateway; eval experiments only, via `opencode_go/...` model
     # overrides (docs/SPEC.md §9.1). Never a default in models.yaml.
     opencode_go_api_key: SecretStr = SecretStr("")
@@ -74,6 +82,10 @@ class Settings(BaseSettings):
     @property
     def mock_dir(self) -> Path:
         return self.data_dir / "mock"
+
+    @property
+    def media_dir(self) -> Path:
+        return self.media_root or self.data_dir / "media" / "uploads"
 
     def provider_api_keys(self) -> dict[str, str]:
         """LiteLLM provider name → API key, for providers that are configured."""
