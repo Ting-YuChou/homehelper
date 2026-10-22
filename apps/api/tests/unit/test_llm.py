@@ -296,6 +296,42 @@ async def test_tool_turn_through_litellm_does_not_load_its_mcp_bridge() -> None:
     assert [c.name for c in turn.tool_calls] == [LOOKUP.name]
 
 
+async def test_openai_tool_turns_turn_reasoning_off() -> None:
+    """gpt-5.4+ with tools and reasoning goes through LiteLLM's Responses bridge, which imports
+    its MCP gateway (mcp>=2) before looking at `_skip_mcp_handler`: every OpenAI fallback tool
+    turn failed. An explicit "none" keeps the call on chat completions."""
+    completion = ScriptedCompletion(
+        {
+            "anthropic/primary": [RuntimeError("down"), "plain"],
+            "openai/backup": [[("parts_catalog__search_parts", "{}")]],
+        }
+    )
+    client = _client(completion)
+    await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    await client.text("nlu", MESSAGES)
+    anthropic, openai, text = completion.calls
+    assert openai["reasoning_effort"] == "none"
+    assert "reasoning_effort" not in anthropic
+    assert "reasoning_effort" not in text  # only tool turns
+
+
+@pytest.mark.parametrize("model", ["gpt-5.5", "gpt-5.4-mini"])
+def test_litellm_keeps_openai_tools_on_chat_only_without_reasoning(model: str) -> None:
+    """Pins the LiteLLM routing the fix above relies on; an upgrade that changes it fails here."""
+    from litellm.main import responses_api_bridge_check
+
+    tools = [{"type": "function", "function": LOOKUP.model_dump()}]
+
+    def mode(effort: str | None) -> object:
+        info, _ = responses_api_bridge_check(
+            model=model, custom_llm_provider="openai", tools=tools, reasoning_effort=effort
+        )
+        return info.get("mode")
+
+    assert mode(None) == "responses"
+    assert mode("none") != "responses"
+
+
 async def test_tool_turn_retries_once_on_bad_arguments_then_fails() -> None:
     bad = [("parts_catalog__search_parts", "{not json")]
     good = [("parts_catalog__search_parts", "{}")]

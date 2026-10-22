@@ -235,6 +235,11 @@ class LiteLLMClient:
             litellm_model, connection = self._route(model)
             if config.reasoning_effort is not None:
                 connection["reasoning_effort"] = config.reasoning_effort
+            if "tools" in request and provider_of(model) == "openai":
+                # gpt-5.4+ with tools and reasoning is sent through LiteLLM's Responses bridge,
+                # which imports the MCP gateway (mcp>=2) before honouring `_skip_mcp_handler`.
+                # Only an explicit "none" keeps the call on chat completions.
+                connection["reasoning_effort"] = "none"
             started = time.perf_counter()
             with self._generation(task, model, payload) as generation:
                 try:
