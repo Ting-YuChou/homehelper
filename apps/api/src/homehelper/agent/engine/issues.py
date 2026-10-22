@@ -70,6 +70,23 @@ def close_issue(state: AgentState, issue_id: str, outcome: Outcome) -> None:
         record.outcome = outcome
 
 
+def close_paused(state: AgentState, category: str | None, outcome: Outcome) -> list[str]:
+    """Close the paused issues about `category` (all of them when it is None). Returns their ids."""
+    closing = [
+        p
+        for p in state.paused_issues
+        if category is None
+        or (
+            p.slots.get("appliance_category") is not None
+            and p.slots["appliance_category"].value == category
+        )
+    ]
+    for paused in closing:
+        state.paused_issues.remove(paused)
+        close_issue(state, paused.issue_id, outcome)
+    return [p.issue_id for p in closing]
+
+
 def pause_active(state: AgentState) -> list[str]:
     """Move the active issue to the end of `paused_issues`. Returns the ids of the oldest issues
     closed as `abandoned` to stay within `MAX_PAUSED_ISSUES`."""

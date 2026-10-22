@@ -42,6 +42,7 @@ class TurnSignals(BaseModel):
     resume_issue: str | None = None  # issue id from an IssuesCard button (ADR-007)
     close_issue: str | None = None
     rejected_action: str | None = None  # why a structured action was ignored
+    from_card: bool = False  # set by a card button rather than by what the user wrote
 
     @property
     def escalating_hazards(self) -> list[HazardSignal]:
@@ -69,6 +70,10 @@ def signals_from_input(turn: TurnInput) -> TurnSignals:
 
 
 def _from_action(action: StructuredAction) -> TurnSignals:
+    return _action_signals(action).model_copy(update={"from_card": True})
+
+
+def _action_signals(action: StructuredAction) -> TurnSignals:
     value = action.value.strip()
     match action.type:
         case "step_result":

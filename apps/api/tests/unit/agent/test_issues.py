@@ -14,7 +14,9 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUME_PAUSED,
     NOTICE_RESUMED_ISSUE,
 )
+from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY, safety_reply
 from homehelper.agent.state import AgentState, IssueRecord, PausedIssue, SlotValue
+from homehelper.channels.events import StructuredAction
 from tests.unit.agent.helpers import new_state, plan, press, run_turn, say
 
 APPLIANCES = ["dishwasher", "dryer", "microwave", "vacuum", "television"]
@@ -212,6 +214,29 @@ def test_a_hazard_after_an_end_resumes_the_matching_issue(catalog: JourneyCatalo
     assert result.state.outcome == "escalated"
 
 
+def test_a_hazard_closes_the_other_paused_issues_on_that_appliance(
+    catalog: JourneyCatalog,
+) -> None:
+    state = guide(catalog, two_issues(catalog), "dishwasher", "leaking")  # iss_3; dryer paused
+    smoke = say(
+        "report_problem",
+        "now the dishwasher is smoking",
+        slots={"appliance_category": "dishwasher"},
+    )
+    result = transition(catalog, state, smoke)
+    assert (result.state.active_issue_id, result.state.step_id) == ("iss_3", "escalate")
+    # The paused drain problem can no longer come back with DIY steps; the dryer is another
+    # appliance.
+    assert [p.issue_id for p in result.state.paused_issues] == ["iss_2"]
+    assert result.state.issues[0].outcome == "escalated"
+
+
+def test_a_gas_smell_closes_every_paused_issue(catalog: JourneyCatalog) -> None:
+    result = transition(catalog, two_issues(catalog), say("report_problem", "I smell gas"))
+    assert result.state.paused_issues == []
+    assert result.state.issues[0].outcome == "escalated"
+
+
 def test_oldest_paused_issue_is_closed_when_full(catalog: JourneyCatalog) -> None:
     state = new_state()
     for category in APPLIANCES:
@@ -290,3 +315,40 @@ def test_deny_uses_up_the_reminder(catalog: JourneyCatalog) -> None:
     assert denied.state.paused_reminder_used
     bye = transition(catalog, denied.state, say("small_talk", "bye"))
     assert NOTICE_REMIND_PAUSED not in bye.notices
+
+
+def test_turning_down_a_paused_appliance_by_name_closes_it(catalog: JourneyCatalog) -> None:
+    state = transition(catalog, two_issues(catalog), press("step_result", "fixed")).state
+    forget = mention("dishwasher", "deny")
+    closed = transition(catalog, state, forget)
+    assert closed.state.paused_issues == []
+    assert closed.state.issues[0].outcome == "abandoned"
+    # Small talk naming it does not resume it either.
+    chat = transition(catalog, state, mention("dishwasher", "small_talk"))
+    assert [p.issue_id for p in chat.state.paused_issues] == ["iss_1"]
+    # Mid-guide on another appliance, the active issue carries on.
+    busy = transition(catalog, two_issues(catalog), forget)
+    assert (busy.state.active_issue_id, busy.state.step_id) == ("iss_2", "guide")
+    assert busy.state.paused_issues == []
+
+
+def test_a_stale_confirm_button_does_not_answer_the_offer(catalog: JourneyCatalog) -> None:
+    state = transition(catalog, two_issues(catalog), press("step_result", "fixed")).state
+    yes = transition(catalog, state, press("confirm_appliance", "yes"))
+    assert yes.state.active_issue_id == "iss_2"
+    assert [p.issue_id for p in yes.state.paused_issues] == ["iss_1"]
+    no = transition(catalog, state, press("confirm_appliance", "no"))
+    assert not no.state.paused_reminder_used
+
+
+def test_water_mentioned_while_resuming_gets_the_full_warning(catalog: JourneyCatalog) -> None:
+    state = two_issues(catalog)
+    state.water_warning_given = True  # given for the dryer
+    turn = TurnInput(
+        text="there is water near the outlet",
+        action=StructuredAction(type="resume_issue", value="iss_1"),
+    )
+    result = transition(catalog, state, turn)
+    assert result.state.active_issue_id == "iss_1"
+    assert result.fixed_replies == [safety_reply("water_near_electric")]
+    assert WATER_REMINDER_REPLY not in result.fixed_replies

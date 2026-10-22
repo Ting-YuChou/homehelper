@@ -381,7 +381,12 @@ def test_hazard_in_journey_without_hazard_guardrail_switches(catalog: JourneyCat
     result = transition(custom, state, say("small_talk", "oh no, sparks!"))
     assert result.state.active_journey == "troubleshoot"
     assert result.state.step_id == "escalate"
-    assert [p.journey for p in result.state.paused_issues] == ["chat"]
+    # Sparks on an unknown appliance end DIY help everywhere: the set-aside chat is closed too.
+    assert result.state.paused_issues == []
+    assert [(r.journey, r.outcome) for r in result.state.issues] == [
+        ("chat", "escalated"),
+        ("troubleshoot", None),
+    ]
 
 
 # --- routing ------------------------------------------------------------------------------

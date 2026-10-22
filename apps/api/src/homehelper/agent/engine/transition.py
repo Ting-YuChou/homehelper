@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from homehelper.agent.engine.issues import (
     TOPIC_SLOTS,
     close_issue,
+    close_paused,
     find_paused,
     is_issue_journey,
     open_issue,
@@ -62,6 +63,7 @@ from homehelper.agent.state import (
     Decision,
     DecisionKind,
     HazardSignal,
+    Intent,
     PausedIssue,
     PlanItemStatus,
     SlotValue,
@@ -76,6 +78,8 @@ CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
 # Steps still collecting details: an issue set aside here has barely started.
 COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
+# Naming a paused appliance with these intents does not mean "let's go back to it".
+NOT_RESUMING_INTENTS: frozenset[Intent] = frozenset({"deny", "small_talk"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -157,8 +161,13 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
     if card is not None:
         return card
 
-    if active is not None and not is_ended(active, state):
-        step_type = active.step(state.step_id).type if state.step_id else None
+    running = active is not None and not is_ended(active, state)
+    step_type = active.step(state.step_id).type if running and active and state.step_id else None
+    dropped = _dropped_by_name(state, signals)
+    if dropped is not None and step_type not in COLLECT_STEP_TYPES:
+        return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
+
+    if active is not None and running:
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
         changed = current is not None and new_category is not None and new_category != current.value
@@ -219,9 +228,10 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         )
     if paused is not None:
         return _resume(paused, f"the user went back to the {new_category}")
-    if signals.intent == "confirm" and state.paused_issues:
+    # Only words answer the offer: a `confirm_appliance` button belongs to an earlier question.
+    if signals.intent == "confirm" and state.paused_issues and not signals.from_card:
         return _resume(state.paused_issues[-1], "user agreed to return to the paused issue")
-    if signals.intent == "deny" and state.paused_issues:
+    if signals.intent == "deny" and state.paused_issues and not signals.from_card:
         return Route(kind="decline", reason="user declined to return to the paused issues")
     if target is not None:
         return Route(kind="start", journey=target.id, reason=f"intent {signals.intent}")
@@ -239,6 +249,14 @@ def _issue_card_route(state: AgentState, signals: TurnSignals) -> Route | None:
     if signals.resume_issue:
         return _resume(paused, "chosen on the issues card")
     return Route(kind="close", issue_id=issue_id, reason="closed on the issues card")
+
+
+def _dropped_by_name(state: AgentState, signals: TurnSignals) -> PausedIssue | None:
+    """A paused issue the user turns down by naming its appliance ("forget the dishwasher")."""
+    if signals.intent != "deny" or signals.from_card or signals.escalating_hazards:
+        return None
+    category = _category_update(signals)
+    return paused_for_category(state, category) if category else None
 
 
 def _resume(paused: PausedIssue, reason: str) -> Route:
@@ -263,6 +281,8 @@ def _resumable(
         return None
     if signals.escalating_hazards:
         return paused if _has_hazard_guardrail(catalog[paused.journey]) else None
+    if signals.intent in NOT_RESUMING_INTENTS:
+        return None
     if any(u.name in TOPIC_SLOTS and u.value.strip() for u in signals.slot_updates):
         return None
     if target is not None and target.id != paused.journey:
@@ -299,6 +319,7 @@ class _Run:
         self.notices: list[str] = []
         self.offer_paused = False  # an issue ended this turn: offer the paused ones
         self.remind_paused = False  # the user is wrapping up: remind them once
+        self.hazard_category: str | None = None  # the appliance this turn's hazards are about
 
     def ensure_active_issue(self) -> None:
         """State saved before issues existed has an active journey but no issue id."""
@@ -338,6 +359,8 @@ class _Run:
                 elif decided.kind == "resume" and self._step_type(journey) in COLLECT_STEP_TYPES:
                     # The details may be complete now; move on as a fresh turn would.
                     self._step_transitions(journey, None)
+        if signals.escalating_hazards:
+            self._close_paused_after_hazard(signals)
         if signals.intent == "small_talk":
             step_type = self._step_type(journey)
             self.remind_paused = step_type is None or step_type == "end"
@@ -408,6 +431,7 @@ class _Run:
         category = _category_update(signals) or (current.value if current else None)
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
         self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
+        self.hazard_category = category
         replied_rules: set[str] = set()
         persisting: list[HazardSignal] = []
         for hit in self.hazards:
@@ -425,7 +449,7 @@ class _Run:
                 journey = self._journey()
                 switched = (
                     category is not None and current is not None and category != current.value
-                )
+                ) or signals.resume_issue not in (None, self.state.active_issue_id)
                 # Another appliance mid-journey is a new problem: it gets its own warning.
                 ongoing = journey is not None and not is_ended(journey, self.state) and not switched
                 if not (self.state.water_warning_given and ongoing):
@@ -444,6 +468,15 @@ class _Run:
         return signals.model_copy(
             update={"hazards": [hit.signal for hit in self.hazards], "persisting": persisting}
         )
+
+    def _close_paused_after_hazard(self, signals: TurnSignals) -> None:
+        """DIY help has ended for that appliance: its paused issues must not come back with
+        steps. A gas smell, or a hazard on an unknown appliance, ends all of them."""
+        category = None if "gas_smell" in signals.escalating_hazards else self.hazard_category
+        for issue_id in close_paused(self.state, category, "escalated"):
+            self._log(
+                "route", f"closed {issue_id} (escalated): hazard {signals.escalating_hazards[0]}"
+            )
 
     def _apply_route(self, decided: Route) -> None:
         state = self.state
