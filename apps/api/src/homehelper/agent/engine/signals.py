@@ -36,12 +36,14 @@ class TurnSignals(BaseModel):
     booking_slot_id: str | None = None
     slot_updates: list[SlotUpdate] = Field(default_factory=list)
     hazards: list[HazardSignal] = Field(default_factory=list)
+    # Non-escalating hazards that escalate this turn: G-SAFE-05 reported again after its warning.
+    persisting: list[HazardSignal] = Field(default_factory=list)
     sentiment: Literal["neutral", "frustrated", "confused"] | None = None
     rejected_action: str | None = None  # why a structured action was ignored
 
     @property
     def escalating_hazards(self) -> list[HazardSignal]:
-        return [hazard for hazard in self.hazards if hazard in ESCALATING_HAZARDS]
+        return [h for h in self.hazards if h in ESCALATING_HAZARDS or h in self.persisting]
 
 
 def signals_from_input(turn: TurnInput) -> TurnSignals:

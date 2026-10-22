@@ -34,6 +34,7 @@ from homehelper.agent.guardrails.rules import (
     MAX_FRUSTRATED_TURNS,
 )
 from homehelper.agent.guardrails.templates import (
+    PERSISTING_WATER_REPLY,
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
     UNSUPPORTED_APPLIANCE_REPLY,
@@ -44,6 +45,7 @@ from homehelper.agent.state import (
     AgentState,
     Decision,
     DecisionKind,
+    HazardSignal,
     PausedJourney,
     PlanItemStatus,
     SlotValue,
@@ -294,21 +296,27 @@ class _Run:
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
         self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
         replied_rules: set[str] = set()
+        persisting: list[HazardSignal] = []
         for hit in self.hazards:
             rule_id = HAZARD_RULES[hit.signal]
             warned = hit.signal in self.state.hazard_flags
             if not warned:
                 self.state.hazard_flags.append(hit.signal)
             self._log("guardrail", f"{hit.signal} detected ({hit.source})", rule_id=rule_id)
-            # The G-SAFE-05 "power off first" warning is given once: users keep mentioning the
-            # water and the cord while they follow it, and a repeated warning reads as a loop.
+            reply = safety_reply(hit.signal)
+            # The G-SAFE-05 "power off first" warning is given once. Water still reaching
+            # electricity after it means the hazard persists: DIY stops and the journey escalates.
             # Escalating hazards answer with their template every time.
             if warned and hit.signal not in ESCALATING_HAZARDS:
-                continue
+                persisting.append(hit.signal)
+                reply = PERSISTING_WATER_REPLY
+                self._log("guardrail", f"{hit.signal} persists after the warning", rule_id=rule_id)
             if rule_id not in replied_rules:
                 replied_rules.add(rule_id)
-                self.fixed_replies.append(safety_reply(hit.signal))
-        return signals.model_copy(update={"hazards": [hit.signal for hit in self.hazards]})
+                self.fixed_replies.append(reply)
+        return signals.model_copy(
+            update={"hazards": [hit.signal for hit in self.hazards], "persisting": persisting}
+        )
 
     def _apply_route(self, decided: Route) -> None:
         state = self.state

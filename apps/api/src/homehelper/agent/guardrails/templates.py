@@ -144,6 +144,26 @@ UNSUPPORTED_APPLIANCE_REPLY = FixedReply(
 )
 
 
+# G-SAFE-05 after its warning: the water is still reaching the outlet or cord, so DIY stops.
+PERSISTING_WATER_REPLY = FixedReply(
+    rule_id="G-SAFE-05",
+    text=(
+        "Since water is still reaching the outlet or cord, please stop the repair here. Keep the "
+        "breaker off, stay out of the wet area, and don't turn the water or the power back on. "
+        "An electrician or appliance technician should check it before anything is used again."
+    ),
+    card=SafetyCard(
+        hazard="water_near_electric",
+        instructions=[
+            "Keep the circuit breaker off.",
+            "Stay out of the wet area and don't touch plugs, cords or outlets.",
+            "Don't turn the water or power back on until a professional has checked it.",
+        ],
+    ),
+    replaces_response=True,
+)
+
+
 def safety_reply(hazard: HazardSignal) -> FixedReply:
     template = SAFETY_TEMPLATES[hazard]
     return FixedReply(
