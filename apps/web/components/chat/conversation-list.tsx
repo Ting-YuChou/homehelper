@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, MessageSquarePlus, Trash2 } from "lucide-react";
+import { LogOut, MessageSquarePlus, Refrigerator, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -58,6 +58,12 @@ export function ConversationList({
           <Link href="/chat" onClick={onNavigate}>
             <MessageSquarePlus data-icon="inline-start" aria-hidden />
             New conversation
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" className="mt-1 w-full justify-start">
+          <Link href="/appliances" onClick={onNavigate}>
+            <Refrigerator data-icon="inline-start" aria-hidden />
+            My appliances
           </Link>
         </Button>
       </div>

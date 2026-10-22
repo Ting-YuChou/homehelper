@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from homehelper.conversations import repository
 from homehelper.core.config import Settings
 from homehelper.db.models import User
+from homehelper.mcp_servers.factory import McpServers
 
 SESSION_COOKIE = "hh_session"
 _DEV_SECRET = "homehelper-local-session-secret"  # local and test only
@@ -55,8 +56,13 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
+def get_mcp(request: Request) -> McpServers:
+    return request.app.state.mcp
+
+
 SessionDep = Annotated[AsyncSession, Depends(get_session, scope="function")]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+McpDep = Annotated[McpServers, Depends(get_mcp)]
 
 
 async def current_user(request: Request, session: SessionDep) -> User:

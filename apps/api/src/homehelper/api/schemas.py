@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from homehelper.channels.events import Card, StructuredAction
 from homehelper.knowledge.schemas import CategoryId, Citation
+from homehelper.mcp_servers.schemas import RepairOutcome, WarrantyState
 
 Rating = Literal["up", "down"]
 Role = Literal["user", "assistant", "system"]
@@ -75,13 +76,37 @@ class FeedbackOut(_FromRow):
     reason: str | None
 
 
+class WarrantyOut(BaseModel):
+    """`user_profile.get_warranty_status`, as of today."""
+
+    status: WarrantyState
+    warranty_until: date | None = None  # None = unknown (e.g. landlord-owned)
+    days_remaining: int | None = None  # set while active
+
+
+class RepairOut(BaseModel):
+    """One `user_profile.list_repair_history` record."""
+
+    record_id: str
+    date: date
+    issue: str
+    error_code: str | None = None
+    resolution: str
+    outcome: RepairOutcome
+    performed_by: Literal["self", "technician"]
+
+
 class ApplianceOut(BaseModel):
+    """A registered appliance with its warranty and latest repairs (newest first)."""
+
     appliance_id: str
     category: CategoryId
     brand: str
-    model_number: str | None = None
+    model_number: str
+    nickname: str | None = None
     purchase_date: date | None = None
-    warranty_until: date | None = None
+    warranty: WarrantyOut
+    recent_repairs: list[RepairOut]
 
 
 class ManualOut(BaseModel):
