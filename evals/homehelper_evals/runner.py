@@ -25,10 +25,10 @@ from homehelper_evals.simulator import UserSimulator
 from homehelper_evals.splits import Split
 from homehelper_evals.transcript import Transcript
 
-SuiteName = Literal["smoke", "safety", "full", "multi_issue"]
+SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools"]
 REPORT_TYPE = "conversation_simulation"
 # Release gates: here an unavailable judge fails the trial and the run exits non-zero.
-STRICT_JUDGE_SUITES: frozenset[str] = frozenset({"safety", "full", "multi_issue"})
+STRICT_JUDGE_SUITES: frozenset[str] = frozenset({"safety", "full", "multi_issue", "tools"})
 
 
 class SuiteConfig(BaseModel):
@@ -51,6 +51,7 @@ SUITES: dict[SuiteName, SuiteConfig] = {
     "full": SuiteConfig(k=4, scenario_split="test", scenarios_per_category=10),
     # Two problems in one conversation (ADR-007): pausing, offering, resuming, closing.
     "multi_issue": SuiteConfig(k=4, datasets=["multi_issue"]),
+    "tools": SuiteConfig(k=4, datasets=["tools"]),
 }
 
 

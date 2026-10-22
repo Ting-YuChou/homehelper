@@ -1,7 +1,9 @@
 from homehelper.knowledge.schemas import RetrievalQuery
 from homehelper.knowledge.web import Whitelist
 from homehelper.llm import FakeLLMClient
-from homehelper_evals.builders import MockWebSearch, case_web
+from homehelper.mcp_servers.mock_data import load_mock_data
+from homehelper_evals import REPO_ROOT
+from homehelper_evals.builders import MockWebSearch, case_web, eval_toolbox
 from homehelper_evals.cases import EvalCase, WebResult
 
 WHITELIST = Whitelist(general=["ifixit.com"], brands={"Bosch": ["bosch-home.com"]})
@@ -53,3 +55,21 @@ def test_builders_load_through_the_runner_plugin_path(tmp_path) -> None:
     journey = load_agent_factory("homehelper_evals.builders:journey", context)(case)
     assert isinstance(baseline, BaselineAgent)
     assert isinstance(journey, JourneyAgent)
+
+
+async def test_eval_toolbox_gives_each_trial_its_own_bookings() -> None:
+    from homehelper.core.config import Settings
+
+    data = load_mock_data(REPO_ROOT / "data" / "mock")
+    real = Settings(_env_file=None, app_env="test", mcp_mode="real")  # type: ignore[call-arg]
+    first, second = (eval_toolbox(real, data) for _ in range(2))
+    lookup = {"zip_code": "94612", "category": "washing_machine"}
+    slots = await first.call_action("mcp:service_booking.list_slots", lookup, user_id=None)
+    assert slots.ok, slots.error  # mock mode even when the settings say real
+    slot_id = slots.data[0]["slot_id"]
+    book = {"slot_id": slot_id, "appliance_id": "apl_maria_washer", "issue": "noise"}
+    assert (await first.call_action("mcp:service_booking.book", book, user_id="demo_maria")).ok
+    # The same slot is still free in another trial's servers (and the clock is fixed).
+    again = await second.call_action("mcp:service_booking.list_slots", lookup, user_id=None)
+    assert slot_id in {s["slot_id"] for s in again.data}
+    assert (await second.call_action("mcp:service_booking.book", book, user_id="demo_maria")).ok

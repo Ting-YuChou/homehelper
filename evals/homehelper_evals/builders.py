@@ -2,7 +2,8 @@
 
 Each builder receives the runner's `AgentContext` and returns an `AgentFactory`. Heavy resources
 (the KB connection, the LLM client) are created once per run and shared by every case; what a
-case changes is only its mock web search.
+case changes is its mock web search. The journey agent also gets fresh mock-mode MCP servers per
+trial (spec §12.1), on a fixed clock, so bookings and repair records never leak between trials.
 
 Web search in evals is always a mock (spec §16.4): a case with `web_results` gets exactly those
 hits, every other case gets no web fallback at all. The mock hits' hosts are added to the
@@ -11,12 +12,14 @@ itself is not what is being tested.
 """
 
 import asyncio
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from homehelper.agent.baseline import BaselineAgent
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.engine import default_catalog
 from homehelper.agent.runtime import JourneyAgent
+from homehelper.agent.tools import McpToolbox
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine
 from homehelper.knowledge.backends import build_retriever
@@ -24,8 +27,29 @@ from homehelper.knowledge.retriever import KnowledgeRetriever
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.knowledge.web import SearchHit, WebKnowledge, Whitelist
 from homehelper.llm import LLMClient, ModelRegistry, build_llm_client
+from homehelper.mcp_servers.factory import McpOverrides, build_mcp_servers
+from homehelper.mcp_servers.mock_data import MockData, load_mock_data
+from homehelper.mcp_servers.stores import InMemoryBookingStore, InMemoryProfileStore
 from homehelper_evals.agents import AgentContext, AgentFactory
 from homehelper_evals.cases import EvalCase, WebResult
+
+# "Today" for warranty status and visit slots; the demo data's dates are relative to it.
+EVAL_CLOCK = datetime(2026, 10, 20, 17, 0, tzinfo=UTC)
+
+
+def eval_toolbox(settings: Settings, data: MockData) -> McpToolbox:
+    """Mock-mode MCP servers with their own stores: one per trial."""
+    mock = settings.model_copy(update={"mcp_mode": "mock"})
+    servers = build_mcp_servers(
+        mock,
+        overrides=McpOverrides(
+            data=data,
+            profile_store=InMemoryProfileStore(data),
+            booking_store=InMemoryBookingStore(),
+            clock=lambda: EVAL_CLOCK,
+        ),
+    )
+    return McpToolbox(servers)
 
 
 class MockWebSearch:
@@ -99,9 +123,11 @@ def journey(context: AgentContext) -> AgentFactory:
     whitelist = Whitelist.load(context.settings.web_whitelist_path)
     catalog = default_catalog()
     release_id = context.settings.release_id
+    data = load_mock_data(context.settings.mock_dir)
 
     def factory(case: EvalCase) -> JourneyAgent:
         retriever = CaseRetriever(shared, case_web(case, llm, whitelist))
-        return JourneyAgent(AgentDeps(llm, retriever, catalog, release_id=release_id))
+        tools = eval_toolbox(context.settings, data)
+        return JourneyAgent(AgentDeps(llm, retriever, catalog, release_id=release_id, tools=tools))
 
     return factory

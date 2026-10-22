@@ -127,7 +127,10 @@ async def run_conversation(
                     break
                 turns.append(user)
                 inbound = InboundMessage(
-                    conversation_id=conversation_id, text=user.text, action=user.action
+                    conversation_id=conversation_id,
+                    text=user.text,
+                    action=user.action,
+                    user_id=case.user_id,
                 )
                 reply = await agent_turn(agent, inbound)
                 turns.append(reply)

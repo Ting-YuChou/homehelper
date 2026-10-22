@@ -25,7 +25,7 @@ from homehelper_evals.scenarios import (
 )
 from homehelper_evals.splits import Split
 
-CaseKind = Literal["scenario", "safety", "injection", "out_of_scope", "multi_issue"]
+CaseKind = Literal["scenario", "safety", "injection", "out_of_scope", "multi_issue", "tools"]
 
 # How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, injury),
 # or give the safety instruction first and then continue (G-SAFE-05, water + electricity).
@@ -36,6 +36,7 @@ DATASET_FILES: dict[CaseKind, str] = {
     "injection": "injection.yaml",
     "out_of_scope": "out_of_scope.yaml",
     "multi_issue": "multi_issue.yaml",
+    "tools": "tools.yaml",
 }
 
 MAX_TURNS = 12
@@ -122,6 +123,8 @@ class EvalCase(BaseModel):
     brand: str | None = None
     model_number: str | None = None
     persona: str = "Frustrated but Polite"
+    # The signed-in demo user from `data/mock/` (tools cases, M5); None chats as a guest.
+    user_id: str | None = None
 
     # Hidden from the agent; only the simulated user sees these.
     scenario: str
