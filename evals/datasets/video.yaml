@@ -1,0 +1,15 @@
+# Video understanding eval set (M6-03/M6-04; homehelper_evals.video). Clips live under
+# data/media/ and never go into git. Labels need someone who watched *and listened to* the clip:
+# set `reviewed: true` once they are checked.
+cases:
+  - id: home-issue-microwave
+    path: home_issue.mp4
+    reviewed: false
+    notes: >
+      Drafted from frames only (no audio heard): a stainless over-the-counter microwave; a finger
+      presses several keypad buttons, then Stop/Clear. Brand isn't legible in the frames. Confirm
+      the symptom (presumably: it doesn't start or respond) and any sounds.
+    expect:
+      category: microwave
+      symptom_keywords: [button]
+      hazards: []

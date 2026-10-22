@@ -93,7 +93,18 @@ def test_what_the_user_typed_beats_the_photo(catalog: JourneyCatalog) -> None:
         "user",
     )
     assert (slots["brand"].value, slots["brand"].source) == ("Samsung", "user")
-    assert any("photo" in d.reason and "brand" in d.reason for d in result.decisions)
+    assert any("photo" in d.reason and "dryer" in d.reason for d in result.decisions)
+
+
+def test_a_typed_brand_beats_the_photos_brand(catalog: JourneyCatalog) -> None:
+    turn = photo(
+        *seen(appliance_category="dryer", brand="LG", model_number="DLEX3900W"),
+        text="my Samsung dryer is noisy",
+        nlu=say("report_problem", slots={"appliance_category": "dryer", "brand": "Samsung"}).nlu,
+    )
+    slots = transition(catalog, new_state(), turn).state.slots
+    assert (slots["brand"].value, slots["brand"].source) == ("Samsung", "user")
+    assert "model_number" not in slots  # an LG model number doesn't belong to a Samsung
 
 
 def test_a_photo_never_overwrites_what_the_user_said(catalog: JourneyCatalog) -> None:
@@ -106,7 +117,12 @@ def test_a_photo_never_overwrites_what_the_user_said(catalog: JourneyCatalog) ->
     result = transition(catalog, state, photo(*seen(brand="Samsung", model_number="WF45")))
     slots = result.state.slots
     assert slots["brand"].value == "LG"
-    assert (slots["model_number"].value, slots["model_number"].source) == ("WF45", "vision")
+    assert "model_number" not in slots  # a Samsung model number isn't the user's LG
+    same = transition(catalog, state, photo(*seen(brand="lg", model_number="WM3400CW")))
+    assert (same.state.slots["model_number"].value, same.state.slots["model_number"].source) == (
+        "WM3400CW",
+        "vision",
+    )
 
 
 def test_a_photo_replaces_a_profile_prefill_and_unlinks_it(catalog: JourneyCatalog) -> None:
@@ -255,3 +271,18 @@ def test_a_photo_with_a_side_question_does_not_touch_the_issue(catalog: JourneyC
     result = transition(catalog, state, turn)
     assert result.side_question
     assert "brand" not in result.state.slots
+
+
+def test_a_photo_of_another_appliance_than_the_one_typed_adds_nothing(
+    catalog: JourneyCatalog,
+) -> None:
+    turn = photo(
+        *seen(appliance_category="washing_machine", brand="LG", model_number="WM4000HWA"),
+        text="my dryer isn't heating",
+        nlu=say("report_problem", slots={"appliance_category": "dryer"}).nlu,
+    )
+    result = transition(catalog, new_state(), turn)
+    slots = result.state.slots
+    assert slots["appliance_category"].value == "dryer"
+    assert "brand" not in slots and "model_number" not in slots
+    assert any("photo" in d.reason and "washing_machine" in d.reason for d in result.decisions)

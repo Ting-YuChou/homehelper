@@ -130,6 +130,7 @@ async def run_conversation(
                     conversation_id=conversation_id,
                     text=user.text,
                     action=user.action,
+                    attachments=user.attachments,
                     user_id=case.user_id,
                 )
                 reply = await agent_turn(agent, inbound)
@@ -178,7 +179,7 @@ async def _next_user_turn(
         return scripted
     sent = len([t for t in turns if isinstance(t, UserTurn)])
     if sent < len(case.user_turns):
-        return UserTurn(text=case.user_turns[sent], scripted=True)
+        return UserTurn(text=case.user_turns[sent], scripted=True, attachments=case.media_for(sent))
     sim_turn = await simulator.next_turn(focus(case, turns), turns)
     if sim_turn.done:
         return None

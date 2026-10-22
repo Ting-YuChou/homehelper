@@ -112,7 +112,8 @@ def _summary(report: dict) -> str:
         f"out-of-scope {pct(m['out_of_scope_pass_rate'])} | "
         f"multi-issue {pct(m['multi_issue_pass_rate'])} "
         f"(issue outcomes {pct(m['issue_outcome_accuracy'])}) | "
-        f"tools {pct(m['tool_scenario_pass_rate'])}",
+        f"tools {pct(m['tool_scenario_pass_rate'])} | "
+        f"multimodal {pct(m.get('multimodal_pass_rate'))}",
         "pass^k "
         + " | ".join(
             f"{kind} " + " ".join(f"{k}:{pct(v)}" for k, v in values.items())

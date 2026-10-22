@@ -30,8 +30,10 @@ from homehelper.llm import LLMClient, ModelRegistry, build_llm_client
 from homehelper.mcp_servers.factory import McpOverrides, build_mcp_servers
 from homehelper.mcp_servers.mock_data import MockData, load_mock_data
 from homehelper.mcp_servers.stores import InMemoryBookingStore, InMemoryProfileStore
+from homehelper.media.gemini import build_video_analyzer
 from homehelper_evals.agents import AgentContext, AgentFactory
 from homehelper_evals.cases import EvalCase, WebResult
+from homehelper_evals.media import EvalMediaSource
 
 # "Today" for warranty status and visit slots; the demo data's dates are relative to it.
 EVAL_CLOCK = datetime(2026, 10, 20, 17, 0, tzinfo=UTC)
@@ -125,9 +127,20 @@ def journey(context: AgentContext) -> AgentFactory:
     release_id = context.settings.release_id
     data = load_mock_data(context.settings.mock_dir)
 
+    video = build_video_analyzer(context.settings, context.registry, usage_sink=context.usage_sink)
+
     def factory(case: EvalCase) -> JourneyAgent:
         retriever = CaseRetriever(shared, case_web(case, llm, whitelist))
         tools = eval_toolbox(context.settings, data)
-        return JourneyAgent(AgentDeps(llm, retriever, catalog, release_id=release_id, tools=tools))
+        deps = AgentDeps(
+            llm,
+            retriever,
+            catalog,
+            release_id=release_id,
+            tools=tools,
+            media=EvalMediaSource(),  # one per conversation, like its analysis cache
+            video=video,
+        )
+        return JourneyAgent(deps)
 
     return factory

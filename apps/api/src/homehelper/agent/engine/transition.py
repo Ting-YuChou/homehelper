@@ -696,18 +696,36 @@ class _Run:
         typed = {u.name: u.value for u in signals.slot_updates if u.value.strip()}
         has_confirm = any(step.type == "confirm" for step in journey.steps)
         working = self._step_type(journey) in SWITCH_STEP_TYPES
-        current_category = self.state.slots.get(CATEGORY_SLOT)
+        # The appliance the user means: what they typed now, what they said before, or the one
+        # being worked on. A photo of another appliance says nothing about it, and doesn't
+        # switch to the other one either; words do (spec §7.4).
+        current = self.state.slots.get(CATEGORY_SLOT)
+        meant = (
+            _normalize_enum(typed[CATEGORY_SLOT])
+            if CATEGORY_SLOT in typed
+            else current.value
+            if current is not None and (working or current.source == "user")
+            else None
+        )
         shown = next((p for p in signals.perceived if p.name == CATEGORY_SLOT), None)
-        if (
-            working
-            and shown is not None
-            and current_category is not None
-            and _normalize_enum(shown.value) != current_category.value
-        ):
-            # A photo doesn't switch the appliance being worked on; words do (spec §7.4).
-            self._log("slot", f"ignored a photo of a {shown.value!r} during this step")
+        if shown is not None and meant is not None and _normalize_enum(shown.value) != meant:
+            self._log("slot", f"ignored a photo of a {shown.value!r}: the user means the {meant}")
             return
+        # Another brand than the user's: its model number belongs to some other unit.
+        brand = self.state.slots.get("brand")
+        user_brand = typed.get("brand") or (
+            brand.value if brand is not None and brand.source == "user" else None
+        )
+        shown_brand = next((p.value for p in signals.perceived if p.name == "brand"), None)
+        other_unit = bool(
+            user_brand
+            and shown_brand
+            and _normalize_enum(user_brand) != _normalize_enum(shown_brand)
+        )
         for seen in signals.perceived:
+            if other_unit and seen.name == "model_number":
+                self._log("slot", f"ignored the photo's model number: it shows a {shown_brand}")
+                continue
             spec = journey.slots.get(seen.name)
             if spec is None:
                 continue
