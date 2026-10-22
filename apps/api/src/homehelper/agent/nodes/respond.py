@@ -29,9 +29,10 @@ from homehelper.agent.state import AgentState
 from homehelper.agent.tools import ToolOutcome, from_llm_name, without_user
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
 from homehelper.core.logging import get_logger
+from homehelper.core.text import neutralize_tags
 from homehelper.knowledge.schemas import RetrievedChunk
 from homehelper.knowledge.web import format_for_responder
-from homehelper.llm import Message, ToolSpec
+from homehelper.llm import LLMError, Message, ToolSpec
 
 log = get_logger(__name__)
 
@@ -199,8 +200,8 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
             if booking is not None and booking.ok:
                 return ResponsePlan(
                     task=(
-                        "The technician visit is booked (details in the tool results). Confirm "
-                        "the date, time and technician, and close warmly."
+                        "The technician visit is booked; the app states the date, time and "
+                        "technician right above your message. Close warmly."
                     )
                 )
             message = turn.message
@@ -270,7 +271,9 @@ def tool_result_text(outcome: ToolOutcome) -> str:
         body["data"] = outcome.data
     else:
         body["error"] = outcome.error
-    text = json.dumps(body, default=str)
+    # Tool data can hold text from outside (video titles, notes the user typed): it never
+    # passes through the prompt templates' `finalize` in a `tool` message, so neutralize it here.
+    text = neutralize_tags(json.dumps(body, default=str))
     return text if len(text) <= MAX_TOOL_RESULT_CHARS else text[:MAX_TOOL_RESULT_CHARS] + "…"
 
 
@@ -340,7 +343,12 @@ async def tool_loop(
     # Tool calls are capped by count; the extra rounds give the model a chance to reply after it.
     for _ in range(MAX_TOOL_CALLS + 2):
         offered = [*tools, REPLY_TOOL] if len(outcomes) < MAX_TOOL_CALLS else [REPLY_TOOL]
-        turn = await deps.llm.tool_turn("responder", history, offered)
+        try:
+            turn = await deps.llm.tool_turn("responder", history, offered)
+        except LLMError as exc:
+            # A provider that fails tool calling must not fail the turn: reply without tools.
+            log.warning("responder_tool_turn_failed", error=str(exc))
+            return None, outcomes
         final = next((c for c in turn.tool_calls if c.name == REPLY_TOOL.name), None)
         if final is not None:
             try:
@@ -392,7 +400,7 @@ async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
             graph = graph.model_copy(update={"turn": turn})
             update["tool_calls"] = [
                 *graph.tool_calls,
-                *(as_tool_call(o, "llm") for o in outcomes),
+                *(as_tool_call(o, "llm", graph.state.active_issue_id) for o in outcomes),
             ]
     if reply is None:
         reply = await deps.llm.structured(

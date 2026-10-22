@@ -9,9 +9,12 @@ and the journey carries on: a tool outage must not stop troubleshooting.
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homehelper.agent.deps import AgentDeps
+from homehelper.agent.engine.schema import is_write_tool
+from homehelper.agent.guardrails.templates import FixedReply
 from homehelper.agent.protocol import ToolCall
 from homehelper.agent.state import (
     AgentState,
@@ -29,6 +32,7 @@ BOOK = "mcp:service_booking.book"
 OFFERED_SLOTS = 4
 LIST_REPAIRS = "mcp:user_profile.list_repair_history"
 MIN_SHARED_WORD = 4  # letters; shorter words ("the", "won't") say nothing about the problem
+BOOKING_CONFIRMED = "BOOKING"  # rule id of the code-built booking confirmation
 
 
 @dataclass(frozen=True)
@@ -171,6 +175,30 @@ def booked(outcomes: list[ToolOutcome]) -> ToolOutcome | None:
     return next((o for o in outcomes if o.tool == "service_booking.book"), None)
 
 
+def _visit_time(starts_at: str) -> str:
+    try:
+        start = datetime.fromisoformat(starts_at)
+    except ValueError:
+        return starts_at
+    return f"{start:%A, %B} {start.day} at {start:%I:%M %p}".replace(" 0", " ")
+
+
+def booking_confirmation(outcomes: list[ToolOutcome], state: AgentState) -> FixedReply | None:
+    """The booking, stated by code: shown above the reply, so neither a failed nor a blocked LLM
+    reply can hide that the visit is booked."""
+    booking = booked(outcomes)
+    if booking is None or not booking.ok:
+        return None
+    slot_id = booking.arguments.get("slot_id")
+    slot = next((s for s in state.offered_slots if s.slot_id == slot_id), None)
+    when = f" for {_visit_time(slot.starts_at)} with {slot.technician}" if slot else ""
+    return FixedReply(
+        rule_id=BOOKING_CONFIRMED,
+        text=f"Your technician visit is booked{when}.",
+        replaces_response=False,
+    )
+
+
 def warranty_active(outcomes: list[ToolOutcome]) -> bool:
     """G-WARR-01 applies when this turn's warranty check says the warranty is active."""
     return any(
@@ -199,12 +227,28 @@ def similar_repairs(outcomes: list[ToolOutcome], state: AgentState) -> list[dict
     return found
 
 
-def as_tool_call(outcome: ToolOutcome, source: str) -> ToolCall:
+def as_tool_call(outcome: ToolOutcome, source: str, issue_id: str | None) -> ToolCall:
     return ToolCall(
         name=outcome.tool,
         arguments=outcome.arguments,
         source="llm" if source == "llm" else "action",
         ok=outcome.ok,
+        issue_id=issue_id,
+    )
+
+
+def _done_write(graph: GraphState, state: AgentState, tool: str) -> ToolCall | None:
+    """This write's earlier success for the active issue. A turn that failed after the write is
+    rolled back but keeps the write's record (`JourneyAgent._roll_back`), so a retry finds it."""
+    if state.active_issue_id is None:
+        return None
+    return next(
+        (
+            call
+            for call in graph.tool_calls
+            if call.name == tool and call.ok and call.issue_id == state.active_issue_id
+        ),
+        None,
     )
 
 
@@ -221,6 +265,16 @@ async def run_mcp_action(
             )
         )
         return None
+    done = _done_write(graph, state, action.removeprefix("mcp:")) if is_write_tool(action) else None
+    if done is not None:
+        state.decision_log.append(
+            Decision(
+                kind="tool",
+                journey=state.active_journey,
+                reason=f"skipped {action}: already done for {state.active_issue_id}",
+            )
+        )
+        return ToolOutcome(tool=done.name, arguments=done.arguments, ok=True, replayed=True)
     arguments = builder(graph, state)
     if isinstance(arguments, Skip):
         state.decision_log.append(

@@ -80,6 +80,10 @@ SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"
 COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
 # Questions answered on the side during another journey, without leaving its step (spec §7.4).
 SIDE_INTENTS = frozenset({"ask_how_to", "my_appliances", "ask_parts"})
+# Side questions answered with tools: they may name another appliance ("is my dryer still under
+# warranty?") and still stay on the side. A how-to about another appliance needs its manuals, so
+# it starts its own journey.
+TOOL_SIDE_INTENTS = frozenset({"my_appliances", "ask_parts"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -166,6 +170,13 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
         changed = current is not None and new_category is not None and new_category != current.value
+        tool_side = signals.intent in TOOL_SIDE_INTENTS and not signals.escalating_hazards
+        if changed and tool_side and target is not None and target.id != active.id:
+            return Route(
+                kind="side_question",
+                journey=active.id,
+                reason=f"{signals.intent} question about the {new_category} during {active.id}",
+            )
         if changed and step_type in SWITCH_STEP_TYPES:
             assert current is not None and new_category is not None
             if new_category not in CATEGORY_VALUES:
@@ -356,8 +367,11 @@ class _Run:
         self._apply_route(decided)
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
-            self._apply_slot_updates(journey, signals)
-            self.decisions.extend(link_profile_appliance(self.state, journey))
+            # A side question's details ("do Whirlpool filters fit?") are about the question, not
+            # the active issue: they must not change its slots or its profile appliance.
+            if decided.kind != "side_question":
+                self._apply_slot_updates(journey, signals)
+                self.decisions.extend(link_profile_appliance(self.state, journey))
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
             if not self._guardrails(journey, signals):

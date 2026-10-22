@@ -686,3 +686,25 @@ def test_resume_requires_paused_issue(catalog: JourneyCatalog) -> None:
     )
     result = transition(catalog, state, say("confirm", "yes"))
     assert (result.state.active_journey, result.state.step_id) == ("how_to_use", "answer")
+
+
+def test_a_side_question_does_not_change_the_active_issue(catalog: JourneyCatalog) -> None:
+    state = start_guide(catalog)
+    before = dict(state.slots)
+    parts = say("ask_parts", "do Whirlpool filters fit?", slots={"brand": "Whirlpool"})
+    result = transition(catalog, state, parts)
+    assert result.side_question
+    assert result.state.slots == before
+
+
+def test_a_tool_question_about_another_appliance_stays_on_the_side(
+    catalog: JourneyCatalog,
+) -> None:
+    state = start_guide(catalog)
+    warranty = say(
+        "my_appliances", "is my dryer under warranty?", slots={"appliance_category": "dryer"}
+    )
+    result = transition(catalog, state, warranty)
+    assert result.side_question
+    assert (result.state.active_issue_id, result.state.step_id) == ("iss_1", "guide")
+    assert result.state.paused_issues == []

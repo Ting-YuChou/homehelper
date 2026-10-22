@@ -19,6 +19,7 @@ from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
 from homehelper.agent.nodes.mcp_actions import (
     as_tool_call,
+    booking_confirmation,
     run_mcp_action,
     similar_repairs,
     warranty_active,
@@ -272,6 +273,9 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             if action.startswith("mcp:") and not is_write_tool(action):
                 state = await run_action(action, graph, state, deps, emit, outcomes)
     turn.tool_results = outcomes
+    confirmation = booking_confirmation(outcomes, state)
+    if confirmation is not None:
+        turn.fixed_replies.append(confirmation)
     if similar_repairs(outcomes, state):
         turn.notices.append(NOTICE_REPAIR_HISTORY)
 
@@ -290,5 +294,8 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
         "turn": turn,
         "citations": graph.citations,
         "search_query": graph.search_query,
-        "tool_calls": [*graph.tool_calls, *(as_tool_call(o, "action") for o in outcomes)],
+        "tool_calls": [
+            *graph.tool_calls,
+            *(as_tool_call(o, "action", state.active_issue_id) for o in outcomes if not o.replayed),
+        ],
     }

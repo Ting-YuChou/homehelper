@@ -43,6 +43,8 @@ class ToolOutcome(BaseModel):
     ok: bool
     data: Any = None
     error: str | None = None
+    # A write already done for this issue in an earlier, failed turn: not called again.
+    replayed: bool = False
 
 
 class Toolbox(Protocol):

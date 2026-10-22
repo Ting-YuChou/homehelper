@@ -32,12 +32,17 @@ M5-07 connects the journey agent to the MCP servers mounted in the API (ADR-004,
    - `call_action` serves journey step actions and is the only path to write tools. Their arguments are built by code from the state (`nodes/mcp_actions.py`).
 3. **`LLMClient.tool_turn`.**
    - One model turn that may call tools. LiteLLM sends OpenAI-format `tools` with `tool_choice`. `Message` carries `tool_calls` and the `tool` role.
-   - The responder's final answer is itself a `reply` tool whose schema is `AgentReply`, so every turn is a tool turn with `tool_choice="required"`.
+   - The responder's final answer is itself a `reply` tool whose schema is `AgentReply`, so every turn at a step with tools is a tool turn.
+   - `tool_choice` is `"auto"`, and the client enforces "must call a tool" by retrying once. Thinking modes (DeepSeek's, Anthropic's extended thinking) reject a forced tool choice. A tool turn that still fails falls back to the plain structured reply, so a provider's tool-calling problem never fails the turn.
+   - LiteLLM imports its own MCP proxy bridge whenever `tools` are passed. That bridge needs `mcp>=2` and is not used here, so `tool_turn` passes `_skip_mcp_handler=True`.
    - After 3 data-tool calls only `reply` is offered. An invalid reply falls back to one structured call that sees the results. A supervisor revision reuses the results and calls no tools.
 4. **Code fetches booking slots.**
    - `escalate` runs `service_booking.list_slots` as a step action, using the profile's ZIP code and the issue's category. The slots are kept in `AgentState.offered_slots` and shown on a `BookingSlotsCard`.
    - `booking_confirmed` accepts only an offered slot. `escalated_end` books it through code.
    - Booking needs an issue linked to a profile appliance, because `book` takes its id.
+   - Code states a successful booking as a fixed line above the reply ("Your technician visit is booked for …"), so a failed or blocked LLM reply cannot hide it.
+7. **Writes run once per issue.** A turn can fail after a write tool ran: LangGraph had checkpointed `step_executor`, and `respond` raised later. The runtime rolls the turn back, but it keeps the records of successful writes (`ToolCall.issue_id`). A write action finds that record and replays it instead of calling the tool again, so a retry neither books twice nor records a repair twice.
+8. **Side questions stay on the side.** A side question's slots (`ask_parts`: "do Whirlpool filters fit?") are not applied to the active issue, so they cannot change its brand or unlink its profile appliance. `my_appliances` and `ask_parts` stay side questions even when they name another appliance ("is my dryer still under warranty?"); a how-to about another appliance still starts its own journey, because it needs that appliance's manuals.
 5. **Profile context without breaking engine purity.**
    - `load_context` reads the profile and appliances into `AgentState.profile` every turn.
    - A pure `engine/profile.py` links the issue to the single matching appliance and prefills `brand` / `model_number` (`source="profile"`).
@@ -48,8 +53,9 @@ M5-07 connects the journey agent to the MCP servers mounted in the API (ADR-004,
 
 - No `langchain-mcp-adapters` dependency. The `mcp<2` pin (ADR-006) stays for now, as a separate choice: the servers use `FastMCP` 1.x.
 - The responder makes tool turns at steps with tools (`guide`, `inform` in the tool journeys). Latency and the quality of tool use can only be measured with real models (`evals run --suite tools`).
-- `tool_choice="required"` behaviour differs by provider. LiteLLM translates it, but Anthropic, OpenAI and the OpenCode Go mapping still need checking.
-- Tool results are data. The responder and supervisor prompts frame them as such; YouTube titles in real mode are an injection surface, like web pages.
+- Whether a model calls `reply` without being forced to is measured by the `tools` suite. The retry and the structured fallback cover the turns where it does not.
+- Tool results are data. The responder and supervisor prompts frame them as such, and their tag-like `<` is neutralized in `tool` messages too, which do not pass through the prompt templates. YouTube titles in real mode are an injection surface, like web pages.
+- Known limit: booking slot ids are not bound to an issue. A stale `BookingSlotsCard` could only book a slot the current issue was also offered.
 - Guests and unlinked issues keep the "contact the manufacturer" handoff. `my_appliances` gives guests a fixed sign-in reply.
 
 ## Alternatives considered

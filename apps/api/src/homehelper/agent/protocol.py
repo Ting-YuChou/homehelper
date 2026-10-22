@@ -16,6 +16,7 @@ class ToolCall(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)  # never includes `user_id`
     source: Literal["action", "llm"] = "action"  # a step action (code) or the responder
     ok: bool = True
+    issue_id: str | None = None  # the issue it was made for (ADR-007); writes run once per issue
 
 
 IssueStatus = Literal["active", "paused", "ended"]
