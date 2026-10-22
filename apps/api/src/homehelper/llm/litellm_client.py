@@ -170,7 +170,12 @@ class LiteLLMClient:
     ) -> ToolTurn:
         request = {
             "tools": [{"type": "function", "function": spec.model_dump()} for spec in tools],
-            "tool_choice": "required" if require_tool else "auto",
+            # Not "required" even when a call is required: thinking modes (DeepSeek's, Anthropic's
+            # extended thinking) reject a forced tool choice. The requirement is checked below.
+            "tool_choice": "auto",
+            # With `tools`, LiteLLM imports its MCP proxy bridge, which needs mcp>=2 (we pin <2,
+            # ADR-006) and which we do not use: the agent calls MCP itself (ADR-008).
+            "_skip_mcp_handler": True,
         }
         model = ""
         for _ in range(2):  # one retry, as for structured output

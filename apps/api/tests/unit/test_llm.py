@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from types import SimpleNamespace
 from typing import Any
 
@@ -15,6 +16,7 @@ from homehelper.llm import (
     ToolCallRequest,
     ToolSpec,
     ToolTurn,
+    litellm_client,  # imports litellm after setting LITELLM_MODE
     track_usage,
 )
 from tests.conftest import make_settings
@@ -277,8 +279,20 @@ async def test_tool_turn_sends_tools_and_parses_calls() -> None:
         )
     ]
     sent = completion.calls[0]
-    assert sent["tool_choice"] == "required"
+    assert sent["tool_choice"] == "auto"  # thinking modes reject a forced choice
     assert sent["tools"] == [{"type": "function", "function": LOOKUP.model_dump()}]
+
+
+async def test_tool_turn_through_litellm_does_not_load_its_mcp_bridge() -> None:
+    """LiteLLM's MCP bridge needs mcp>=2; importing it failed every tool call (we pin mcp<2)."""
+    call = {"id": "c1", "type": "function", "function": {"name": LOOKUP.name, "arguments": "{}"}}
+    client = LiteLLMClient(
+        _registry(),
+        {"anthropic": "a", "openai": "o"},
+        completion_fn=functools.partial(litellm_client.litellm.acompletion, mock_tool_calls=[call]),
+    )
+    turn = await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    assert [c.name for c in turn.tool_calls] == [LOOKUP.name]
 
 
 async def test_tool_turn_retries_once_on_bad_arguments_then_fails() -> None:
