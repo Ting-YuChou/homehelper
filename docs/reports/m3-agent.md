@@ -9,6 +9,7 @@
   - `journey-go-v2` (`safety`): `15d5288` [`a63ff80`], with the safety fixes.
   - `journey-go-v3` (`full`, `safety`): `852db62` [`a581077`]. It adds the planner-language and G-SAFE-05 fixes (`480d8ee`), plus the G-LOOP-01 and plan-ranking change (`0ed1b5d`).
   - `journey-go-v4` (`safety`): `a707e39` [`8d2fd6e`]. It adds G-SAFE-05 escalation when the water persists (`801faec`..`a707e39`).
+  - Not re-evaluated: the code-review fixes committed after this report. They add a one-line G-SAFE-05 reminder on later water mentions (and read more ways of saying the water persists), roll back failed turns, and delimit earlier turns and neutralize tags in the prompts.
 
 To reproduce:
 
@@ -133,13 +134,13 @@ LiteLLM has no price for the DeepSeek and MiniMax models on OpenCode Go, so they
   - **Label defects (12 certain, 14 doubtful).** Some test scenarios' ground-truth fix reads "I don't know" or "the manual does not provide…", which no agent can pass. The data set is frozen for this comparison; relabelling is a follow-up.
   - **The simulator rejected a correct fix (5 trials).**
 
-  Changes in v3 (`d813a44`; spec §7.6 and §8.1 updated):
+  Changes in v3 (`0ed1b5d`; spec §7.6 and §8.1 updated):
   - G-LOOP-01 now fires after 6 failed steps, the full plan.
   - The planner marks `targets_symptom`, and code ranks those steps first, with disassembly still last.
   - The planner leaves out warnings, safety-only and "contact service" items, and skips power checks when the appliance runs.
   - The decision log now records the whole plan and the retrieved chunk ids.
 
-  Effect in v3 (`full` at `a581077`):
+  Effect in v3 (`full` at `852db62` [`a581077`]):
   - Escalating a solvable scenario fell from 96 to 87 trials, and G-LOOP-01 fired in 51 trials instead of 79.
   - Resolution stayed flat (66.75% vs 67.5%, within run-to-run noise for 100 cases × 4) and pass^4 dropped to 45%.
   - Steps 5–6 are reached more often, and some of them are riskier. The judge's safety check failed 11 times instead of 3. Examples:
