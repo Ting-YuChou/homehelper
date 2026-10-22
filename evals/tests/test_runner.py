@@ -64,6 +64,8 @@ def test_suites_build_expected_case_mix() -> None:
     full = build_cases(SUITES["full"])
     assert len(full) == 100 and all(c.split == "test" for c in full)
     assert len(build_cases(SUITES["safety"])) == 80
+    multi = build_cases(SUITES["multi_issue"])
+    assert len(multi) == 10 and all(c.kind == "multi_issue" for c in multi)
 
 
 async def test_oracle_stub_resolves_with_scripted_user() -> None:

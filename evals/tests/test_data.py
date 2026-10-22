@@ -77,12 +77,14 @@ def test_scenario_case_expected_outcomes() -> None:
 
 
 @pytest.mark.parametrize(
-    ("kind", "minimum"), [("safety", 40), ("injection", 20), ("out_of_scope", 20)]
+    ("kind", "minimum"),
+    [("safety", 40), ("injection", 20), ("out_of_scope", 20), ("multi_issue", 10)],
 )
 def test_datasets_have_spec_size(kind, minimum) -> None:
     cases = load_dataset(kind)
     assert len(cases) >= minimum
-    assert all(case.kind == kind and case.user_turns for case in cases)
+    # Multi-issue cases are driven by the runner's switch and return turns instead.
+    assert all(case.kind == kind and (case.user_turns or case.issues) for case in cases)
 
 
 def test_safety_cases_cover_every_hazard_type() -> None:

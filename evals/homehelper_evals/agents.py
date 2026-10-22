@@ -4,6 +4,8 @@
 - `OracleStubAgent`: walks the case's own `solution_steps` as step cards and reacts to hazards
   with fixed keyword rules. It reads the hidden answer key, so its scores mean nothing about
   agent quality; it exists to exercise the simulator, graders and runner (M2-03, M2-05).
+- `MultiIssueOracleAgent`: the same for multi-issue cases (ADR-007): it pauses the first problem
+  when the second comes up, offers it with an IssuesCard, and resumes or closes it.
 
 The runner builds agents through an `AgentFactory`, which receives the case so per-case fixtures
 (e.g. mock web results) can be wired in. A real runtime ignores the case and returns one shared
@@ -16,12 +18,14 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 
-from homehelper.agent.protocol import AgentRuntime, AgentSnapshot, Outcome
+from homehelper.agent.protocol import AgentRuntime, AgentSnapshot, IssueSnapshot, Outcome
 from homehelper.channels.events import (
     AgentEvent,
     CardEvent,
     HandoffCard,
     InboundMessage,
+    IssueOption,
+    IssuesCard,
     MessageCompletedEvent,
     MessageDeltaEvent,
     SafetyCard,
@@ -210,6 +214,117 @@ class OracleStubAgent:
         return _reply("Let's try this next.", *cards, journey="troubleshoot")
 
 
+@dataclass
+class _OracleIssue:
+    index: int  # into case.issues
+    next_step: int = 0
+    outcome: Outcome | None = None
+    paused: bool = False
+
+    @property
+    def issue_id(self) -> str:
+        return f"iss_{self.index + 1}"
+
+
+_PRIORITY: tuple[Outcome, ...] = ("escalated", "resolved", "out_of_scope", "abandoned")
+_GO_BACK = re.compile(r"\b(back to|go back)\b", re.I)
+
+
+class MultiIssueOracleAgent:
+    """Walks each issue's own solution steps; pauses on the runner's switch turn and resumes on
+    the card, the appliance name, or a typed yes."""
+
+    def __init__(self, case: EvalCase) -> None:
+        self._case = case
+        self._conversations: dict[str, list[_OracleIssue]] = {}
+
+    async def handle(self, message: InboundMessage) -> AsyncIterator[AgentEvent]:
+        issues = self._conversations.setdefault(message.conversation_id, [])
+        for event in self._respond(issues, message):
+            yield event
+
+    async def snapshot(self, conversation_id: str) -> AgentSnapshot:
+        issues = self._conversations.get(conversation_id, [])
+        views = [
+            IssueSnapshot(
+                issue_id=issue.issue_id,
+                journey="troubleshoot",
+                summary=self._case.issues[issue.index].appliance,
+                status="paused" if issue.paused else ("ended" if issue.outcome else "active"),
+                outcome=issue.outcome,
+            )
+            for issue in issues
+        ]
+        open_issue = any(issue.paused or issue.outcome is None for issue in issues)
+        outcomes: list[Outcome] = [i.outcome for i in issues if i.outcome is not None]
+        outcome = None if open_issue or not outcomes else min(outcomes, key=_PRIORITY.index)
+        return AgentSnapshot(conversation_id=conversation_id, outcome=outcome, issues=views)
+
+    def _respond(self, issues: list[_OracleIssue], message: InboundMessage) -> list[AgentEvent]:
+        active = next((i for i in issues if not i.paused and i.outcome is None), None)
+        paused = [i for i in issues if i.paused]
+        action = message.action
+        text = message.text or ""
+        if action is not None and action.type in ("resume_issue", "close_issue"):
+            target = next((i for i in paused if i.issue_id == action.value), None)
+            if target is None:
+                return _reply("That problem is not open.")
+            target.paused = False
+            if action.type == "close_issue":
+                target.outcome = "abandoned"
+                return _reply("Okay, I've closed that one.")
+            return self._step(target, "Back to that one.")
+        if paused and active is None and (_GO_BACK.search(text) or text.lower().startswith("yes")):
+            paused[-1].paused = False
+            return self._step(paused[-1], "Back to that one.")
+        if not issues or text.startswith("Also, my"):
+            if active is not None:
+                active.paused = True
+            issue = _OracleIssue(index=len(issues))
+            issues.append(issue)
+            return self._step(issue, "Let's look at that.")
+        if active is None:
+            return _reply("Is there anything else I can help with?")
+        if action is not None and action.value == "fixed":
+            active.outcome = "resolved"
+            return self._ended(issues, "Great, glad that fixed it!")
+        return self._step(active, "Let's try this next.")
+
+    def _step(self, issue: _OracleIssue, text: str) -> list[AgentEvent]:
+        spec = self._case.issues[issue.index]
+        if issue.next_step >= len(spec.solution_steps):
+            issue.outcome = "escalated"
+            return _reply(
+                "A technician should take a look.",
+                HandoffCard(reason="steps_exhausted", booking_available=False),
+            )
+        if text != "Back to that one.":
+            issue.next_step += 1
+        card = StepCard(
+            plan_item_id=f"p{issue.next_step}",
+            index=issue.next_step,
+            total=len(spec.solution_steps),
+            instruction=spec.solution_steps[issue.next_step - 1],
+            issue_id=issue.issue_id,
+            citations=(
+                [Citation(chunk_id="stub", doc_id=spec.expected_doc_id, page=1)]
+                if spec.expected_doc_id
+                else []
+            ),
+        )
+        return _reply(text, card, journey="troubleshoot")
+
+    def _ended(self, issues: list[_OracleIssue], text: str) -> list[AgentEvent]:
+        paused = [i for i in issues if i.paused]
+        if not paused:
+            return _reply(text, journey="troubleshoot")
+        options = [
+            IssueOption(issue_id=i.issue_id, summary=self._case.issues[i.index].appliance)
+            for i in reversed(paused)
+        ]
+        return _reply(text, IssuesCard(issues=options), journey="troubleshoot")
+
+
 def load_agent_factory(name: str, context: AgentContext) -> AgentFactory:
     """`echo`, `stub`, or `package.module:callable`, where the callable takes an AgentContext and
     returns an AgentFactory (how the journey and baseline agents plug in)."""
@@ -217,7 +332,7 @@ def load_agent_factory(name: str, context: AgentContext) -> AgentFactory:
         shared = EchoAgent()
         return lambda case: shared
     if name == "stub":
-        return OracleStubAgent
+        return lambda case: MultiIssueOracleAgent(case) if case.issues else OracleStubAgent(case)
     module_name, _, attr = name.partition(":")
     if not attr:
         raise ValueError(f"unknown agent {name!r}; use echo, stub, or module:callable")

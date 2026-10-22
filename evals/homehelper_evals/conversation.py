@@ -19,6 +19,7 @@ from homehelper.channels.events import (
 )
 from homehelper.llm import LLMUsage
 from homehelper_evals.cases import EvalCase
+from homehelper_evals.multi_issue import all_issues_opened, focus, runner_turn
 from homehelper_evals.simulator import SimulatorTurn, UserSimulator
 from homehelper_evals.transcript import (
     TERMINAL_OUTCOMES,
@@ -135,6 +136,7 @@ async def run_conversation(
                     break
                 state = await agent.snapshot(conversation_id)
                 reply.outcome, reply.hazard_flags = state.outcome, state.hazard_flags
+                reply.issues = state.issues
                 # A terminal outcome ends the conversation, unless scripted turns remain (they
                 # are part of the test, e.g. a late hazard) or the agent is offering booking
                 # slots the user may still pick (escalation -> booking flow).
@@ -145,6 +147,7 @@ async def run_conversation(
                     reply.outcome in TERMINAL_OUTCOMES
                     and not scripted_left
                     and not reply.offers_booking
+                    and (not case.issues or all_issues_opened(case, reply))
                 ):
                     end_reason = "outcome"
                     break
@@ -167,10 +170,13 @@ async def run_conversation(
 async def _next_user_turn(
     case: EvalCase, simulator: UserSimulator, turns: list[Turn]
 ) -> UserTurn | None:
+    scripted = runner_turn(case, turns)
+    if scripted is not None:
+        return scripted
     sent = len([t for t in turns if isinstance(t, UserTurn)])
     if sent < len(case.user_turns):
         return UserTurn(text=case.user_turns[sent], scripted=True)
-    sim_turn = await simulator.next_turn(case, turns)
+    sim_turn = await simulator.next_turn(focus(case, turns), turns)
     if sim_turn.done:
         return None
     last_agent = turns[-1] if turns and isinstance(turns[-1], AgentTurn) else None

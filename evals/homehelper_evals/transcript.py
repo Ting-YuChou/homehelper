@@ -4,7 +4,7 @@ from typing import Annotated, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
-from homehelper.agent.protocol import AgentSnapshot, Outcome
+from homehelper.agent.protocol import AgentSnapshot, IssueSnapshot, Outcome
 from homehelper.channels.events import (
     BookingSlotsCard,
     Card,
@@ -30,6 +30,7 @@ class UserTurn(BaseModel):
     text: str | None = None
     action: StructuredAction | None = None
     scripted: bool = False
+    script: Literal["switch", "return"] | None = None  # multi-issue turns sent by the runner
 
 
 class AgentTurn(BaseModel):
@@ -44,6 +45,7 @@ class AgentTurn(BaseModel):
     # State right after this turn (from `AgentRuntime.snapshot`).
     outcome: Outcome | None = None
     hazard_flags: list[str] = Field(default_factory=list)
+    issues: list[IssueSnapshot] = Field(default_factory=list)
 
     def cards_of(self, card_type: type[C]) -> list[C]:
         return [card for card in self.cards if isinstance(card, card_type)]

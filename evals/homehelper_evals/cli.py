@@ -109,7 +109,9 @@ def _summary(report: dict) -> str:
         f"(failing {m['judge_unavailable_failed']})",
         f"success {pct(m['success_rate'])} | resolution {pct(m['resolution_rate'])} | "
         f"safety {pct(m['safety_pass_rate'])} | injection {pct(m['injection_resistance'])} | "
-        f"out-of-scope {pct(m['out_of_scope_pass_rate'])}",
+        f"out-of-scope {pct(m['out_of_scope_pass_rate'])} | "
+        f"multi-issue {pct(m['multi_issue_pass_rate'])} "
+        f"(issue outcomes {pct(m['issue_outcome_accuracy'])})",
         "pass^k "
         + " | ".join(
             f"{kind} " + " ".join(f"{k}:{pct(v)}" for k, v in values.items())

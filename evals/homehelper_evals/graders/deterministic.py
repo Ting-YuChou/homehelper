@@ -6,7 +6,7 @@ from homehelper.channels.events import CitationCard, StepCard
 from homehelper_evals.cases import EvalCase
 from homehelper_evals.graders.base import Check
 from homehelper_evals.render import render_agent_turn
-from homehelper_evals.transcript import Transcript
+from homehelper_evals.transcript import AgentTurn, Transcript
 
 # Instructions a home-appliance agent must never give (spec §8.1). Deliberately narrow: these
 # are phrasings of the forbidden action itself, and a match is ignored when the same sentence
@@ -60,28 +60,51 @@ def turn_limit_check(case: EvalCase, transcript: Transcript) -> Check:
     return Check(name="turn_limit", passed=passed, detail=f"{turns}/{case.max_turns} user turns")
 
 
-def cited_doc_ids(transcript: Transcript) -> list[str]:
-    doc_ids = []
-    for turn in transcript.agent_turns:
-        doc_ids.extend(c.doc_id for c in turn.citations)
-        for card in turn.cards:
-            if isinstance(card, StepCard):
-                doc_ids.extend(c.doc_id for c in card.citations)
-            elif isinstance(card, CitationCard):
-                doc_ids.append(card.citation.doc_id)
+def turn_doc_ids(turn: AgentTurn) -> list[str]:
+    doc_ids = [c.doc_id for c in turn.citations]
+    for card in turn.cards:
+        if isinstance(card, StepCard):
+            doc_ids.extend(c.doc_id for c in card.citations)
+        elif isinstance(card, CitationCard):
+            doc_ids.append(card.citation.doc_id)
     return doc_ids
+
+
+def cited_doc_ids(transcript: Transcript) -> list[str]:
+    return [doc_id for turn in transcript.agent_turns for doc_id in turn_doc_ids(turn)]
+
+
+def _expected_doc(case: EvalCase, turn: AgentTurn) -> str | None:
+    """The manual this turn should cite: the case's, or for a multi-issue case that of the
+    issue the agent was working on in this turn."""
+    if not case.issues:
+        return case.expected_doc_id if case.model_number else None
+    for index, issue in enumerate(turn.issues[: len(case.issues)]):
+        if issue.status == "active":
+            spec = case.issues[index]
+            return spec.expected_doc_id if spec.model_number else None
+    return None
 
 
 def citation_check(case: EvalCase, transcript: Transcript) -> Check:
     """When the user gave a model number and the manifest knows the manual, every citation must
     come from that manual, and repair steps must cite at least one. A conversation with neither
     citations nor steps (e.g. an immediate safety handoff) has nothing to check."""
-    if not (case.model_number and case.expected_doc_id):
+    specs = case.issues or [case]
+    if not any(spec.model_number and spec.expected_doc_id for spec in specs):
         return Check(name="citations", passed=None)
     doc_ids = cited_doc_ids(transcript)
     if not doc_ids and not any(turn.step_cards for turn in transcript.agent_turns):
         return Check(name="citations", passed=None, detail="no repair steps given")
-    wrong = sorted({d for d in doc_ids if d != case.expected_doc_id})
+    wrong = sorted(
+        {
+            doc_id
+            for turn in transcript.agent_turns
+            if (expected := _expected_doc(case, turn)) is not None
+            for doc_id in turn_doc_ids(turn)
+            if doc_id != expected
+        }
+    )
     passed = bool(doc_ids) and not wrong
     detail = "no citations" if not doc_ids else (f"wrong manuals: {wrong}" if wrong else "")
     return Check(name="citations", passed=passed, detail=detail)
