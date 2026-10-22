@@ -35,7 +35,9 @@ from homehelper.agent.engine.issues import (
     take_paused,
 )
 from homehelper.agent.engine.loader import JourneyCatalog, slot_values
+from homehelper.agent.engine.perception import PerceivedSlot
 from homehelper.agent.engine.predicates import (
+    LOW_CONFIDENCE,
     PREDICATES,
     PredicateContext,
     unconfirmed_low_confidence,
@@ -50,6 +52,8 @@ from homehelper.agent.guardrails.rules import (
     MAX_FRUSTRATED_TURNS,
 )
 from homehelper.agent.guardrails.templates import (
+    MEDIA_UNAVAILABLE_NOTE,
+    MEDIA_UNAVAILABLE_REPLY,
     PERSISTING_WATER_REPLY,
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
@@ -261,6 +265,10 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         return Route(kind="decline", reason="user declined to return to the paused issues")
     if target is not None:
         return Route(kind="start", journey=target.id, reason=f"intent {signals.intent}")
+    problem = catalog.for_intent("report_problem")
+    if problem is not None and any(p.name == CATEGORY_SLOT for p in signals.perceived):
+        # A photo of an appliance with nothing running: the user wants help with it.
+        return Route(kind="start", journey=problem.id, reason="a photo of an appliance")
     return Route(kind="none", reason=f"no journey handles intent {signals.intent}")
 
 
@@ -378,6 +386,7 @@ class _Run:
         if signals.rejected_action:
             self._log("route", f"ignored card action: {signals.rejected_action}")
         signals = self._detect_hazards(turn, signals)
+        self._media_failures(turn)
         if turn.action is not None:  # a button press breaks a run of frustrated messages
             self.state.frustrated_turns = 0
         elif turn.nlu is not None:
@@ -393,6 +402,7 @@ class _Run:
             # the issue's details are being collected, its topic ("it leaks") still counts.
             if decided.kind != "side_question":
                 self._apply_slot_updates(journey, signals)
+                self._apply_perceived(journey, signals)
                 self.decisions.extend(link_profile_appliance(self.state, journey))
             elif self._step_type(journey) in COLLECT_STEP_TYPES and not _names_other_appliance(
                 self.state, signals
@@ -490,7 +500,10 @@ class _Run:
         about = (resumed.slots.get(CATEGORY_SLOT) if resumed else None) or current
         category = _category_update(signals) or (about.value if about else None)
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
-        self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
+        media_signals = turn.media.hazard_signals if turn.media else None
+        self.hazards = detect_hazards(
+            turn.text, nlu_signals, category=category, media_signals=media_signals
+        )
         self.hazard_category = category
         replied_rules: set[str] = set()
         persisting: list[HazardSignal] = []
@@ -665,6 +678,82 @@ class _Run:
             self.state.slots[update.name] = SlotValue(
                 value=value, source="user", confidence=1.0, confirmed=True
             )
+
+    def _media_failures(self, turn: TurnInput) -> None:
+        """M-MEDIA-01: say so when a photo or video couldn't be analyzed, without blocking."""
+        media = turn.media
+        if media is None or not media.failures:
+            return
+        alone = not (turn.text or "").strip() and turn.action is None and media.analyzed == 0
+        self.fixed_replies.append(MEDIA_UNAVAILABLE_REPLY if alone else MEDIA_UNAVAILABLE_NOTE)
+        self._log(
+            "guardrail", f"media analysis failed: {', '.join(media.failures)}", rule_id="M-MEDIA-01"
+        )
+
+    def _apply_perceived(self, journey: Journey, signals: TurnSignals) -> None:
+        """Slots seen in photos and videos (spec §11.2): kept with the model's confidence and
+        unconfirmed, so the `confirm` step asks about the uncertain ones."""
+        typed = {u.name: u.value for u in signals.slot_updates if u.value.strip()}
+        has_confirm = any(step.type == "confirm" for step in journey.steps)
+        working = self._step_type(journey) in SWITCH_STEP_TYPES
+        current_category = self.state.slots.get(CATEGORY_SLOT)
+        shown = next((p for p in signals.perceived if p.name == CATEGORY_SLOT), None)
+        if (
+            working
+            and shown is not None
+            and current_category is not None
+            and _normalize_enum(shown.value) != current_category.value
+        ):
+            # A photo doesn't switch the appliance being worked on; words do (spec §7.4).
+            self._log("slot", f"ignored a photo of a {shown.value!r} during this step")
+            return
+        for seen in signals.perceived:
+            spec = journey.slots.get(seen.name)
+            if spec is None:
+                continue
+            value = seen.value.strip()
+            if spec.type == "enum":
+                value = _normalize_enum(value)
+                if value not in slot_values(spec.values):
+                    self._log("slot", f"rejected {seen.name}={seen.value!r} from a photo")
+                    continue
+            current = self.state.slots.get(seen.name)
+            if self._keep_current(seen, value, current, typed, working):
+                continue
+            if seen.confidence < LOW_CONFIDENCE and not has_confirm:
+                self._log(
+                    "slot",
+                    f"dropped {seen.name} from a photo: confidence {seen.confidence:.2f} and no "
+                    "confirm step",
+                )
+                continue
+            self.state.slots[seen.name] = SlotValue(
+                value=value, source=seen.source, confidence=seen.confidence, confirmed=False
+            )
+
+    def _keep_current(
+        self,
+        seen: PerceivedSlot,
+        value: str,
+        current: SlotValue | None,
+        typed: dict[str, str],
+        working: bool,
+    ) -> bool:
+        """Whether what the conversation already has wins over the photo."""
+        if seen.name in typed:
+            if _normalize_enum(typed[seen.name]) != _normalize_enum(value):
+                self._log("slot", f"kept the typed {seen.name}; the photo showed {value!r}")
+            return True
+        if current is None or (current.value == value and current.source == seen.source):
+            return False
+        if working and seen.name in APPLIANCE_SLOTS and current.source != "profile":
+            self._log("slot", f"ignored {seen.name}={value!r} from a photo during this step")
+            return True
+        if current.source == "user" and current.confirmed:
+            if current.value != value:
+                self._log("slot", f"kept the user's {seen.name}; the photo showed {value!r}")
+            return True
+        return False
 
     def _apply_step_effects(self, journey: Journey, signals: TurnSignals) -> None:
         step = self._current_step(journey)

@@ -89,7 +89,10 @@ class StubAgent:
             )
         if not conv.started:
             conv.started = True
-            return "Let's work through this one step at a time.", [self._step(conv)]
+            opening = "Let's work through this one step at a time."
+            if message.attachments:
+                opening = "Thanks for the photo; this demo can't look at it yet. " + opening
+            return opening, [self._step(conv)]
 
         if message.action is not None and message.action.type in ("resume_issue", "close_issue"):
             # The scripted demo has one problem, so it never offers an issues card.

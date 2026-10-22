@@ -1,7 +1,7 @@
 """The per-turn LangGraph graph (spec §7.3, M3-02).
 
-    load_context → understand → step_executor → respond → supervise ─pass/block→ emit
-                                                   ↑__________revise (once)___|
+    load_context → perceive → understand → step_executor → respond → supervise ─pass/block→ emit
+                                                              ↑__________revise (once)___|
 
 `step_executor` runs the pure journey engine (`transition()`, which also applies the hazard,
 scope and routing guardrails of spec §7.3 `guard_input`/`route`) and then `act` for the step's
@@ -21,6 +21,7 @@ from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.nodes.act import step_and_act
 from homehelper.agent.nodes.emit import emit
 from homehelper.agent.nodes.mcp_actions import load_profile
+from homehelper.agent.nodes.perceive import perceive
 from homehelper.agent.nodes.respond import respond
 from homehelper.agent.nodes.understand import understand
 from homehelper.agent.state import AgentState
@@ -57,6 +58,17 @@ def build_graph(
         if profile == state.agent.profile:
             return {}
         return {"agent": state.agent.model_copy(update={"profile": profile})}
+
+    async def perceive_node(state: GraphState) -> Update:
+        message = state.turn.message
+        if message is None or not message.attachments:
+            return {}
+        with deps.span("perceive", input={"attachments": message.attachments}) as span:
+            update = await perceive(state, deps, get_stream_writer())
+            turn = update.get("turn")
+            media = turn.media if turn is not None else []
+            record(span, output=[o.model_dump(exclude_none=True) for o in media])
+            return update
 
     async def understand_node(state: GraphState) -> Update:
         with deps.span("understand") as span:
@@ -114,13 +126,15 @@ def build_graph(
 
     builder = StateGraph(GraphState)
     builder.add_node("load_context", load_context)
+    builder.add_node("perceive", perceive_node)
     builder.add_node("understand", understand_node)
     builder.add_node("step_executor", step_executor)
     builder.add_node("respond", respond_node)
     builder.add_node("supervise", supervise_node)
     builder.add_node("emit", emit_node)
     builder.add_edge(START, "load_context")
-    builder.add_edge("load_context", "understand")
+    builder.add_edge("load_context", "perceive")
+    builder.add_edge("perceive", "understand")
     builder.add_edge("understand", "step_executor")
     builder.add_edge("step_executor", "respond")
     builder.add_edge("respond", "supervise")

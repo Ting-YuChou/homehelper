@@ -20,6 +20,7 @@ from homehelper.db.engine import create_engine, create_sessionmaker
 from homehelper.db.redis import create_redis
 from homehelper.mcp_servers.factory import build_mcp_servers
 from homehelper.media.signing import MediaSigner
+from homehelper.media.source import AttachmentMediaSource
 from homehelper.media.storage import build_media_store
 from homehelper.ratelimit import TurnGuards
 from homehelper.releases.runtime import load_active_release, record_release
@@ -55,6 +56,9 @@ def create_app(
                             cache=app.state.redis,
                             registry=app.state.model_registry,
                             mcp=app.state.mcp,
+                            media=AttachmentMediaSource(
+                                app.state.db_sessionmaker, app.state.media_store
+                            ),
                         )
                     )
                 )

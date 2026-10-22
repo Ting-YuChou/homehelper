@@ -140,6 +140,19 @@ SCOPE_SIDE_REPLY = FixedReply(
 )
 
 
+# M-MEDIA-01 (spec §11.3): a photo or video we couldn't analyze never blocks the conversation.
+# Alone it is the whole reply; next to words or a photo that worked, it is said first.
+MEDIA_UNAVAILABLE_TEXT = (
+    "I couldn't analyze the photo or video you sent. Could you describe the problem in a few "
+    "words instead?"
+)
+MEDIA_UNAVAILABLE_REPLY = FixedReply(rule_id="M-MEDIA-01", text=MEDIA_UNAVAILABLE_TEXT)
+MEDIA_UNAVAILABLE_NOTE = FixedReply(
+    rule_id="M-MEDIA-01",
+    text="I couldn't analyze the photo or video you sent, so I'll go by what you told me.",
+    replaces_response=False,
+)
+
 UNSUPPORTED_APPLIANCE_REPLY = FixedReply(
     rule_id="G-SCOPE-01",
     text=(

@@ -30,8 +30,9 @@ tasks:
     timeout_s: 30
     max_tokens: 2048
   vision:
-    model: anthropic/claude-sonnet-5-5
-    fallbacks: []
+    # Photos → VisionResult (spec §11.2); one call per message with all its photos.
+    model: anthropic/claude-haiku-5-5
+    fallbacks: [openai/gpt-5.4-mini]
     timeout_s: 45
     max_tokens: 1024
   user_simulator:

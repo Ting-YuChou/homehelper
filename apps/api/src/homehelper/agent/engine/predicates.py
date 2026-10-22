@@ -13,7 +13,7 @@ from homehelper.agent.engine.signals import TurnSignals
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.state import AgentState
 
-LOW_CONFIDENCE = 0.8  # slots below this need user confirmation unless already confirmed
+LOW_CONFIDENCE = 0.7  # slots below this need user confirmation unless already confirmed (§11.2)
 
 
 @dataclass(frozen=True)

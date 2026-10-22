@@ -12,12 +12,14 @@ from collections.abc import Callable
 from typing import Any
 
 from homehelper.agent.deps import AgentDeps, presented_item
+from homehelper.agent.engine.predicates import unconfirmed_low_confidence
 from homehelper.agent.engine.transition import NOTICE_REMIND_PAUSED, NOTICE_RESUME_PAUSED
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
 from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState, TranscriptLine
 from homehelper.channels.events import (
     AgentEvent,
+    ApplianceConfirmCard,
     BookingSlot,
     BookingSlotsCard,
     Card,
@@ -125,6 +127,21 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
                 )
             )
             citations.extend(item_citations)
+    pending = unconfirmed_low_confidence(state)
+    if step is not None and step.type == "confirm" and pending and not replacing:
+        # "Looks like an LG washer (WM3400CW): is that right?" with Yes / No buttons (§11.2).
+        def value(name: str) -> str | None:
+            slot = state.slots.get(name)
+            return slot.value if slot else None
+
+        cards.append(
+            ApplianceConfirmCard(
+                category=value("appliance_category"),
+                brand=value("brand"),
+                model_number=value("model_number"),
+                confidence=min(state.slots[name].confidence for name in pending),
+            )
+        )
     if step is not None and step.type == "handoff":
         offered = state.offered_slots
         cards.append(

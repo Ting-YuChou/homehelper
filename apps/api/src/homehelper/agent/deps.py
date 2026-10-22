@@ -12,6 +12,7 @@ from homehelper.agent.tools import Toolbox
 from homehelper.core.tracing import Tracer
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.llm import LLMClient
+from homehelper.media.source import MediaSource
 
 
 class Retriever(Protocol):
@@ -28,6 +29,7 @@ class AgentDeps:
     release_id: str = "dev"
     tracer: Tracer | None = None  # Langfuse spans per node (M3-11); None in evals and tests
     tools: Toolbox | None = None  # MCP tools (M5-07); None runs without them
+    media: MediaSource | None = None  # uploaded photos and videos (M6); None: they can't be read
 
     @classmethod
     def default(
@@ -37,6 +39,7 @@ class AgentDeps:
         release_id: str = "dev",
         tracer: Tracer | None = None,
         tools: Toolbox | None = None,
+        media: MediaSource | None = None,
     ) -> "AgentDeps":
         return cls(
             llm=llm,
@@ -45,6 +48,7 @@ class AgentDeps:
             release_id=release_id,
             tracer=tracer,
             tools=tools,
+            media=media,
         )
 
     @contextmanager

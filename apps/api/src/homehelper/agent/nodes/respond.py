@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
 from homehelper.agent.engine.issues import find_record
+from homehelper.agent.engine.predicates import unconfirmed_low_confidence
 from homehelper.agent.engine.transition import (
     NOTICE_REMIND_PAUSED,
     NOTICE_RESUME_PAUSED,
@@ -149,7 +150,7 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
             wanted = SLOT_QUESTIONS.get(missing[0], missing[0]) if missing else "any detail"
             return ResponsePlan(task=f"Acknowledge what the user said and ask only {wanted}.")
         case "confirm":
-            pending = [n for n, s in state.slots.items() if not s.confirmed and s.confidence < 0.8]
+            pending = unconfirmed_low_confidence(state)
             details = ", ".join(f"{n}={state.slots[n].value}" for n in pending)
             return ResponsePlan(task=f"Ask the user to confirm these details: {details}.")
         case "guide":
@@ -246,7 +247,31 @@ def user_text(graph: GraphState) -> str:
             verb = "go back to" if action.type == "resume_issue" else "close"
             return f"[pressed {verb}: {record.summary}]"
         return f"[pressed {action.type}: {action.value}]"
-    return message.text or ""
+    marker = media_marker(graph)
+    return "\n".join(part for part in (message.text or "", marker) if part)
+
+
+def media_marker(graph: GraphState) -> str | None:
+    """What the user's photos and videos were, in one code-built line for the transcript."""
+    media = graph.turn.media
+    if not media:
+        return None
+    photos = sum(o.kind == "image" for o in media)
+    videos = len(media) - photos
+    sent = ", ".join(
+        f"{n} {noun}{'s' if n > 1 else ''}"
+        for n, noun in ((photos, "photo"), (videos, "video"))
+        if n
+    )
+    seen = next((o.vision for o in media if o.vision is not None), None)
+    if seen is None:
+        return f"[sent {sent}; it couldn't be analyzed]"
+    identity = " ".join(v for v in (seen.brand, seen.category, seen.model_number) if v)
+    details = [f"shows {identity} (confidence {seen.confidence:.1f})"] if identity else []
+    details.extend(seen.visible_issues)
+    if seen.displayed_error_code:
+        details.append(f"display shows {seen.displayed_error_code}")
+    return f"[sent {sent}: {'; '.join(details) or 'nothing recognizable'}]"
 
 
 def open_issue_summaries(graph: GraphState) -> list[str]:
