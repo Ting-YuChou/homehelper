@@ -83,3 +83,9 @@ def test_a_video_longer_than_its_header_says_is_caught_while_remuxing(
     with pytest.raises(UploadRejected) as raised:
         process_video(src, "video/mp4", tmp_path / "out.mp4", probe=lying)
     assert raised.value.code == "too_long"
+
+
+def test_a_clip_that_starts_late_is_measured_from_its_start(tmp_path: Path) -> None:
+    src = write_video(tmp_path / "a.mp4", seconds=10.0, start_s=55.0)
+    result = process_video(src, "video/mp4", tmp_path / "out.mp4")
+    assert result.duration_s < 11

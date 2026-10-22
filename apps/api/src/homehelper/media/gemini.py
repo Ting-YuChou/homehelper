@@ -22,6 +22,7 @@ from homehelper.media.schemas import VideoResult
 
 log = get_logger(__name__)
 TASK = "video"
+DELETE_TIMEOUT_S = 5
 
 
 class VideoAnalysisError(RuntimeError):
@@ -101,7 +102,10 @@ class GeminiVideoAnalyzer:
             # A timeout during the upload leaves no name to delete; Gemini expires it in 48 h.
             if uploaded is not None:
                 try:
-                    await files.delete(name=uploaded.name)
+                    async with asyncio.timeout(
+                        DELETE_TIMEOUT_S
+                    ):  # a hung API mustn't hold the turn
+                        await files.delete(name=uploaded.name)
                 except Exception:
                     log.warning("gemini_file_delete_failed", name=uploaded.name)
 

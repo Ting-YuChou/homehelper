@@ -10,12 +10,16 @@ import { attachmentUrlQuery } from "@/lib/api/queries";
 /** A sent photo or video, read through its short-lived signed URL (spec §11.1). */
 export function AttachmentThumb({ id }: { id: string }) {
   const { data, isError, refetch } = useQuery(attachmentUrlQuery(id));
-  // An expired URL (e.g. seeking a video after 15 minutes) gets one fresh URL, not a loop.
+  // An expired URL (e.g. seeking a video after 15 minutes) gets one fresh URL per successful
+  // load, not a loop when the file itself can't be shown.
   const renewed = useRef(false);
   const renew = () => {
     if (renewed.current) return;
     renewed.current = true;
     void refetch();
+  };
+  const loaded = () => {
+    renewed.current = false;
   };
   if (isError) {
     return (
@@ -35,6 +39,7 @@ export function AttachmentThumb({ id }: { id: string }) {
         controls
         preload="metadata"
         onError={renew}
+        onLoadedData={loaded}
         className="h-24 max-w-48 rounded-lg bg-black"
         aria-label="Attached video"
       />
@@ -48,6 +53,7 @@ export function AttachmentThumb({ id }: { id: string }) {
         alt="Attached photo"
         className="size-24 rounded-lg object-cover"
         onError={renew}
+        onLoad={loaded}
       />
     </a>
   );

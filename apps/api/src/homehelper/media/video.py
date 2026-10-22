@@ -78,16 +78,15 @@ def remux(src: Path, dst: Path, fmt: str, *, max_seconds: float | None = None) -
             out = target.add_stream_from_template(stream)
             out.metadata.clear()
             mapping[stream.index] = out
+        first: dict[int, float] = {}  # clips may start late (trimmed with copied timestamps)
         for packet in source.demux(*[source.streams[i] for i in mapping]):
             if packet.dts is None:
                 continue  # demuxer flush packets
-            if (
-                max_seconds is not None
-                and packet.pts is not None
-                and packet.time_base
-                and float(packet.pts * packet.time_base) > max_seconds + LENGTH_SLACK_S
-            ):
-                raise _too_long()
+            if max_seconds is not None and packet.pts is not None and packet.time_base:
+                at = float(packet.pts * packet.time_base)
+                start = first.setdefault(packet.stream.index, at)
+                if at - start > max_seconds + LENGTH_SLACK_S:
+                    raise _too_long()
             packet.stream = mapping[packet.stream.index]
             target.mux(packet)
 

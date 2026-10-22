@@ -112,7 +112,12 @@ def no_unconfirmed_low_confidence_slots(ctx: PredicateContext) -> bool:
 
 @predicate("user_confirmed")
 def user_confirmed(ctx: PredicateContext) -> bool:
-    return ctx.signals is not None and ctx.signals.confirmed is True
+    """A yes that settled everything; details that arrived with it are asked about next."""
+    return (
+        ctx.signals is not None
+        and ctx.signals.confirmed is True
+        and not unconfirmed_low_confidence(ctx.state)
+    )
 
 
 @predicate("user_denied")

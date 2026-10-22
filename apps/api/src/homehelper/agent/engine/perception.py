@@ -24,8 +24,13 @@ LOW_CONFIDENCE = 0.7
 IDENTITY_SLOTS = frozenset({"appliance_category", "brand", "model_number"})
 
 
+MIN_UNDERSTOOD = 0.3  # below this the model barely understood the photo: no floor
+
+
 def _confidence(name: str, confidence: float) -> float:
-    return confidence if name in IDENTITY_SLOTS else max(confidence, LOW_CONFIDENCE)
+    if name in IDENTITY_SLOTS or confidence < MIN_UNDERSTOOD:
+        return confidence
+    return max(confidence, LOW_CONFIDENCE)
 
 
 class PerceivedSlot(BaseModel):

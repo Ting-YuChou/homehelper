@@ -288,10 +288,8 @@ def test_a_photo_of_another_appliance_than_the_one_typed_adds_nothing(
     assert any("photo" in d.reason and "washing_machine" in d.reason for d in result.decisions)
 
 
-def test_a_yes_does_not_confirm_details_from_a_photo_sent_with_it(
-    catalog: JourneyCatalog,
-) -> None:
-    state = new_state(
+def _at_confirm() -> object:
+    return new_state(
         active_journey="troubleshoot",
         active_issue_id="iss_1",
         step_id="confirm_appliance",
@@ -303,10 +301,43 @@ def test_a_yes_does_not_confirm_details_from_a_photo_sent_with_it(
             "symptom": user("won't drain"),
         },
     )
+
+
+def test_a_yes_confirms_only_what_the_card_showed(catalog: JourneyCatalog) -> None:
     turn = photo(*seen(0.5, brand="Samsung"), text="yes", nlu=say("confirm").nlu)
-    result = transition(catalog, state, turn)
-    assert (result.state.slots["brand"].value, result.state.slots["brand"].confirmed) == (
-        "LG",
-        True,
+    result = transition(catalog, _at_confirm(), turn)  # type: ignore[arg-type]
+    slots = result.state.slots
+    assert slots["appliance_category"].confirmed is True  # shown on the card, unchanged
+    brand = slots["brand"]
+    assert (brand.value, brand.confirmed) == ("Samsung", False)  # new: asked about next
+    assert result.state.step_id == "confirm_appliance"
+
+
+def test_a_no_with_the_right_photo_keeps_the_new_photo(catalog: JourneyCatalog) -> None:
+    turn = photo(
+        *seen(0.95, brand="Samsung", model_number="WF45T6000AW"),
+        text="No, here's the right sticker",
+        nlu=say("deny").nlu,
     )
-    assert any("yes or no" in d.reason for d in result.decisions)
+    result = transition(catalog, _at_confirm(), turn)  # type: ignore[arg-type]
+    slots = result.state.slots
+    assert (slots["brand"].value, slots["model_number"].value) == ("Samsung", "WF45T6000AW")
+    assert "appliance_category" not in slots  # the denied guess is gone
+
+
+def test_a_confirmed_photo_value_is_not_overwritten_by_a_later_photo(
+    catalog: JourneyCatalog,
+) -> None:
+    state = new_state(
+        active_journey="troubleshoot",
+        active_issue_id="iss_1",
+        step_id="gather",
+        slots={
+            "appliance_category": SlotValue(
+                value="washing_machine", source="vision", confidence=0.6, confirmed=True
+            ),
+            "brand": SlotValue(value="LG", source="vision", confidence=0.6, confirmed=True),
+        },
+    )
+    result = transition(catalog, state, photo(*seen(0.9, brand="Samsung")))
+    assert result.state.slots["brand"].value == "LG"

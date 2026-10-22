@@ -12,6 +12,8 @@ import base64
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import ValidationError
+
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.nodes.understand import MEDIA_ONLY_TEXT
@@ -48,7 +50,10 @@ def _cached(photos: list[LoadedMedia]) -> VisionResult | None:
     ids = [p.attachment_id for p in photos]
     analyses = [p.analysis or {} for p in photos]
     if all(a.get("photos") == ids and "vision" in a for a in analyses):
-        return VisionResult.model_validate(analyses[0]["vision"])
+        try:
+            return VisionResult.model_validate(analyses[0]["vision"])
+        except ValidationError:
+            return None  # saved under an older schema: analyze again
     return None
 
 
@@ -94,11 +99,11 @@ async def _video(deps: AgentDeps, video: LoadedMedia) -> MediaObservation:
     assert deps.media is not None
     cached = (video.analysis or {}).get("video")
     if cached is not None:
-        return MediaObservation(
-            attachment_id=video.attachment_id,
-            kind="video",
-            video=VideoResult.model_validate(cached),
-        )
+        try:
+            result = VideoResult.model_validate(cached)
+            return MediaObservation(attachment_id=video.attachment_id, kind="video", video=result)
+        except ValidationError:
+            pass  # saved under an older schema: analyze again
     if deps.video is None:
         return failed("unavailable")
     prompt = prompts.render("video", categories=CATEGORIES)
@@ -132,7 +137,15 @@ async def perceive(
         ]
         return {"turn": state.turn.model_copy(update={"media": observations})}
 
-    loaded = await deps.media.load(message.attachments, message.user_id)
+    try:
+        loaded = await deps.media.load(message.attachments, message.user_id)
+    except Exception as exc:
+        log.warning("media_load_failed", error=f"{type(exc).__name__}: {exc}")
+        observations = [
+            MediaObservation(attachment_id=a, kind="image", error="unavailable")
+            for a in message.attachments
+        ]
+        return {"turn": state.turn.model_copy(update={"media": observations})}
     if len(loaded) < len(message.attachments):
         log.warning("media_not_loaded", requested=len(message.attachments), loaded=len(loaded))
     photos = [m for m in loaded if m.kind == "image"]

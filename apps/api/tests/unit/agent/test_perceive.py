@@ -453,3 +453,24 @@ async def test_a_video_alone_still_gets_understood() -> None:
     message = InboundMessage(conversation_id="conv-vo", attachments=["att_v"], user_id="u1")
     [event async for event in JourneyAgent(deps).handle(message)]
     assert len(llm.calls_for("nlu")) == 1
+
+
+async def test_a_media_lookup_error_becomes_a_failure() -> None:
+    class BrokenLoad(FakeMediaSource):
+        async def load(self, ids, user_id):  # type: ignore[no-untyped-def]
+            raise RuntimeError("db down")
+
+    deps = AgentDeps.default(FakeLLMClient(), FakeRetriever(), media=BrokenLoad(owner="u1"))
+    update = await perceive(_graph("att_1"), deps, Events())
+    assert [o.error for o in update["turn"].media] == ["unavailable"]
+
+
+async def test_an_outdated_cached_analysis_is_redone() -> None:
+    media = _media()
+    media.saved["att_1"] = {"vision": {"not": "a vision result"}, "photos": ["att_1"]}
+    llm = FakeLLMClient({"vision": [_vision()]})
+    update = await perceive(
+        _graph("att_1"), AgentDeps.default(llm, FakeRetriever(), media=media), Events()
+    )
+    assert update["turn"].media[0].vision is not None
+    assert len(llm.calls_for("vision")) == 1

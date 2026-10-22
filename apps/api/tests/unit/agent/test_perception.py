@@ -88,3 +88,10 @@ def test_codes_and_issues_are_not_held_back_by_an_unreadable_nameplate() -> None
     by_name = {s.name: s for s in result.slot_updates}
     assert by_name["error_code"].confidence >= 0.7
     assert by_name["symptom"].confidence >= 0.7
+
+
+def test_a_photo_the_model_barely_understood_gets_no_confidence_floor() -> None:
+    result = media_input([_photo(confidence=0.05, displayed_error_code="DE")])
+    assert result is not None
+    [code] = result.slot_updates
+    assert code.confidence == 0.05

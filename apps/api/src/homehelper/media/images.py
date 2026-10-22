@@ -18,6 +18,8 @@ pi_heif.register_heif_opener()
 MAX_EDGE = 1568  # longest side sent to vision models; larger only costs tokens
 MAX_PIXELS = 50_000_000  # claimed canvas size above which we refuse (decompression bombs)
 JPEG_QUALITY = 88
+# Everything in `info` that describes the photo rather than its pixels (`transparency` stays).
+METADATA_KEYS = ("exif", "comment", "icc_profile", "xmp", "XML:com.adobe.xmp", "dpi", "photoshop")
 
 _OUTPUT = {
     "image/jpeg": ("JPEG", "image/jpeg", "jpg"),
@@ -61,7 +63,8 @@ def normalize_image(data: bytes, mime: str) -> ProcessedImage:
     upright.thumbnail((MAX_EDGE, MAX_EDGE))
     if fmt == "JPEG" and upright.mode != "RGB":
         upright = upright.convert("RGB")
-    upright.info.clear()  # JPEG comments and the like ride in `info` and would be saved again
+    for key in METADATA_KEYS:  # they ride in `info` and would be saved again
+        upright.info.pop(key, None)
     out = io.BytesIO()
     options = {"quality": JPEG_QUALITY} if fmt in ("JPEG", "WEBP") else {}
     upright.save(out, fmt, **options)  # no exif=, icc_profile=, pnginfo=: nothing is carried over

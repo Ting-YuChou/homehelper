@@ -156,8 +156,9 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     k = args.k or config.k
     skipped: list[str] = []
     cases = build_cases(config, seed=args.seed, skipped=skipped)[: args.limit]
-    if skipped and args.suite in STRICT_JUDGE_SUITES:
-        # A release gate must not pass on whichever cases happened to be runnable here.
+    if skipped and args.suite in STRICT_JUDGE_SUITES and args.limit is None:
+        # A release gate must not pass on whichever cases happened to be runnable here. With
+        # --limit it is a partial run anyway, so the skips are only reported.
         print(
             f"{len(skipped)} cases have missing media; generate or fetch them first "
             "(python -m homehelper_evals.vision_media)",

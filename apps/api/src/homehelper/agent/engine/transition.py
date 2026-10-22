@@ -368,6 +368,8 @@ class _Run:
         self.offer_paused = False  # an issue ended this turn: offer the paused ones
         self.remind_paused = False  # the user is wrapping up: remind them once
         self.hazard_category: str | None = None  # the appliance this turn's hazards are about
+        # Unconfirmed slots before the turn: what a confirmation card showed.
+        self.shown_for_confirmation: dict[str, SlotValue] = {}
 
     def ensure_active_issue(self) -> None:
         """State saved before issues existed has an active journey but no issue id."""
@@ -382,6 +384,10 @@ class _Run:
     # --- entry points ---------------------------------------------------------------------
 
     def on_turn(self, turn: TurnInput) -> None:
+        self.shown_for_confirmation = {
+            name: self.state.slots[name].model_copy()
+            for name in unconfirmed_low_confidence(self.state)
+        }
         signals = signals_from_input(turn)
         if signals.rejected_action:
             self._log("route", f"ignored card action: {signals.rejected_action}")
@@ -693,11 +699,6 @@ class _Run:
     def _apply_perceived(self, journey: Journey, signals: TurnSignals) -> None:
         """Slots seen in photos and videos (spec §11.2): kept with the model's confidence and
         unconfirmed, so the `confirm` step asks about the uncertain ones."""
-        if self._step_type(journey) == "confirm" and signals.confirmed is not None:
-            # The yes or no answers the card the user saw; a photo sent with it must not slip
-            # unseen values into what gets confirmed (or deleted).
-            self._log("slot", "ignored a photo sent with a yes or no to the confirmation")
-            return
         typed = {u.name: u.value for u in signals.slot_updates if u.value.strip()}
         has_confirm = any(step.type == "confirm" for step in journey.steps)
         working = self._step_type(journey) in SWITCH_STEP_TYPES
@@ -772,7 +773,8 @@ class _Run:
         if working and seen.name in APPLIANCE_SLOTS and current.source != "profile":
             self._log("slot", f"ignored {seen.name}={value!r} from a photo during this step")
             return True
-        if current.source == "user" and current.confirmed:
+        if current.confirmed and current.source != "profile":
+            # What the user said, or confirmed on a card, stands.
             if current.value != value:
                 self._log("slot", f"kept the user's {seen.name}; the photo showed {value!r}")
             return True
@@ -784,7 +786,13 @@ class _Run:
             return
         state = self.state
         if step.type == "confirm" and signals.confirmed is not None:
-            pending = unconfirmed_low_confidence(state)
+            # The yes or no answers the card the user saw: values that changed this turn (a new
+            # photo sent with the answer) stay unconfirmed and get their own question.
+            pending = [
+                name
+                for name, shown in self.shown_for_confirmation.items()
+                if state.slots.get(name) == shown
+            ]
             if signals.confirmed:
                 for name in pending:
                     state.slots[name].confirmed = True

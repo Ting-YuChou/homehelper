@@ -77,3 +77,12 @@ def test_jpeg_comments_are_dropped_too() -> None:
     result = normalize_image(out.getvalue(), "image/jpeg")
     assert b"Baker" not in result.data
     assert "comment" not in _open(result.data).info
+
+
+def test_png_transparency_survives() -> None:
+    image = Image.new("P", (20, 20), 0)
+    image.putpalette([0, 0, 0, 255, 0, 0] + [0] * 762)
+    out = io.BytesIO()
+    image.save(out, "PNG", transparency=0)
+    result = normalize_image(out.getvalue(), "image/png")
+    assert "transparency" in _open(result.data).info

@@ -49,6 +49,7 @@ def write_video(
     fmt: str | None = None,
     codec: str = "mpeg4",
     metadata: dict[str, str] | None = None,
+    start_s: float = 0.0,
 ) -> Path:
     with av.open(str(path), mode="w", format=fmt) as container:
         if metadata:
@@ -59,7 +60,8 @@ def write_video(
         stream.time_base = Fraction(1, fps)
         for i in range(round(seconds * fps)):
             frame = av.VideoFrame.from_image(Image.new("RGB", (64, 48), (i * 20 % 255, 0, 0)))
-            frame.pts = i
+            frame.pts = i + round(start_s * fps)
+            frame.time_base = Fraction(1, fps)
             container.mux(stream.encode(frame))
         container.mux(stream.encode(None))
     return path
