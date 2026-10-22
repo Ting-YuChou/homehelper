@@ -84,6 +84,8 @@ SIDE_INTENTS = frozenset({"ask_how_to", "my_appliances", "ask_parts"})
 # warranty?") and still stay on the side. A how-to about another appliance needs its manuals, so
 # it starts its own journey.
 TOOL_SIDE_INTENTS = frozenset({"my_appliances", "ask_parts"})
+# What a side question may fill in while the active issue's details are collected.
+SIDE_QUESTION_SLOTS = frozenset({*TOPIC_SLOTS, "error_code"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -231,6 +233,10 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         return Route(kind="stay", journey=active.id, reason="continue the active journey")
 
+    if signals.intent == "book_technician" and active is not None and _escalated_end(active, state):
+        # The last issue just handed off (a visit is booked or the user was referred): asking for
+        # the technician again is about that, not a new problem.
+        return Route(kind="none", reason="a technician was already arranged for the last issue")
     dropped = _dropped_by_name(state, signals)
     if dropped is not None:
         return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
@@ -322,6 +328,11 @@ def _has_hazard_guardrail(journey: Journey) -> bool:
     return _has_guardrail(journey, "hazard_detected")
 
 
+def _escalated_end(journey: Journey, state: AgentState) -> bool:
+    step = journey.step(state.step_id) if state.step_id else None
+    return step is not None and step.type == "end" and step.outcome == "escalated"
+
+
 def _has_guardrail(journey: Journey, when: str) -> bool:
     return any(guard.when == when for guard in journey.guardrails)
 
@@ -381,11 +392,16 @@ class _Run:
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
             # A side question's details ("do Whirlpool filters fit?") are about the question, not
-            # the active issue: they must not change its slots or its profile appliance. While
-            # the issue's details are being collected they still fill or correct them.
-            if decided.kind != "side_question" or self._step_type(journey) in COLLECT_STEP_TYPES:
+            # the active issue: they must not change its appliance or its profile link. While
+            # the issue's details are being collected, its topic ("it leaks") still counts.
+            if decided.kind != "side_question":
                 self._apply_slot_updates(journey, signals)
                 self.decisions.extend(link_profile_appliance(self.state, journey))
+            elif self._step_type(journey) in COLLECT_STEP_TYPES:
+                topic = [u for u in signals.slot_updates if u.name in SIDE_QUESTION_SLOTS]
+                self._apply_slot_updates(
+                    journey, signals.model_copy(update={"slot_updates": topic})
+                )
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
             if not self._guardrails(journey, signals):

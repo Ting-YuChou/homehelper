@@ -89,6 +89,8 @@ async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     reply = turn.reply
     if reply is None:  # a fixed template replaced the response
         return {}
+    if turn.verdict is not None and turn.verdict.action == "pass":
+        return {}  # a reply built by code after an LLM failure (`booking_fallback`)
     plan = response_plan(graph, deps)
     state = graph.state.model_copy(deep=True)
 

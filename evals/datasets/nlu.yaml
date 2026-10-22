@@ -465,3 +465,15 @@ cases:
       intent: report_problem
       slots: { appliance_category: refrigerator, brand: LG }
       hazards: []
+  - id: nlu-069
+    text: My Shark vacuum lost suction even after I washed the filters. What part should I buy?
+    expect:
+      intent: ask_parts
+      slots: { appliance_category: vacuum, brand: Shark }
+      hazards: []
+  - id: nlu-070
+    text: My LG washer grinds loudly when it spins. Can you send a technician?
+    expect:
+      intent: book_technician
+      slots: { appliance_category: washing_machine, brand: LG }
+      hazards: []

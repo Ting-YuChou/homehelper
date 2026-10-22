@@ -24,7 +24,7 @@ from homehelper.agent.state import (
     UserContext,
 )
 from homehelper.agent.tools import ToolOutcome
-from homehelper.agent.turn import GraphState, TurnScratch
+from homehelper.agent.turn import AgentReply, GraphState, SupervisorVerdict, TurnScratch
 
 GET_WARRANTY = "mcp:user_profile.get_warranty_status"
 LIST_SLOTS = "mcp:service_booking.list_slots"
@@ -249,16 +249,18 @@ def _replayed_data(state: AgentState, done: ToolCall) -> dict[str, Any] | None:
 
 
 def booking_fallback(turn: TurnScratch) -> TurnScratch | None:
-    """When the LLM fails after a booking, the confirmation alone becomes the reply: the visit is
-    booked, so the turn must not end in an error that hides it. None when nothing was booked."""
-    confirmation = next((r for r in turn.fixed_replies if r.rule_id == BOOKING_CONFIRMED), None)
-    if confirmation is None:
+    """When the LLM fails after a booking, a fixed closing becomes the reply, under the booking
+    confirmation and any other prefix (e.g. the G-SAFE-05 warning): the visit is booked, so the
+    turn must not end in an error that hides it. The pass verdict is code's: `supervise` keeps it.
+    None when nothing was booked."""
+    if not any(r.rule_id == BOOKING_CONFIRMED for r in turn.fixed_replies):
         return None
-    closing = confirmation.model_copy(
-        update={"text": f"{confirmation.text} {BOOKING_CLOSING}", "replaces_response": True}
+    return turn.model_copy(
+        update={
+            "reply": AgentReply(message=BOOKING_CLOSING),
+            "verdict": SupervisorVerdict(action="pass", reasons=["code-built booking closing"]),
+        }
     )
-    others = [r for r in turn.fixed_replies if r is not confirmation]
-    return turn.model_copy(update={"fixed_replies": [*others, closing], "reply": None})
 
 
 def _done_write(graph: GraphState, state: AgentState, tool: str) -> ToolCall | None:

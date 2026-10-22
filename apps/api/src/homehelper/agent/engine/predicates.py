@@ -98,7 +98,11 @@ def max_failed_steps_reached(ctx: PredicateContext) -> bool:
 
 @predicate("user_requested_technician")
 def user_requested_technician(ctx: PredicateContext) -> bool:
-    return ctx.signals is not None and ctx.signals.intent == "book_technician"
+    """A signed-in user's visit is booked for an appliance: until the issue knows which one,
+    troubleshooting gathers it first (a guest is referred to the manufacturer either way)."""
+    if ctx.signals is None or ctx.signals.intent != "book_technician":
+        return False
+    return ctx.state.profile is None or "appliance_category" in ctx.state.slots
 
 
 @predicate("required_slots_filled")

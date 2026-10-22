@@ -7,6 +7,7 @@ import pytest
 import homehelper.agent.graph as graph_module
 import homehelper.agent.tools as tools_module
 from homehelper.agent.deps import AgentDeps
+from homehelper.agent.guardrails.templates import safety_reply
 from homehelper.agent.nodes.act import PlanDraft, PlanDraftItem
 from homehelper.agent.nodes.respond import tool_result_text
 from homehelper.agent.protocol import ToolCall
@@ -743,3 +744,37 @@ async def test_an_llm_failure_after_booking_still_confirms_it(failing: str) -> N
     )
     assert text.endswith(closing)
     assert (await agent.snapshot("conv-1")).step == "escalated_end"
+
+
+async def test_a_failed_revision_after_booking_closes_without_looping() -> None:
+    reject = SupervisorReview(grounded=False, safe=True, on_task=True, reasons=["Unsupported."])
+    replies: list[Any] = [
+        reply("Let's clean the filter.", "c1"),
+        AgentReply(message="A technician is the best next step; pick a time below."),
+        AgentReply(message="Booked for Tuesday!"),
+        LLMError("down"),  # the revision the supervisor asked for
+    ]
+    _, send, escalated = await _escalate(
+        replies, InMemoryBookingStore(), "demo_alex", verdicts=[PASS, PASS, reject]
+    )
+    slots = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots
+    events = await _book(send, slots[0].slot_id)
+    assert not [e for e in events if isinstance(e, ErrorEvent)]
+    assert _text(events).endswith("Is there anything else I can help you with?")
+
+
+async def test_the_booking_fallback_keeps_the_water_warning() -> None:
+    replies: list[Any] = [
+        reply("Let's clean the filter.", "c1"),
+        AgentReply(message="A technician is the best next step; pick a time below."),
+        LLMError("down"),
+    ]
+    _, send, escalated = await _escalate(replies, InMemoryBookingStore(), "demo_alex")
+    slots = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots
+    events = await send(
+        "ok, and there's water pooling near the outlet",
+        StructuredAction(type="select_booking_slot", value=slots[0].slot_id),
+    )
+    text = _text(events)
+    assert safety_reply("water_near_electric").text in text
+    assert "Your technician visit is booked for " in text
