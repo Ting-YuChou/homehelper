@@ -75,9 +75,17 @@ def errors_of(data: dict[str, Any]) -> str:
 
 def test_packaged_journeys_load_and_validate() -> None:
     catalog = default_catalog()
-    assert set(catalog.journeys) == {"troubleshoot", "how_to_use", "out_of_scope"}
+    assert set(catalog.journeys) == {
+        "troubleshoot",
+        "how_to_use",
+        "out_of_scope",
+        "my_appliances",
+        "parts_and_tutorials",
+    }
     assert catalog.for_intent("report_problem") is catalog["troubleshoot"]
     assert catalog.for_intent("ask_how_to") is catalog["how_to_use"]
+    assert catalog.for_intent("my_appliances") is catalog["my_appliances"]
+    assert catalog.for_intent("ask_parts") is catalog["parts_and_tutorials"]
     assert catalog.for_intent("small_talk") is None
     assert catalog.for_intent(None) is None
 

@@ -36,6 +36,31 @@ from homehelper.llm import Message, ToolSpec
 log = get_logger(__name__)
 
 MAX_TOOL_CALLS = 3  # spec §7.3
+# Read tools for a side question asked during another journey (spec §7.4).
+SIDE_TOOLS = {
+    "my_appliances": [
+        "mcp:user_profile.list_appliances",
+        "mcp:user_profile.get_appliance",
+        "mcp:user_profile.get_warranty_status",
+        "mcp:user_profile.list_repair_history",
+    ],
+    "ask_parts": [
+        "mcp:parts_catalog.search_parts",
+        "mcp:parts_catalog.get_part",
+        "mcp:tutorials.search_videos",
+    ],
+}
+SIDE_TASKS = {
+    "my_appliances": (
+        "Answer the user's question about their appliances, warranty or repairs using the "
+        "tools (if you cannot look it up, say they need to be signed in), then remind them of "
+        "the step they were trying and ask how it went."
+    ),
+    "ask_parts": (
+        "Suggest the parts, tools or videos that fit using the tools, then remind them of the "
+        "step they were trying and ask how it went."
+    ),
+}
 MAX_TOOL_RESULT_CHARS = 3000
 REPLY_TOOL = ToolSpec(
     name="reply",
@@ -95,6 +120,9 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
     state = graph.state
     turn = graph.turn
     retrieved = list(turn.retrieval.chunks) if turn.retrieval else []
+    side_intent = turn.nlu.intent if turn.nlu else None
+    if turn.side_question and side_intent in SIDE_TASKS:
+        return ResponsePlan(task=SIDE_TASKS[side_intent])
     if turn.side_question:
         return ResponsePlan(
             task=(
@@ -138,6 +166,14 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                     "safety_rule": item.safety_rule,
                 },
                 cite=True,
+            )
+        case "inform" if not retrieved:
+            # Answered from tools (profile, parts, videos), not from the manuals.
+            return ResponsePlan(
+                task=(
+                    f"{step.goal} Use the tool results and tools. Mention only what they "
+                    "return; if there is nothing, say so. End by asking whether that helps."
+                )
             )
         case "inform":
             return ResponsePlan(
@@ -232,8 +268,11 @@ def tool_result_text(outcome: ToolOutcome) -> str:
 
 def step_tools(graph: GraphState, deps: AgentDeps) -> list[str]:
     """The read tools the responder may call this turn (the step's `tools_allowed`)."""
-    if deps.tools is None or graph.turn.side_question:
+    if deps.tools is None:
         return []
+    if graph.turn.side_question:
+        intent = graph.turn.nlu.intent if graph.turn.nlu else None
+        return SIDE_TOOLS.get(intent or "", [])
     step = deps.step(graph.state)
     return list(step.tools_allowed) if step is not None else []
 

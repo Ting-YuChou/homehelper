@@ -78,6 +78,8 @@ CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
 # Steps still collecting details: an issue set aside here has barely started.
 COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
+# Questions answered on the side during another journey, without leaving its step (spec §7.4).
+SIDE_INTENTS = frozenset({"ask_how_to", "my_appliances", "ask_parts"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -196,11 +198,11 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         if signals.intent == "out_of_scope" and not signals.escalating_hazards:
             return Route(kind="scope_side", journey=active.id, reason="off-topic during a journey")
         if target is not None and target.id != active.id:
-            if signals.intent == "ask_how_to":
+            if signals.intent in SIDE_INTENTS:
                 return Route(
                     kind="side_question",
                     journey=active.id,
-                    reason=f"how-to question during {active.id}",
+                    reason=f"{signals.intent} question during {active.id}",
                 )
             return Route(
                 kind="switch",

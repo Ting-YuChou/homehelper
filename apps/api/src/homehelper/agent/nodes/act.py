@@ -275,7 +275,8 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     if similar_repairs(outcomes, state):
         turn.notices.append(NOTICE_REPAIR_HISTORY)
 
-    if turn.side_question and turn.nlu and turn.nlu.search_query_en:
+    how_to = turn.nlu is not None and turn.nlu.intent == "ask_how_to"
+    if turn.side_question and how_to and turn.nlu and turn.nlu.search_query_en:
         # Answer a how-to question during another journey without touching its step (§7.4).
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
         query = retrieval_query(state, turn.nlu.search_query_en)

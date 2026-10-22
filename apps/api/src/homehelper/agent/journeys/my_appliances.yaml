@@ -1,0 +1,31 @@
+# The user's registered appliances, warranty and repair history (spec §7.5, §12.2).
+# The responder reads them with read tools; guests have no profile and get a fixed reply.
+id: my_appliances
+version: 1
+goal: Tell the user about their registered appliances, warranty and past repairs.
+entry_intents: [my_appliances]
+
+slots:
+  appliance_category: { type: enum, values: categories, required: false }
+
+steps:
+  - id: answer
+    type: inform
+    goal: Answer the user's question about their appliances, warranty or repairs.
+    outcome: resolved
+    skip_when: no_profile
+    skip_to: sign_in
+    tools_allowed: [mcp:user_profile.list_appliances, mcp:user_profile.get_appliance,
+                    mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history]
+    transitions:
+      - when: user_satisfied
+        to: done
+
+  - id: sign_in
+    type: end
+    outcome: resolved
+    template: profile_sign_in
+
+  - id: done
+    type: end
+    outcome: resolved

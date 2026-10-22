@@ -95,6 +95,16 @@ def _history_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip
     return appliance if isinstance(appliance, Skip) else {"appliance_id": appliance, "limit": 5}
 
 
+def _parts_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    return {
+        "category": _slot(state, "appliance_category"),
+        "brand": _slot(state, "brand"),
+        "model": _slot(state, "model_number"),
+        "symptom": (_slot(state, "symptom") or "")[:200] or None,
+        "limit": 3,
+    }
+
+
 def _repair_record_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
     appliance = _appliance(state)
     if isinstance(appliance, Skip):
@@ -134,6 +144,7 @@ def _book_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
 
 ACTION_ARGS: dict[str, ArgBuilder] = {
     "mcp:tutorials.search_videos": _video_args,
+    "mcp:parts_catalog.search_parts": _parts_args,
     GET_WARRANTY: _appliance_args,
     LIST_REPAIRS: _history_args,
     "mcp:user_profile.add_repair_record": _repair_record_args,

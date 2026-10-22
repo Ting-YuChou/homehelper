@@ -179,6 +179,12 @@ def user_satisfied(ctx: PredicateContext) -> bool:
     return signals is not None and (signals.feedback == "fixed" or signals.intent == "confirm")
 
 
+@predicate("no_profile")
+def no_profile(ctx: PredicateContext) -> bool:
+    """A guest, or the profile could not be read: nothing to look up for this user."""
+    return ctx.state.profile is None
+
+
 @predicate("user_asked_followup")
 def user_asked_followup(ctx: PredicateContext) -> bool:
     return ctx.signals is not None and ctx.signals.intent == "ask_how_to"

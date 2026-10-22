@@ -112,6 +112,14 @@ SAFETY_TEMPLATES: dict[HazardSignal, SafetyTemplate] = {
 
 # Templates a journey step can name with `template:`; the step's reply is then fixed text.
 STEP_TEMPLATES: dict[str, FixedReply] = {
+    "profile_sign_in": FixedReply(
+        rule_id="G-PRIV-01",
+        text=(
+            "I can only see registered appliances, warranties and repair history when you're "
+            "signed in with an account. I can still help you troubleshoot or use any appliance: "
+            "what's going on?"
+        ),
+    ),
     "out_of_scope": FixedReply(
         rule_id="G-SCOPE-01",
         text=(

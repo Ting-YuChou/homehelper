@@ -13,6 +13,7 @@ from homehelper.channels.events import (
     BookingSlotsCard,
     HandoffCard,
     InboundMessage,
+    PartCard,
     StepCard,
     StructuredAction,
     VideoCard,
@@ -420,3 +421,83 @@ async def test_guests_are_not_offered_booking() -> None:
     assert not any(isinstance(c, BookingSlotsCard) for c in cards)
     handoff = next(c for c in cards if isinstance(c, HandoffCard))
     assert not handoff.booking_available
+
+
+PROFILE_LLM_TOOLS = [
+    "user_profile__list_appliances",
+    "user_profile__get_appliance",
+    "user_profile__get_warranty_status",
+    "user_profile__list_repair_history",
+]
+
+
+async def test_my_appliances_lets_the_responder_read_the_profile() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [NLUResult(intent="my_appliances")],
+            "responder": [
+                call("user_profile__get_warranty_status", appliance_id="apl_alex_dryer"),
+                reply("Your Samsung dryer is under warranty until February 2027."),
+            ],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "Is my dryer still under warranty?")
+    assert llm.calls_for("responder")[0].tools == [*PROFILE_LLM_TOOLS, "reply"]
+    (lookup,) = (await agent.snapshot("conv-1")).tool_calls
+    assert (lookup.name, lookup.source, lookup.ok) == (
+        "user_profile.get_warranty_status",
+        "llm",
+        True,
+    )
+
+
+async def test_parts_questions_show_part_cards() -> None:
+    parts = NLUResult(
+        intent="ask_parts",
+        slot_updates=[
+            SlotUpdate(name="appliance_category", value="washing_machine"),
+            SlotUpdate(name="symptom", value="won't drain"),
+        ],
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [parts],
+            "responder": [reply("A new drain pump filter usually fixes this; see below.")],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    events = await _send(agent, "What part do I need for a washer that won't drain?")
+    snapshot = await agent.snapshot("conv-1")
+    assert [(c.name, c.source) for c in snapshot.tool_calls] == [
+        ("parts_catalog.search_parts", "action"),
+        ("tutorials.search_videos", "action"),
+    ]
+    assert any(isinstance(c, PartCard) for c in _cards(events))
+
+
+async def test_a_parts_question_mid_troubleshooting_gets_parts_tools() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT, NLUResult(intent="ask_parts")],
+            "planner": [PLAN],
+            "responder": [
+                reply("Let's start with the filter.", "c1"),
+                reply("A replacement filter is listed below. Did cleaning it help?"),
+            ],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "My Bosch dishwasher won't drain")
+    await _send(agent, "Where can I buy a new filter?")
+    side = llm.calls_for("responder")[-1]
+    assert side.tools == [
+        "parts_catalog__search_parts",
+        "parts_catalog__get_part",
+        "tutorials__search_videos",
+        "reply",
+    ]
+    assert (await agent.snapshot("conv-1")).step == "guide"

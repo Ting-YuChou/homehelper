@@ -1,0 +1,55 @@
+# Parts, tools and videos for an appliance problem (spec §7.5). Code looks them up when the
+# details are in; the responder may look again (e.g. one part's details) within the whitelist.
+id: parts_and_tutorials
+version: 1
+goal: Recommend parts, tools and videos that fit the user's appliance and problem.
+entry_intents: [ask_parts]
+
+slots:
+  appliance_category: { type: enum, values: categories, required: true }
+  symptom:            { type: text, required: true }
+  brand:              { type: text, required: false }
+  model_number:       { type: text, required: false, ask_policy: once }
+
+guardrails:
+  - when: hazard_detected
+    to: escalate
+  - when: user_requested_technician
+    to: escalate
+
+steps:
+  - id: gather
+    type: collect
+    goal: Get the appliance category and what the part or tool is for.
+    transitions:
+      - when: required_slots_filled
+        to: recommend
+
+  - id: recommend
+    type: inform
+    goal: Recommend the parts, tools or videos that fit this appliance and problem.
+    outcome: resolved
+    actions: [mcp:parts_catalog.search_parts, mcp:tutorials.search_videos]
+    tools_allowed: [mcp:parts_catalog.get_part, mcp:parts_catalog.search_parts,
+                    mcp:tutorials.search_videos]
+    transitions:
+      - when: user_satisfied
+        to: done
+
+  - id: done
+    type: end
+    outcome: resolved
+
+  - id: escalate
+    type: handoff
+    goal: Explain why professional help is recommended and offer booking options.
+    outcome: escalated
+    actions: [mcp:service_booking.list_slots]   # code: the profile's ZIP and the category
+    transitions:
+      - when: booking_confirmed
+        to: escalated_end
+
+  - id: escalated_end
+    type: end
+    outcome: escalated
+    actions: [mcp:service_booking.book]
