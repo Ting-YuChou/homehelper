@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     login_rate_limit_per_hour: int = 20  # demo logins per IP (each guest login is a new user)
     daily_spend_cap_usd: float = 5.0
 
+    # OpenCode Go subscription gateway; eval experiments only, via `opencode_go/...` model
+    # overrides (docs/SPEC.md §9.1). Never a default in models.yaml.
+    opencode_go_api_key: SecretStr = SecretStr("")
+    opencode_go_base_url: str = "https://opencode.ai/inference/go"
+
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
     langfuse_base_url: str = Field(
@@ -73,6 +78,7 @@ class Settings(BaseSettings):
             "anthropic": self.anthropic_api_key,
             "openai": self.openai_api_key,
             "gemini": self.gemini_api_key,
+            "opencode_go": self.opencode_go_api_key,
         }
         values = {provider: key.get_secret_value() for provider, key in keys.items()}
         return {provider: value for provider, value in values.items() if value}

@@ -30,6 +30,7 @@ from homehelper.channels.events import (
 )
 from homehelper.core.config import Settings
 from homehelper.knowledge.schemas import Citation
+from homehelper.llm import ModelRegistry
 from homehelper.llm.litellm_client import UsageSink
 from homehelper_evals.cases import EvalCase
 
@@ -38,11 +39,13 @@ AgentFactory = Callable[[EvalCase], AgentRuntime]
 
 @dataclass
 class AgentContext:
-    """What the runner hands an agent builder: settings, and the sink its LLM client must report
-    usage to so that cost is attributed to the right conversation."""
+    """What the runner hands an agent builder: settings, the sink its LLM client must report
+    usage to so that cost is attributed to the right conversation, and the model registry
+    (with any `--models` overrides) its LLM client must use."""
 
     settings: Settings
     usage_sink: UsageSink
+    registry: ModelRegistry = field(default_factory=ModelRegistry.load)
 
 
 def _reply(text: str, *cards, journey: str | None = None) -> list[AgentEvent]:

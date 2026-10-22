@@ -1,0 +1,21 @@
+{#
+Purpose: the latest user turn of the M2-06 baseline agent, wrapped with this turn's retrieval.
+Inputs: user_text (str); excerpts (list of {id, title, page, text}); web_block (str, may be "").
+Output schema: homehelper.agent.baseline.BaselineReply
+#}
+<manual_excerpts>
+{% for excerpt in excerpts %}
+<excerpt id="{{ excerpt.id }}" manual="{{ excerpt.title }}" page="{{ excerpt.page }}">
+{{ excerpt.text }}
+</excerpt>
+{% else %}
+No manual excerpts matched this question.
+{% endfor %}
+</manual_excerpts>
+{% if web_block %}
+{{ web_block }}
+{% endif %}
+
+<user_message>
+{{ user_text }}
+</user_message>

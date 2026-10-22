@@ -43,6 +43,7 @@ make seed-mock          # reset the MCP mock tables to data/mock/ (needs `make m
 uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalone (MCP Inspector)
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
+uv run evals run --suite smoke --models models.yaml   # per-task overrides, e.g. `nlu: opencode_go/openai/glm-5.3`
 pnpm --filter web build
 pnpm --filter web test  # vitest (SSE parsing, turn reducer)
 make openapi            # regenerate apps/web/lib/api/{openapi.json,schema.d.ts}; CI fails if stale
@@ -52,6 +53,7 @@ uv run homehelper manifest draft   # draft unreviewed manifest entries (Haiku); 
 uv run homehelper parse            # LlamaParse → data/parsed/<sha256>.<tier>.json (cached; paid per page)
 make ingest                        # parse (cached) → chunk → embed → new kb_YYYYMMDD_NN table
 uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + τ calibration
+uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # conversation sim against the M2-06 baseline (needs the KB in Postgres)
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
@@ -61,7 +63,7 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + �
 - `apps/web` uses Next.js 16, which differs from older versions: read `apps/web/AGENTS.md` and the docs in `apps/web/node_modules/next/dist/docs/` before writing web code. `pnpm typecheck` runs `next typegen` first (needed for `LayoutProps` and similar types).
 - LiteLLM would `load_dotenv()` on import; `llm/litellm_client.py` sets `LITELLM_MODE=PRODUCTION` first so secrets only flow through `Settings`. Tests clear all Settings env vars (autouse fixture in `apps/api/tests/conftest.py`).
 - LlamaIndex gotchas: `PGVectorStore` HYBRID mode just concatenates dense + full-text results (we fuse with our own RRF in `knowledge/retriever.py`); stored `doc_id` comes from the node's SOURCE relationship (`ingestion/pipeline.py:to_node`); filter values are interpolated into SQL, so `knowledge/backends.py` whitelists them.
-- `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a trial key (10 rerank calls/min, 1000/month) until upgraded.
+- `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a production (pay-as-you-go) key.
 - MCP: `mcp` is pinned `<2` (FastMCP; `langchain-mcp-adapters` needs it, ADR-006). Mounted servers only answer once the app lifespan has run (`async with app.router.lifespan_context(app)` in tests). Open the in-memory MCP client (`mcp.shared.memory`) inside the test, not in an async fixture: pytest-asyncio tears fixtures down in another task, which anyio rejects.
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
@@ -81,7 +83,7 @@ uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + �
 | MCP tool registry: read/write, LLM-callable (`LLM_CALLABLE_TOOLS`, `WRITE_TOOLS`) | `homehelper.mcp_servers.registry` |
 | MCP servers: `build_mcp_servers(settings, engine=..., overrides=McpOverrides(...))`, mounted at `/mcp/<server>/` | `homehelper.mcp_servers.factory`; records in `homehelper.mcp_servers.schemas` |
 | Web API: `ConversationService` (turn → `messages` rows), `WebChannelAdapter` (SSE), `TurnGuards` (rate limits, spend cap, conversation lock) | `homehelper.conversations.service`, `homehelper.channels.web`, `homehelper.ratelimit` |
-| Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext`, returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
+| Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.
 

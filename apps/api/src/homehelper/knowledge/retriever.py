@@ -6,6 +6,7 @@ full-text pass when an error code is known), reranked, then judged sufficient or
 sufficient level wins; if none is, the web fallback (if any) is tried.
 """
 
+import copy
 import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -126,6 +127,13 @@ class KnowledgeRetriever:
     @property
     def kb_version(self) -> str:
         return self._kb_version
+
+    def with_web(self, web: WebFallback | None) -> "KnowledgeRetriever":
+        """A copy sharing backend, embedder and reranker but with another web fallback (evals
+        serve each case its own mock web results)."""
+        clone = copy.copy(self)
+        clone._web = web
+        return clone
 
     def filter_levels(self, query: RetrievalQuery) -> list[tuple[FilterLevel, Filters]]:
         levels: list[tuple[FilterLevel, Filters]] = []

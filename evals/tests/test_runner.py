@@ -8,13 +8,15 @@ from homehelper.agent.protocol import AgentSnapshot
 from homehelper.core.config import Settings
 from homehelper.llm import FakeLLMClient, LLMError, LLMUsage
 from homehelper_evals import cli, langfuse_export, runner
-from homehelper_evals.agents import EchoAgent, OracleStubAgent
+from homehelper_evals.agents import AgentContext, EchoAgent, OracleStubAgent
 from homehelper_evals.conversation import UsageRecorder, run_conversation
 from homehelper_evals.graders import Grade, RubricJudge
 from homehelper_evals.graders.rubric import JUDGE_TASK
 from homehelper_evals.metrics import CaseResult, TrialResult, pass_hat_k
 from homehelper_evals.runner import (
     SUITES,
+    CircuitBreaker,
+    RunAborted,
     TrialLog,
     build_cases,
     build_report,
@@ -26,7 +28,8 @@ from homehelper_evals.testing import make_case
 
 
 def settings() -> Settings:
-    return Settings(_env_file=None, langfuse_public_key="", anthropic_api_key="", openai_api_key="")  # type: ignore[call-arg]
+    keys = {"anthropic_api_key": "", "openai_api_key": "", "opencode_go_api_key": ""}
+    return Settings(_env_file=None, langfuse_public_key="", **keys)  # type: ignore[call-arg]
 
 
 def result(case, *successes: bool) -> CaseResult:
@@ -176,6 +179,83 @@ def test_cli_smoke_run_writes_report(tmp_path, capsys) -> None:
     assert out.read_text().count("### ") == 4
 
 
+def _scripted_run(tmp_path, *extra: str) -> list[str]:
+    return [
+        "run",
+        "--suite",
+        "smoke",
+        "--simulator",
+        "scripted",
+        "--no-judge",
+        "--no-langfuse",
+        "--limit",
+        "1",
+        "--release",
+        "ci",
+        "--out-dir",
+        str(tmp_path),
+        *extra,
+    ]
+
+
+def test_load_model_overrides_accepts_ids_mappings_and_release_manifests(tmp_path) -> None:
+    flat = tmp_path / "flat.yaml"
+    flat.write_text(
+        "nlu: opencode_go/openai/glm-5.3\n"
+        "responder: {model: opencode_go/anthropic/qwen3.8-max, fallbacks: [anthropic/x]}\n"
+    )
+    assert cli.load_model_overrides(flat) == {
+        "nlu": {"model": "opencode_go/openai/glm-5.3", "fallbacks": []},
+        "responder": {"model": "opencode_go/anthropic/qwen3.8-max", "fallbacks": ["anthropic/x"]},
+    }
+    manifest = tmp_path / "release.yaml"
+    manifest.write_text("id: r1\nmodels:\n  judge: anthropic/claude-sonnet-5-5\n")
+    assert cli.load_model_overrides(manifest) == {
+        "judge": {"model": "anthropic/claude-sonnet-5-5", "fallbacks": []}
+    }
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("nlu: [a, b]\n")
+    with pytest.raises(ValueError, match="nlu"):
+        cli.load_model_overrides(bad)
+
+
+def test_cli_models_reach_the_agent_and_the_report(tmp_path, monkeypatch) -> None:
+    models = tmp_path / "models.yaml"
+    models.write_text("nlu: opencode_go/openai/glm-5.3\n")
+    contexts: list[AgentContext] = []
+    real_loader = cli.load_agent_factory
+
+    def capture(name: str, context: AgentContext):
+        contexts.append(context)
+        return real_loader(name, context)
+
+    monkeypatch.setattr(cli, "load_agent_factory", capture)
+    assert cli.main(_scripted_run(tmp_path, "--models", str(models)), settings=settings()) == 0
+    [context] = contexts
+    assert context.registry.for_task("nlu").model == "opencode_go/openai/glm-5.3"
+    assert context.registry.for_task("nlu").fallbacks == []
+    [path] = tmp_path.glob("ci_smoke_*.json")
+    assert json.loads(path.read_text())["config"]["model_overrides"] == {
+        "nlu": {"model": "opencode_go/openai/glm-5.3", "fallbacks": []}
+    }
+
+
+def test_cli_without_models_records_no_overrides(tmp_path) -> None:
+    assert cli.main(_scripted_run(tmp_path), settings=settings()) == 0
+    [path] = tmp_path.glob("ci_smoke_*.json")
+    assert json.loads(path.read_text())["config"]["model_overrides"] is None
+
+
+def test_cli_rejects_bad_models_files(tmp_path, capsys) -> None:
+    unknown = tmp_path / "unknown.yaml"
+    unknown.write_text("nope: anthropic/x\n")
+    missing = tmp_path / "missing.yaml"
+    for path in (unknown, missing):
+        assert cli.main(_scripted_run(tmp_path, "--models", str(path)), settings=settings()) == 2
+    assert "--models" in capsys.readouterr().err
+    assert not list(tmp_path.glob("ci_smoke_*.json"))
+
+
 def test_cli_refuses_llm_simulator_without_keys(tmp_path) -> None:
     code = cli.main(
         ["run", "--suite", "smoke", "--limit", "1", "--out-dir", str(tmp_path)], settings=settings()
@@ -271,6 +351,43 @@ async def test_a_crashing_trial_does_not_abort_the_run(tmp_path) -> None:
     assert sorted(entry["case_id"] for entry in lines) == ["bad", "bad", "good", "good"]
     metrics = build_report(results, release="t", suite="smoke", k=2, config={})["metrics"]
     assert metrics["errors"] == 2
+
+
+async def test_circuit_breaker_aborts_a_mostly_broken_run(tmp_path) -> None:
+    cases = [make_case(id=f"c{i}") for i in range(20)]
+
+    def factory(case):
+        raise LLMError("responder: all models failed: credit balance is too low")
+
+    log = TrialLog(tmp_path / "run.trials.jsonl")
+    with pytest.raises(RunAborted, match="infrastructure reasons"):
+        await run_cases(
+            cases,
+            k=2,
+            concurrency=2,
+            agent_factory=factory,
+            simulator=ScriptedUserSimulator(),
+            judge=None,
+            on_trial_done=log,
+            breaker=CircuitBreaker(min_trials=4),
+        )
+    # Only the trials before the trip (plus those in flight) ran, not all 40.
+    assert 4 <= len(log.path.read_text().splitlines()) < 10
+
+
+async def test_circuit_breaker_ignores_agent_failures_that_are_not_errors() -> None:
+    breaker = CircuitBreaker(min_trials=2)
+    results = await run_cases(
+        [make_case(id="a"), make_case(id="b")],
+        k=2,
+        concurrency=2,
+        agent_factory=lambda case: EchoAgent(),  # never resolves: fails, but cleanly
+        simulator=ScriptedUserSimulator(),
+        judge=None,
+        breaker=breaker,
+    )
+    assert breaker.tripped is None and breaker.finished == 4
+    assert all(not t.success for r in results for t in r.trials)
 
 
 async def test_grading_crash_keeps_the_transcript(monkeypatch) -> None:
