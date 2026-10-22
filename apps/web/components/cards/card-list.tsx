@@ -5,11 +5,15 @@ import type { Card, StructuredAction } from "@/lib/api/types";
 import { ApplianceConfirmCard } from "./appliance-confirm-card";
 import { CitationChip } from "./citation-chip";
 import { HandoffCard } from "./handoff-card";
+import { IssuesCard } from "./issues-card";
 import { BookingSlotsCard, PartCard, VideoCard } from "./other-cards";
 import { SafetyBanner } from "./safety-banner";
 import { StepCard } from "./step-card";
 
-type CardProps = { interactive: boolean; onAction: (action: StructuredAction) => void };
+type CardProps = {
+  interactive: boolean;
+  onAction: (action: StructuredAction) => void;
+};
 
 function CardView({ card, ...props }: CardProps & { card: Card }) {
   switch (card.type) {
@@ -29,6 +33,8 @@ function CardView({ card, ...props }: CardProps & { card: Card }) {
       return <VideoCard card={card} />;
     case "booking_slots":
       return <BookingSlotsCard card={card} {...props} />;
+    case "issues":
+      return <IssuesCard card={card} {...props} />;
   }
 }
 

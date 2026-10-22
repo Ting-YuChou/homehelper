@@ -2,37 +2,12 @@
 
 import { CircleCheck, CircleDashed, CircleX } from "lucide-react";
 
-import type { ConversationDetail, StepCard, StructuredAction } from "@/lib/api/types";
+import type { ConversationDetail } from "@/lib/api/types";
+import { stepKey, stepProgress } from "@/lib/chat/progress";
 import type { PendingTurn } from "@/lib/chat/turn";
 import { cn } from "@/lib/utils";
 
 import { OutcomeBadge } from "./outcome-badge";
-
-type StepProgress = { card: StepCard; result: string | null };
-
-/** The steps shown so far, each with the result the user reported for it. */
-export function stepProgress(
-  conversation: ConversationDetail | undefined,
-  turn: PendingTurn | undefined,
-): StepProgress[] {
-  const steps = new Map<string, StepProgress>();
-  let last: StepProgress | null = null;
-  const record = (cards: { type: string }[], action: StructuredAction | null | undefined) => {
-    if (action?.type === "step_result" && last) last.result = action.value;
-    for (const card of cards) {
-      if (card.type === "step") {
-        last = { card: card as StepCard, result: null };
-        steps.set(last.card.plan_item_id, last);
-      }
-    }
-  };
-  for (const message of conversation?.messages ?? []) record(message.cards, message.action);
-  if (turn) {
-    record([], turn.request.action);
-    for (const draft of turn.drafts) record(draft.cards, null);
-  }
-  return [...steps.values()];
-}
 
 const JOURNEYS: Record<string, string> = {
   troubleshoot: "Troubleshooting",
@@ -64,13 +39,19 @@ export function ProgressPanel({
         <ol className="flex flex-col gap-3">
           {steps.map(({ card, result }) => {
             const Icon =
-              result === "fixed" ? CircleCheck : result ? CircleX : CircleDashed;
+              result === "fixed"
+                ? CircleCheck
+                : result
+                  ? CircleX
+                  : CircleDashed;
             return (
-              <li key={card.plan_item_id} className="flex gap-2 text-sm">
+              <li key={stepKey(card)} className="flex gap-2 text-sm">
                 <Icon
                   className={cn(
                     "mt-0.5 size-4 shrink-0",
-                    result === "fixed" ? "text-emerald-600" : "text-muted-foreground",
+                    result === "fixed"
+                      ? "text-emerald-600"
+                      : "text-muted-foreground",
                   )}
                   aria-hidden
                 />
@@ -78,7 +59,11 @@ export function ProgressPanel({
                   <span className="text-xs text-muted-foreground">
                     Step {card.index} of {card.total}
                   </span>
-                  <span className={cn(result && result !== "fixed" && "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      result && result !== "fixed" && "text-muted-foreground",
+                    )}
+                  >
                     {card.instruction}
                   </span>
                 </span>
