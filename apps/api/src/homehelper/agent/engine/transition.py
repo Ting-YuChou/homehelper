@@ -63,7 +63,6 @@ from homehelper.agent.state import (
     Decision,
     DecisionKind,
     HazardSignal,
-    Intent,
     PausedIssue,
     PlanItemStatus,
     SlotValue,
@@ -78,8 +77,6 @@ CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
 # Steps still collecting details: an issue set aside here has barely started.
 COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
-# Naming a paused appliance with these intents does not mean "let's go back to it".
-NOT_RESUMING_INTENTS: frozenset[Intent] = frozenset({"deny", "small_talk"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -161,13 +158,8 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
     if card is not None:
         return card
 
-    running = active is not None and not is_ended(active, state)
-    step_type = active.step(state.step_id).type if running and active and state.step_id else None
-    dropped = _dropped_by_name(state, signals)
-    if dropped is not None and step_type not in COLLECT_STEP_TYPES:
-        return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
-
-    if active is not None and running:
+    if active is not None and not is_ended(active, state):
+        step_type = active.step(state.step_id).type if state.step_id else None
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
         changed = current is not None and new_category is not None and new_category != current.value
@@ -216,6 +208,9 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         return Route(kind="stay", journey=active.id, reason="continue the active journey")
 
+    dropped = _dropped_by_name(state, signals)
+    if dropped is not None:
+        return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
     new_category = _category_update(signals)
     paused = _resumable(catalog, state, signals, target, new_category) if new_category else None
     if signals.escalating_hazards:
@@ -244,16 +239,22 @@ def _issue_card_route(state: AgentState, signals: TurnSignals) -> Route | None:
     if issue_id is None:
         return None
     paused = find_paused(state, issue_id)
+    if paused is not None and signals.resume_issue:
+        return _resume(paused, "chosen on the issues card")  # its guardrails see any hazard
+    if signals.escalating_hazards:
+        return None  # the hazard comes first: route the turn as if no card was pressed
     if paused is None:
         return Route(kind="ignore", reason=f"issue {issue_id} is not paused")
-    if signals.resume_issue:
-        return _resume(paused, "chosen on the issues card")
     return Route(kind="close", issue_id=issue_id, reason="closed on the issues card")
 
 
 def _dropped_by_name(state: AgentState, signals: TurnSignals) -> PausedIssue | None:
-    """A paused issue the user turns down by naming its appliance ("forget the dishwasher")."""
+    """A paused issue the user turns down by naming its appliance ("forget the dishwasher") when
+    nothing else is running. Mid-journey a `deny` naming another appliance is ambiguous ("no, I
+    meant the dishwasher"), so it resumes as before."""
     if signals.intent != "deny" or signals.from_card or signals.escalating_hazards:
+        return None
+    if signals.feedback is not None:
         return None
     category = _category_update(signals)
     return paused_for_category(state, category) if category else None
@@ -281,8 +282,6 @@ def _resumable(
         return None
     if signals.escalating_hazards:
         return paused if _has_hazard_guardrail(catalog[paused.journey]) else None
-    if signals.intent in NOT_RESUMING_INTENTS:
-        return None
     if any(u.name in TOPIC_SLOTS and u.value.strip() for u in signals.slot_updates):
         return None
     if target is not None and target.id != paused.journey:
@@ -428,7 +427,10 @@ class _Run:
 
     def _detect_hazards(self, turn: TurnInput, signals: TurnSignals) -> TurnSignals:
         current = self.state.slots.get(CATEGORY_SLOT)
-        category = _category_update(signals) or (current.value if current else None)
+        # On a card resume the turn is about the resumed issue's appliance.
+        resumed = find_paused(self.state, signals.resume_issue) if signals.resume_issue else None
+        about = (resumed.slots.get(CATEGORY_SLOT) if resumed else None) or current
+        category = _category_update(signals) or (about.value if about else None)
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
         self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
         self.hazard_category = category
@@ -449,7 +451,7 @@ class _Run:
                 journey = self._journey()
                 switched = (
                     category is not None and current is not None and category != current.value
-                ) or signals.resume_issue not in (None, self.state.active_issue_id)
+                ) or resumed is not None
                 # Another appliance mid-journey is a new problem: it gets its own warning.
                 ongoing = journey is not None and not is_ended(journey, self.state) and not switched
                 if not (self.state.water_warning_given and ongoing):

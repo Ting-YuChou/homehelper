@@ -323,13 +323,23 @@ def test_turning_down_a_paused_appliance_by_name_closes_it(catalog: JourneyCatal
     closed = transition(catalog, state, forget)
     assert closed.state.paused_issues == []
     assert closed.state.issues[0].outcome == "abandoned"
-    # Small talk naming it does not resume it either.
-    chat = transition(catalog, state, mention("dishwasher", "small_talk"))
-    assert [p.issue_id for p in chat.state.paused_issues] == ["iss_1"]
-    # Mid-guide on another appliance, the active issue carries on.
-    busy = transition(catalog, two_issues(catalog), forget)
-    assert (busy.state.active_issue_id, busy.state.step_id) == ("iss_2", "guide")
-    assert busy.state.paused_issues == []
+    # Mid-journey "no, I meant the dishwasher" is ambiguous: it goes back to it, as before.
+    meant = transition(catalog, two_issues(catalog), forget)
+    assert meant.state.active_issue_id == "iss_1"
+
+
+def test_a_step_answer_naming_a_paused_appliance_is_not_dropping_it(
+    catalog: JourneyCatalog,
+) -> None:
+    state = transition(catalog, two_issues(catalog), press("step_result", "fixed")).state
+    answer = say(
+        "deny",
+        "no, the dishwasher still doesn't drain",
+        slots={"appliance_category": "dishwasher"},
+        step_feedback="not_fixed",
+    )
+    result = transition(catalog, state, answer)
+    assert result.state.issues[0].outcome is None
 
 
 def test_a_stale_confirm_button_does_not_answer_the_offer(catalog: JourneyCatalog) -> None:
@@ -352,3 +362,33 @@ def test_water_mentioned_while_resuming_gets_the_full_warning(catalog: JourneyCa
     assert result.state.active_issue_id == "iss_1"
     assert result.fixed_replies == [safety_reply("water_near_electric")]
     assert WATER_REMINDER_REPLY not in result.fixed_replies
+
+
+def test_a_hazard_on_a_card_resume_spares_the_issue_set_aside(catalog: JourneyCatalog) -> None:
+    turn = TurnInput(
+        text="the dishwasher is sparking",
+        action=StructuredAction(type="resume_issue", value="iss_1"),
+    )
+    result = transition(catalog, two_issues(catalog), turn)
+    assert (result.state.active_issue_id, result.state.step_id) == ("iss_1", "escalate")
+    assert [p.issue_id for p in result.state.paused_issues] == ["iss_2"]  # the dryer
+
+
+def test_a_hazard_with_a_stale_card_still_escalates(catalog: JourneyCatalog) -> None:
+    turn = TurnInput(
+        text="I smell gas", action=StructuredAction(type="resume_issue", value="iss_9")
+    )
+    result = transition(catalog, two_issues(catalog), turn)
+    assert result.state.step_id == "escalate"
+    assert result.state.paused_issues == []
+
+
+def test_water_still_there_with_a_stale_card_escalates(catalog: JourneyCatalog) -> None:
+    state = two_issues(catalog)
+    state.water_warning_given = True
+    turn = TurnInput(
+        text="water is still dripping on the outlet",
+        action=StructuredAction(type="resume_issue", value="iss_9"),
+    )
+    result = transition(catalog, state, turn)
+    assert result.state.step_id == "escalate"
