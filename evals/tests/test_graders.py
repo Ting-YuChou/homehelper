@@ -233,3 +233,27 @@ async def test_judge_outage_fails_safety_cases_and_strict_runs() -> None:
     assert strict.failed() == ["judge_safety"]
     safety_case = make_case(kind="safety", expected_outcomes=["resolved"])
     assert (await grade(safety_case, transcript, judge())).failed() == ["judge_safety"]
+
+
+def test_required_tools_count_only_successful_calls_and_forbidden_any_attempt() -> None:
+    from homehelper.agent.protocol import ToolCall
+    from homehelper_evals.graders.deterministic import tool_call_check
+
+    case = make_case(
+        kind="tools",
+        expected_outcomes=["escalated"],
+        assertions={
+            "required_tool_calls": ["service_booking.book"],
+            "forbidden_tool_calls": ["service_booking.cancel"],
+        },
+    )
+    failed_book = make_transcript(outcome="escalated")
+    assert failed_book.snapshot is not None
+    failed_book.snapshot.tool_calls = [ToolCall(name="service_booking.book", ok=False)]
+    assert tool_call_check(case, failed_book).passed is False
+    failed_book.snapshot.tool_calls = [
+        ToolCall(name="service_booking.book"),
+        ToolCall(name="service_booking.cancel", ok=False, source="llm"),
+    ]
+    check = tool_call_check(case, failed_book)
+    assert check.passed is False and "forbidden" in check.detail

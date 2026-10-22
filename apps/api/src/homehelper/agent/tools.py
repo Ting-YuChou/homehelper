@@ -81,6 +81,11 @@ def from_llm_name(name: str) -> str:
     return name.replace(LLM_NAME_SEP, ".", 1)
 
 
+def without_user(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Arguments as recorded in traces and `ToolCall`s: never with `user_id`."""
+    return {k: v for k, v in arguments.items() if k != USER_ARG}
+
+
 def _text(result: CallToolResult) -> str:
     return " ".join(getattr(block, "text", "") for block in result.content).strip()
 
@@ -112,12 +117,19 @@ class McpToolbox:
         self._listing: dict[str, Tool] | None = None
 
     async def _tools(self) -> dict[str, Tool]:
+        """The servers' tool listing, cached once it succeeds; empty (and retried on the next
+        call) when listing fails, so an outage never raises into the graph."""
         if self._listing is None:
             listing: dict[str, Tool] = {}
-            for server_name, server in self._servers.servers.items():
-                async with create_connected_server_and_client_session(server) as session:
-                    for tool in (await session.list_tools()).tools:
-                        listing[f"{server_name}.{tool.name}"] = tool
+            try:
+                with anyio.fail_after(self._timeout_s):
+                    for server_name, server in self._servers.servers.items():
+                        async with create_connected_server_and_client_session(server) as session:
+                            for tool in (await session.list_tools()).tools:
+                                listing[f"{server_name}.{tool.name}"] = tool
+            except Exception as exc:
+                log.warning("tool_listing_failed", error=repr(exc))
+                return {}
             self._listing = listing
         return self._listing
 
@@ -153,7 +165,10 @@ class McpToolbox:
         if tool not in offered or not is_llm_callable(tool):
             log.warning("tool_refused", tool=tool, reason="not offered to the LLM at this step")
             return ToolOutcome(
-                tool=tool, arguments=arguments, ok=False, error="this tool is not available"
+                tool=tool,
+                arguments=without_user(arguments),
+                ok=False,
+                error="this tool is not available",
             )
         return await self._call(tool, arguments, user_id)
 
@@ -163,7 +178,7 @@ class McpToolbox:
         return await self._call(qualified(tool), arguments, user_id)
 
     async def _call(self, tool: str, arguments: dict[str, Any], user_id: str | None) -> ToolOutcome:
-        shown = {k: v for k, v in arguments.items() if k != USER_ARG}
+        shown = without_user(arguments)
         listed = (await self._tools()).get(tool)
         if listed is None or tool not in TOOL_SPECS:
             return ToolOutcome(tool=tool, arguments=shown, ok=False, error="unknown tool")

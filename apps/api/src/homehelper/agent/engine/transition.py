@@ -357,9 +357,7 @@ class _Run:
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
             self._apply_slot_updates(journey, signals)
-            linked = link_profile_appliance(self.state, journey)
-            if linked is not None:
-                self.decisions.append(linked)
+            self.decisions.extend(link_profile_appliance(self.state, journey))
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
             if not self._guardrails(journey, signals):

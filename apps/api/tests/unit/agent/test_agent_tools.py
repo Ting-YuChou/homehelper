@@ -2,6 +2,10 @@
 
 from typing import Any
 
+import pytest
+
+import homehelper.agent.graph as graph_module
+import homehelper.agent.tools as tools_module
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.nodes.act import PlanDraft, PlanDraftItem
 from homehelper.agent.protocol import ToolCall
@@ -18,6 +22,7 @@ from homehelper.channels.events import (
     StructuredAction,
     VideoCard,
 )
+from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult, WebFinding
 from homehelper.llm import FakeLLMClient, Message, ToolTurn
 from homehelper.mcp_servers.stores import InMemoryBookingStore
 from tests.unit.agent.test_journey_agent import PASS, PLAN, REPORT, FakeRetriever, _cards
@@ -501,3 +506,100 @@ async def test_a_parts_question_mid_troubleshooting_gets_parts_tools() -> None:
         "reply",
     ]
     assert (await agent.snapshot("conv-1")).step == "guide"
+
+
+class WebOnlyRetriever(FakeRetriever):
+    async def search(self, query: RetrievalQuery) -> RetrievalResult:
+        return RetrievalResult(
+            query=query,
+            source="web",
+            chunks=[],
+            web_findings=[WebFinding(claim="Run a descaling cycle monthly.", url="https://x.org")],
+            sufficient=True,
+        )
+
+
+async def test_a_web_fallback_answer_keeps_its_web_findings() -> None:
+    how_to = NLUResult(
+        intent="ask_how_to",
+        slot_updates=[
+            SlotUpdate(name="appliance_category", value="coffee_maker"),
+            SlotUpdate(name="question", value="how often to descale"),
+        ],
+        search_query_en="how often descale coffee maker",
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [how_to],
+            "responder": [reply("Unofficial sources suggest descaling monthly.")],
+            "supervisor": [PASS],
+        }
+    )
+    agent = JourneyAgent(AgentDeps.default(llm, WebOnlyRetriever(), tools=McpToolbox(servers())))
+    await _send(agent, "How often should I descale my coffee maker?")
+    prompt = str(llm.calls_for("responder")[0].messages[0].content)
+    assert "<web_findings" in prompt and "descaling cycle monthly" in prompt
+    assert llm.calls_for("supervisor")  # the grounding review still runs
+
+
+async def test_picking_a_slot_without_a_booking_says_it_was_not_booked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bookings = InMemoryBookingStore()
+    llm_replies: list[Any] = [
+        reply("Let's clean the filter.", "c1"),
+        AgentReply(message="A technician is the best next step; pick a time below."),
+        AgentReply(message="Sorry, that time could not be booked."),
+    ]
+    agent, send, escalated = await _escalate(llm_replies, bookings, "demo_alex")
+    slot = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots[0]
+
+    async def no_profile(*args: object, **kwargs: object) -> None:
+        return None  # the profile read fails on this turn, so `book` cannot run
+
+    monkeypatch.setattr(graph_module, "load_profile", no_profile)
+    await send(action=StructuredAction(type="select_booking_slot", value=slot.slot_id))
+    llm = agent._deps.llm
+    assert isinstance(llm, FakeLLMClient)
+    assert "could not be booked" in str(llm.calls_for("responder")[-1].messages[0].content)
+    assert bookings._bookings == {}
+
+
+async def test_refused_llm_calls_are_recorded_without_user_id() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT],
+            "planner": [PLAN],
+            "responder": [
+                call("service_booking__book", user_id="demo_maria", slot_id="s"),
+                reply("Let's start with the filter.", "c1"),
+            ],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "My Bosch dishwasher won't drain")
+    (refused,) = (await agent.snapshot("conv-1")).tool_calls
+    assert refused.arguments == {"slot_id": "s"}
+
+
+async def test_a_failed_tool_listing_does_not_break_the_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(*args: object, **kwargs: object) -> Any:
+        raise ConnectionError("servers down")
+
+    monkeypatch.setattr(tools_module, "create_connected_server_and_client_session", broken)
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT],
+            "planner": [PLAN],
+            "responder": [AgentReply(message="Let's start with the filter.", citation_ids=["c1"])],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    events = await _send(agent, "My Bosch dishwasher won't drain")
+    assert any(isinstance(c, StepCard) for c in _cards(events))
+    snapshot = await agent.snapshot("conv-1")
+    assert snapshot.step == "guide"

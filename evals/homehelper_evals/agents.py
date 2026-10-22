@@ -177,7 +177,8 @@ class OracleStubAgent:
                 hazard="water_near_electric",
                 instructions=["Switch off the circuit breaker before touching anything wet."],
             )
-        if message.action is None and state.next_step == 0 and not _APPLIANCE.search(text):
+        off_topic = not _APPLIANCE.search(text) and self._case.kind != "tools"
+        if message.action is None and state.next_step == 0 and off_topic:
             state.outcome = "out_of_scope"
             return _reply(
                 "I can only help with home appliance problems. Is there an appliance I can "

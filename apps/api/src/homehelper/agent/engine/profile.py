@@ -37,13 +37,52 @@ def matching_appliances(state: AgentState) -> list[ProfileAppliance]:
     ]
 
 
-def link_profile_appliance(state: AgentState, journey: Journey) -> Decision | None:
-    """Link the active issue to its profile appliance and prefill slots; mutates `state`."""
-    if state.appliance_id is not None or state.active_issue_id is None:
+def _contradicts(state: AgentState, appliance: ProfileAppliance) -> bool:
+    """The issue's category, or a brand or model number the user gave, is not this appliance."""
+    if _value(state, "appliance_category") != appliance.category:
+        return True
+    for name in PREFILL_SLOTS:
+        slot = state.slots.get(name)
+        if (
+            slot
+            and slot.source != "profile"
+            and _norm(slot.value) != _norm(getattr(appliance, name))
+        ):
+            return True
+    return False
+
+
+def _unlink(state: AgentState, journey: Journey) -> Decision | None:
+    """Drop a link the user's details contradict, with the slots it prefilled."""
+    if state.appliance_id is None or state.profile is None:
         return None
+    linked = next(
+        (a for a in state.profile.appliances if a.appliance_id == state.appliance_id), None
+    )
+    if linked is not None and not _contradicts(state, linked):
+        return None
+    old, state.appliance_id = state.appliance_id, None
+    for name in PREFILL_SLOTS:
+        slot = state.slots.get(name)
+        if slot is not None and slot.source == "profile":
+            del state.slots[name]
+    return Decision(
+        kind="slot", journey=journey.id, reason=f"unlinked {old}: the user's details differ"
+    )
+
+
+def link_profile_appliance(state: AgentState, journey: Journey) -> list[Decision]:
+    """Keep the active issue linked to the right profile appliance, prefilling its slots; mutates
+    `state`. A link the user later contradicts ("it's the Samsung") is dropped, then relinked
+    if another appliance matches."""
+    if state.active_issue_id is None:
+        return []
+    decisions = [d for d in [_unlink(state, journey)] if d is not None]
+    if state.appliance_id is not None:
+        return decisions
     matches = matching_appliances(state)
     if len(matches) != 1:
-        return None
+        return decisions
     appliance = matches[0]
     state.appliance_id = appliance.appliance_id
     filled = []
@@ -54,8 +93,11 @@ def link_profile_appliance(state: AgentState, journey: Journey) -> Decision | No
             )
             filled.append(name)
     prefilled = f"; prefilled {', '.join(filled)}" if filled else ""
-    return Decision(
-        kind="slot",
-        journey=journey.id,
-        reason=f"linked {appliance.appliance_id} from the profile{prefilled}",
+    decisions.append(
+        Decision(
+            kind="slot",
+            journey=journey.id,
+            reason=f"linked {appliance.appliance_id} from the profile{prefilled}",
+        )
     )
+    return decisions

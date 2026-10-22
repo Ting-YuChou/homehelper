@@ -26,7 +26,7 @@ from homehelper.agent.engine.transition import (
 from homehelper.agent.guardrails import HAZARD_RULES
 from homehelper.agent.nodes.mcp_actions import as_tool_call, booked, tool_user
 from homehelper.agent.state import AgentState
-from homehelper.agent.tools import ToolOutcome, from_llm_name
+from homehelper.agent.tools import ToolOutcome, from_llm_name, without_user
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
 from homehelper.core.logging import get_logger
 from homehelper.knowledge.schemas import RetrievedChunk
@@ -36,6 +36,7 @@ from homehelper.llm import Message, ToolSpec
 log = get_logger(__name__)
 
 MAX_TOOL_CALLS = 3  # spec §7.3
+BOOK_ACTION = "mcp:service_booking.book"
 # Read tools for a side question asked during another journey (spec §7.4).
 SIDE_TOOLS = {
     "my_appliances": [
@@ -167,7 +168,7 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                 },
                 cite=True,
             )
-        case "inform" if not retrieved:
+        case "inform" if turn.retrieval is None:
             # Answered from tools (profile, parts, videos), not from the manuals.
             return ResponsePlan(
                 task=(
@@ -202,7 +203,14 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                         "the date, time and technician, and close warmly."
                     )
                 )
-            if booking is not None:
+            message = turn.message
+            picked = (
+                message is not None
+                and message.action is not None
+                and (message.action.type == "select_booking_slot")
+            )
+            if booking is not None or (picked and BOOK_ACTION in step.actions):
+                # The visit was not booked: the tool failed, or it could not run at all.
                 return ResponsePlan(
                     task=(
                         "That visit time could not be booked (it may have just been taken). "
@@ -345,7 +353,7 @@ async def tool_loop(
             if len(outcomes) >= MAX_TOOL_CALLS:
                 outcome = ToolOutcome(
                     tool=from_llm_name(call.name),
-                    arguments=call.arguments,
+                    arguments=without_user(call.arguments),
                     ok=False,
                     error="tool call limit reached; reply now",
                 )
