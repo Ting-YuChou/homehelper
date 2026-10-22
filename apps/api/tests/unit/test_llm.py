@@ -134,6 +134,19 @@ async def test_json_object_mode_puts_the_schema_in_the_prompt() -> None:
     assert call["messages"][:-1] == [m.model_dump() for m in MESSAGES]
 
 
+async def test_reasoning_effort_is_sent_only_when_set() -> None:
+    plain = {"model": "openai/m", "fallbacks": []}
+    registry = ModelRegistry.load(
+        overrides={"nlu": {**plain, "reasoning_effort": "none"}, "supervisor": plain}
+    )
+    completion = ScriptedCompletion({"openai/m": ['{"value": 1}', '{"value": 2}']})
+    client = LiteLLMClient(registry, {"openai": "o"}, completion_fn=completion)
+    await client.structured("nlu", MESSAGES, Answer)
+    await client.structured("supervisor", MESSAGES, Answer)
+    assert completion.calls[0]["reasoning_effort"] == "none"
+    assert "reasoning_effort" not in completion.calls[1]
+
+
 def test_registry_rejects_unknown_tasks() -> None:
     with pytest.raises(ValueError, match="unknown task"):
         ModelRegistry.load(overrides={"nope": {"model": "x/y"}})

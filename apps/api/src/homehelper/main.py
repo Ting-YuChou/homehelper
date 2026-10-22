@@ -1,10 +1,11 @@
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from homehelper import __version__
+from homehelper.agent.factory import DeferredAgent, journey_agent
 from homehelper.agent.protocol import AgentRuntime
 from homehelper.agent.stub import StubAgent
 from homehelper.api import health, meta, v1
@@ -41,7 +42,19 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("startup", environment=settings.app_env, tracing=tracer.enabled)
         await record_release(app.state.db_engine, release)
-        async with app.state.mcp.run():
+        async with app.state.mcp.run(), AsyncExitStack() as stack:
+            if deferred is not None:
+                deferred.attach(
+                    await stack.enter_async_context(
+                        journey_agent(
+                            settings,
+                            app.state.db_engine,
+                            tracer=tracer,
+                            cache=app.state.redis,
+                            registry=app.state.model_registry,
+                        )
+                    )
+                )
             yield
             # Turns still running may call MCP tools, so they finish before the servers stop.
             await app.state.conversations.wait_idle()
@@ -54,13 +67,13 @@ def create_app(
     app.state.settings = settings
     app.state.tracer = tracer
     app.state.release = release.manifest
-    # models.yaml plus the release's overrides. Nothing built here calls an LLM or embeds yet, so
-    # nothing reads it in this function. The journey agent factory (M3) must build its LLM client
-    # and retriever from it (`build_llm_client(..., registry=app.state.model_registry)`,
-    # `knowledge.backends.build_retriever(..., registry=...)`); both default to plain models.yaml.
+    # models.yaml plus the release's overrides; the journey agent builds its LLM client and
+    # retriever from it.
     app.state.model_registry = release.registry
-    # The scripted stub until the journey agent lands (M3); tests and evals inject their own.
-    app.state.agent = agent or StubAgent()
+    # Tests and evals inject their own agent. The journey agent is built in the lifespan (it
+    # needs the database), so a `DeferredAgent` stands in for it until then.
+    deferred = DeferredAgent() if agent is None and settings.agent_runtime == "journey" else None
+    app.state.agent = agent or deferred or StubAgent()
     app.state.db_engine = create_engine(settings.database_url)
     app.state.redis = create_redis(settings.redis_url)
     # MCP servers as sub-apps at /mcp/<server>/ (spec §12.1); their session managers run above.

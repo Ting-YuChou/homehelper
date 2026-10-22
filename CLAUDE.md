@@ -22,7 +22,6 @@ evals/           uv workspace member, package `homehelper_evals`: splits, retrie
 data/            manifest, scenarios, mock data (PDFs/media are git-ignored)
 releases/        release manifests
 infra/           Dockerfiles, docker-compose, Cloud Run config
-legacy/          v1 code, reference only — do not import from it; deleted in M3-12
 docs/            SPEC.md, adr/
 ```
 
@@ -53,7 +52,8 @@ uv run homehelper manifest draft   # draft unreviewed manifest entries (Haiku); 
 uv run homehelper parse            # LlamaParse → data/parsed/<sha256>.<tier>.json (cached; paid per page)
 make ingest                        # parse (cached) → chunk → embed → new kb_YYYYMMDD_NN table
 uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + τ calibration
-uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # conversation sim against the M2-06 baseline (needs the KB in Postgres)
+uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # or :journey; conversation sim against a real agent (needs the KB in Postgres)
+uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   # NLU accuracy on evals/datasets/nlu.yaml (M3-03)
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
@@ -120,3 +120,4 @@ Boundaries that keep the tracks apart (spec v0.8):
   - Write-type MCP tools (`book`, `add_*`) are only called by code in step actions, never exposed to the LLM.
   - Hazard replies are fixed templates, never LLM-generated.
 - Use the latest stable versions of libraries at implementation time; verify APIs against current docs rather than memory.
+- After implementing new code, launch a fresh-context agent (not a fork, and not the agent that wrote the code) to review the diff before pushing or opening a PR. Fix the confirmed findings, and say in the PR description what the review found.

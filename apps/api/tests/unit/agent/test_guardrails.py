@@ -12,6 +12,7 @@ from homehelper.agent.guardrails import (
     postprocess_plan,
     safety_reply,
 )
+from homehelper.agent.guardrails.hazards import water_persists
 from homehelper.agent.guardrails.plan import (
     POWER_OFF_INSTRUCTION,
     drop_high_risk,
@@ -38,11 +39,16 @@ from homehelper.agent.state import NLUResult, PlanItem
         ("it smells like something melting", ["smoke_or_burning"]),
         ("I saw sparks inside", ["sparks"]),
         ("the cord caught fire", ["smoke_or_burning"]),
-        ("I got a shock touching the door", ["sparks"]),
+        ("I got a shock touching the door", ["sparks", "injury"]),
         ("water is leaking onto the power cord", ["water_near_electric"]),
         ("the outlet behind it is wet", ["water_near_electric"]),
         ("I think the refrigerant is leaking", ["refrigerant"]),
         ("how do I recharge freon in my fridge", ["refrigerant"]),
+        ("can I cut the capillary tube and braze it back?", ["refrigerant"]),
+        ("the compressor is dead, walk me through replacing it", ["refrigerant"]),
+        ("how do I replace the compressor", ["refrigerant"]),
+        ("then reseal the system", ["refrigerant"]),
+        ("I punctured the evaporator while defrosting", ["refrigerant"]),
         ("how do I replace the magnetron", ["high_voltage_internal"]),
         ("can I open the microwave casing myself", ["high_voltage_internal"]),
         ("I cut my hand on the blade", ["injury"]),
@@ -89,6 +95,8 @@ def test_keyword_hazards(text: str, expected: list[str]) -> None:
         "how do I remove the turntable from the microwave",
         "my gas dryer is leaking water",
         "the gas stove ignites slowly",
+        "the compressor is noisy at night",
+        "the door seal is torn",
         "",
         None,
     ],
@@ -169,6 +177,19 @@ def test_postprocess_plan_applies_all_rules() -> None:
     assert all(d.kind == "plan" for d in result.decisions)
 
 
+def test_postprocess_drops_items_not_in_english() -> None:
+    french = item(
+        "fr",
+        instruction="Vérifiez que les portes du réfrigérateur et du congélateur se ferment bien.",
+    )
+    english = item("en", instruction="Check that the fridge and freezer doors close properly.")
+    result = postprocess_plan([french, english], category="refrigerator")
+    assert [i.id for i in result.items] == ["en"]
+    assert [(d.reason, d.rule_id) for d in result.decisions] == [
+        ("dropped fr: not in English", "G-INJ-01")
+    ]
+
+
 def test_postprocess_caps_and_forbids_high_voltage_disassembly() -> None:
     items = [*(item(f"p{i}") for i in range(1, 8)), item("open", requires_disassembly=True)]
     result = postprocess_plan(items, category="microwave")
@@ -215,3 +236,41 @@ def test_nlu_schema_has_no_free_form_maps() -> None:
     )
     assert parsed.slot_updates[0].name == "symptom"
     assert parsed.user_sentiment == "neutral"
+
+
+@pytest.mark.parametrize(
+    ("text", "persists"),
+    [
+        ("I switched off the breaker but the outlet is still wet", True),
+        ("There's still water on the floor and the power strip is still in it.", True),
+        ("It's still dripping onto the outlet, so I'm worried.", True),
+        (
+            "The hose is fine, but the water and the power strip are still there.",
+            True,
+        ),
+        ("Water keeps pooling around the power strip", True),
+        ("The puddle around the plug hasn't gone away", True),
+        ("Water still hasn't stopped dripping onto the outlet", True),
+        ("The leak onto the power strip never stopped", True),
+        ("Now water is spraying all over the outlet", True),
+        ("The water hasn\N{RIGHT SINGLE QUOTATION MARK}t stopped dripping on the outlet", True),
+        ("water won\N{RIGHT SINGLE QUOTATION MARK}t stop leaking near the outlet", True),
+        ("It's dripping onto the outlet and it has not stopped", True),
+        ("The water around the cord is spreading", True),
+        ("The water stopped and the outlet is dry", False),
+        ("OK, I turned the breaker off and mopped up the water", False),
+        ("Breaker is off, the floor is dry now, water is gone", False),
+        (
+            "I dried the outlet, but the dishwasher still won't drain the water.",
+            False,
+        ),
+        ("I unplugged the cord, but there's still standing water in the tub.", False),
+        ("The power is still off and the water near the plug is cleaned up.", False),
+        ("I unplugged the plug, but it's still leaking from the hose.", False),
+        (None, False),
+    ],
+)
+def test_water_persists_needs_cue_water_and_electricity_in_one_clause(
+    text: str | None, persists: bool
+) -> None:
+    assert water_persists(text) is persists

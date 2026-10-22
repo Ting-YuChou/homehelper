@@ -86,7 +86,8 @@ def always(ctx: PredicateContext) -> bool:
 
 @predicate("hazard_detected")
 def hazard_detected(ctx: PredicateContext) -> bool:
-    """An escalating hazard was detected this turn (G-SAFE-05 water+electric does not escalate)."""
+    """An escalating hazard was detected this turn. G-SAFE-05 (water near electricity) escalates
+    only when it is reported again after its warning."""
     return ctx.signals is not None and bool(ctx.signals.escalating_hazards)
 
 

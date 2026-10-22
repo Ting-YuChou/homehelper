@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from pydantic import BaseModel, Field
 
 from homehelper.agent.guardrails.hazards import HIGH_VOLTAGE_CATEGORIES
+from homehelper.agent.guardrails.language import looks_english
 from homehelper.agent.state import Decision, PlanItem
 
 MAX_PLAN_ITEMS = 6
@@ -38,6 +39,18 @@ def drop_uncited(items: Iterable[PlanItem]) -> PlanEdit:
             kept.append(item)
         else:
             decisions.append(_plan_decision(f"dropped {item.id}: no citation"))
+    return PlanEdit(items=kept, decisions=decisions)
+
+
+def drop_non_english(items: Iterable[PlanItem]) -> PlanEdit:
+    """G-INJ-01: an item in another language means the planner followed injected text."""
+    kept: list[PlanItem] = []
+    decisions: list[Decision] = []
+    for item in items:
+        if looks_english(item.instruction):
+            kept.append(item)
+        else:
+            decisions.append(_plan_decision(f"dropped {item.id}: not in English", "G-INJ-01"))
     return PlanEdit(items=kept, decisions=decisions)
 
 
@@ -114,7 +127,8 @@ def postprocess_plan(
     in_warranty: bool = False,
     max_items: int = MAX_PLAN_ITEMS,
 ) -> PlanEdit:
-    """Apply all §7.6 rules in order: P3, high risk, G-SAFE-03, cap, G-WARR-01, G-SAFE-06."""
+    """Apply all §7.6 rules in order: P3, G-INJ-01, high risk, G-SAFE-03, cap, G-WARR-01,
+    G-SAFE-06."""
     decisions: list[Decision] = []
 
     def apply(edit: PlanEdit) -> list[PlanItem]:
@@ -122,6 +136,7 @@ def postprocess_plan(
         return edit.items
 
     current = apply(drop_uncited(items))
+    current = apply(drop_non_english(current))
     current = apply(drop_high_risk(current))
     current = apply(forbid_high_voltage_disassembly(current, category))
     if len(current) > max_items:

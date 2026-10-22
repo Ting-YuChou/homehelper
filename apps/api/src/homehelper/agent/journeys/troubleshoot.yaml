@@ -15,7 +15,7 @@ slots:
 guardrails:
   - when: hazard_detected              # G-SAFE-01..04, 07 (two-layer detection)
     to: escalate
-  - when: max_failed_steps_reached     # G-LOOP-01: 4 plan items did not help
+  - when: max_failed_steps_reached     # G-LOOP-01: 6 plan items (the plan cap) did not help
     to: escalate
   - when: user_requested_technician
     to: escalate

@@ -1,0 +1,46 @@
+# ADR-007: Track several open issues per conversation
+
+- **Status:** Accepted (design only; implementation pending)
+- **Date:** 2026-10-21
+- **Spec:** §7.2, §7.4
+
+## Context
+
+Users interleave problems: halfway through fixing the washer they mention the dryer, then come back. The M3 engine keeps a single `paused_journey`, which falls short in five ways:
+
+1. **One level only.** A third topic overwrites the paused one, and its progress is lost (only a `dropped paused journey` decision is logged).
+2. **Going back restarts the issue.** If the user says "forget the dryer, back to the washer" while the dryer issue is still running, `route()` sees another appliance switch: it starts a fresh washer `troubleshoot` from `gather` and pauses the dryer, discarding the washer's plan and cursor.
+3. **One reminder only.** Resuming happens only through a `confirm` right after another journey ends. If the user says anything else, the open issue is never brought up again.
+4. **One outcome per conversation.** `AgentState.outcome`, `AgentSnapshot.outcome` and the eval success rule (§16.3) cannot express "washer resolved, dryer escalated".
+5. **No follow-up across conversations.** Unresolved issues live only in the conversation's checkpoint.
+
+Constraints: routing stays a pure function in the journey engine (P1, ≥ 90% coverage), the LLM never decides control flow, hazard replies stay fixed templates, and the responder's prompt must not grow without bound.
+
+## Decision
+
+Replace the single paused slot with **issues**: every journey run is an issue with a stable id, at most one is active and at most three are paused, and the engine resumes them by deterministic rules.
+
+- **State.** `AgentState` keeps the active issue's fields flat (`active_journey`, `step_id`, `slots`, `plan`, …) so the engine and nodes change little, and adds `active_issue_id`, `paused_issues: list[PausedIssue]` (oldest first, max `MAX_PAUSED_ISSUES = 3`) and `issues: list[IssueRecord]` (every issue opened in the conversation with its outcome). Ids are `iss_<n>`, numbered in opening order. A `summary` such as `"Bosch washer: not draining"` is built by code from the slots, never by the LLM.
+- **Pausing.** The existing switch triggers (another appliance in `guide`/`inform`/`handoff`, or an intent that belongs to another journey) push the active issue onto `paused_issues`. When the list is full, the oldest is closed as `abandoned` and logged; nothing is dropped silently.
+- **Resuming by appliance.** When a turn's `appliance_category` matches a paused issue and the turn brings no new `symptom`, the engine resumes that issue (the most recent one if several match) instead of starting a new one, and pauses the active issue. A new `symptom` on the same appliance means a new problem: it starts a new issue, and the paused one stays available. In a `collect` step a category change that matches a paused issue resumes it and closes the barely started issue as `abandoned`; otherwise it remains a correction.
+- **Resuming by button or reply.** When an issue ends and others are paused, the reply carries the `resume_paused` notice and an `IssuesCard` listing them. Its buttons send `StructuredAction(type="resume_issue" | "close_issue", value=<issue id>)`, which skip the NLU. A typed `confirm` resumes the most recently paused issue; a `deny` leaves them paused, and the offer comes back only when another issue ends. A turn whose reply is a hazard template never carries the offer.
+- **Outcomes.** Each issue gets its own outcome when it ends. The conversation `outcome` stays as a summary: `None` while any issue is active or paused, otherwise the highest of `escalated` > `resolved` > `out_of_scope` > `abandoned`. A single-issue conversation therefore behaves exactly as today.
+
+## Consequences
+
+- Interleaved problems keep their progress, and returning to an earlier appliance is no longer a restart.
+- Every pause, resume, drop and close is a `Decision` (`kind="route"`), so the trace explains the history of each issue (P7).
+- The resume rule uses only slots and signals the NLU already produces; there is no new intent and no LLM-chosen issue id.
+- Follow-up changes outside §7.2/§7.4, to land with the implementation:
+  - §13.1/§13.3: two new `StructuredAction` types and the `IssuesCard` (an additive change to `channels/events.py`, owned by Track D).
+  - `AgentSnapshot` gains `issues`; §16.3 grades multi-issue cases per issue, and new eval scenarios interleave two appliances.
+  - §14.1: `conversations.outcome` stores the summary outcome.
+- Known limits: matching is by appliance category, so two open issues on the same appliance are told apart only through the card. A paused plan may be stale if the user fixed the problem in the meantime; the resumed `guide` step re-presents the current item, and the user can answer "fixed".
+- Cross-conversation follow-up is out of scope here. The likely route is writing unresolved issues through `user_profile` when a conversation goes idle and reading them in `load_context`, but writes may only happen in step actions, so that needs its own design (M5 or later).
+
+## Alternatives considered
+
+- **Unbounded stack of paused journeys:** strict LIFO order is unnatural (users return to any issue, not just the last one), and an unbounded list grows the state and the responder's context.
+- **Let the LLM pick which issue a message belongs to:** more flexible, but it puts control flow in the LLM (against P1), cannot be unit-tested as a pure function, and misroutes are hard to explain.
+- **Keep one paused journey and only add a resume card:** fixes problem 3 but not 1, 2 or 4.
+- **One conversation per issue:** simple state, but users do not think in conversations, and it moves the problem into the UI.

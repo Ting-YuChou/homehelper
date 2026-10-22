@@ -158,6 +158,8 @@ class LiteLLMClient:
         errors: list[str] = []
         for model in self._chain(config):
             litellm_model, connection = self._route(model)
+            if config.reasoning_effort is not None:
+                connection["reasoning_effort"] = config.reasoning_effort
             started = time.perf_counter()
             with self._generation(task, model, payload) as generation:
                 try:

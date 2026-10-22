@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     app_env: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
     release_id: str = "dev"
+    # The agent behind the web API: the scripted demo stub, or the journey agent (spec §7), which
+    # needs the knowledge base in Postgres and LLM keys.
+    agent_runtime: Literal["stub", "journey"] = "stub"
 
     # Repo-relative by default (commands run from the repo root); a mounted volume in containers.
     data_dir: Path = Path("data")

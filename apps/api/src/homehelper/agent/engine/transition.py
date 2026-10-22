@@ -27,12 +27,18 @@ from homehelper.agent.engine.predicates import (
 )
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
-from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards
-from homehelper.agent.guardrails.rules import HAZARD_RULES, MAX_FRUSTRATED_TURNS
+from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards, water_persists
+from homehelper.agent.guardrails.rules import (
+    ESCALATING_HAZARDS,
+    HAZARD_RULES,
+    MAX_FRUSTRATED_TURNS,
+)
 from homehelper.agent.guardrails.templates import (
+    PERSISTING_WATER_REPLY,
     SCOPE_SIDE_REPLY,
     STEP_TEMPLATES,
     UNSUPPORTED_APPLIANCE_REPLY,
+    WATER_REMINDER_REPLY,
     FixedReply,
     safety_reply,
 )
@@ -40,6 +46,7 @@ from homehelper.agent.state import (
     AgentState,
     Decision,
     DecisionKind,
+    HazardSignal,
     PausedJourney,
     PlanItemStatus,
     SlotValue,
@@ -290,15 +297,41 @@ class _Run:
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
         self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
         replied_rules: set[str] = set()
+        persisting: list[HazardSignal] = []
         for hit in self.hazards:
             rule_id = HAZARD_RULES[hit.signal]
             if hit.signal not in self.state.hazard_flags:
                 self.state.hazard_flags.append(hit.signal)
             self._log("guardrail", f"{hit.signal} detected ({hit.source})", rule_id=rule_id)
+            reply = safety_reply(hit.signal)
+            if hit.signal not in ESCALATING_HAZARDS:
+                # G-SAFE-05: the power-off warning is given once per problem; users keep
+                # mentioning the water and the cord while they follow it, so later mentions get
+                # a one-line reminder. Water that is *still* reaching electricity after the
+                # warning means the hazard persists: DIY stops and the journey escalates.
+                # Escalating hazards answer every time.
+                journey = self._journey()
+                switched = (
+                    category is not None and current is not None and category != current.value
+                )
+                # Another appliance mid-journey is a new problem: it gets its own warning.
+                ongoing = journey is not None and not is_ended(journey, self.state) and not switched
+                if not (self.state.water_warning_given and ongoing):
+                    self.state.water_warning_given = True
+                elif water_persists(turn.text):
+                    persisting.append(hit.signal)
+                    reply = PERSISTING_WATER_REPLY
+                    self._log(
+                        "guardrail", f"{hit.signal} persists after the warning", rule_id=rule_id
+                    )
+                else:
+                    reply = WATER_REMINDER_REPLY
             if rule_id not in replied_rules:
                 replied_rules.add(rule_id)
-                self.fixed_replies.append(safety_reply(hit.signal))
-        return signals.model_copy(update={"hazards": [hit.signal for hit in self.hazards]})
+                self.fixed_replies.append(reply)
+        return signals.model_copy(
+            update={"hazards": [hit.signal for hit in self.hazards], "persisting": persisting}
+        )
 
     def _apply_route(self, decided: Route) -> None:
         state = self.state
@@ -333,6 +366,10 @@ class _Run:
                 state.paused_journey = None
                 state.outcome = None
                 state.selected_booking_slot = None
+                # The paused problem's warning was not saved: warn again rather than assume.
+                state.water_warning_given = any(
+                    h.signal == "water_near_electric" for h in self.hazards
+                )
                 self._log("route", decided.reason, to_step=state.step_id)
                 return
             case "switch":
@@ -367,6 +404,9 @@ class _Run:
         state.outcome = None
         state.last_retrieval = None
         state.selected_booking_slot = None
+        # A new problem gets its own warning (hazards are detected before routing, so a warning
+        # given on this very turn counts for the journey it starts).
+        state.water_warning_given = any(h.signal == "water_near_electric" for h in self.hazards)
         self._log("route", f"started {journey.id}: {decided.reason}")
 
     # --- input effects --------------------------------------------------------------------

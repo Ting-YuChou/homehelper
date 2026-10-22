@@ -93,6 +93,8 @@ class AgentState(BaseModel):
     plan_cursor: int = 0
     step_attempts: dict[str, int] = Field(default_factory=dict)
     hazard_flags: list[str] = Field(default_factory=list)
+    # G-SAFE-05's power-off warning was given for the current journey (once per problem).
+    water_warning_given: bool = False
     frustrated_turns: int = 0  # consecutive turns with user_sentiment == "frustrated" (G-LOOP-01)
     selected_booking_slot: str | None = None  # from a BookingSlots card; read by the `book` action
     last_retrieval: RetrievalResult | None = None

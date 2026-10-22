@@ -78,6 +78,14 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
         r"\bsealed\s+system\b",
         r"\bcompressor\b.{0,40}\b(leak\w*|hiss\w*|oil)\b",
         r"\b(re-?gas|recharg\w*)\b.{0,30}\b(fridge|refrigerator|freezer|gas)\b",
+        # Sealed-system repairs (G-SAFE-04): cutting or brazing lines, swapping the compressor.
+        r"\bcapillary\s+tubes?\b",
+        r"\bbraz(e|es|ed|ing)\b",
+        r"\b(replac\w*|swap\w*|install\w*)\b.{0,60}\bcompressor\b",
+        r"\bcompressor\b.{0,60}\b(replac\w*|swap\w*)\b",
+        r"\bre-?seal\w*\s+(the\s+)?(system|lines?|tubing)\b",
+        r"\b(evaporator|condenser)\b.{0,30}\b(leak\w*|punctur\w*|hiss\w*)",
+        r"\bpunctur\w*\b.{0,30}\b(evaporator|condenser)\b",
     ),
     "high_voltage_internal": (
         r"\bmagnetron\b",
@@ -96,6 +104,8 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
         r"\belectrocut\w*",
         r"\b(burn(ed|t)?|cut)\s+(my|myself)\b",
         r"\bgot\s+(shocked|burned|burnt|hurt|cut)\b",
+        # Getting a shock is an injury (G-SAFE-07) as well as a sign of live parts (sparks).
+        r"\b(got|get|getting)\s+(an?\s+)?(electric(al)?\s+)?shock\b",
     ),
 }
 
@@ -115,10 +125,51 @@ class HazardHit(BaseModel):
     source: Literal["keywords", "nlu", "both"]
 
 
+# The user says the water is *still* reaching electricity after the G-SAFE-05 warning ("still
+# dripping onto the outlet", "the power strip is still in the water"). One clause must hold a
+# persistence cue, a wet term and an electric term, so "the breaker is off, but there's still
+# standing water in the tub" (the symptom) or "I mopped up the water" (the warning was followed)
+# does not count.
+_CLAUSES = re.compile(r"[.;!?]+|\bbut\b", re.I)
+# Getting worse ("spraying", "spreading") counts as persisting too.
+_CUE = re.compile(
+    r"\b(still|keeps?|continu\w*|again|(hasn'?t|has not|have not|never) (gone|dried|stopped)"
+    r"|(won'?t|will not) (dry|stop)"
+    r"|worse|spray\w*|spread\w*|gush\w*)\b",
+    re.I,
+)
+_NOT_A_CUE = re.compile(r"\bstill (off|unplugged|disconnected|switched off|turned off)\b", re.I)
+_WET_HERE = re.compile(r"\b(" + _WET[1:-1] + r"|pool\w*|soak\w*|sitting in)\b", re.I)
+_ELECTRIC_HERE = re.compile(r"\b" + _ELECTRIC + r"\b", re.I)
+_RESOLVED = re.compile(
+    r"\b(no longer|not (wet|leaking|dripping|pooling) anymore|(is|are) (gone|dry)"
+    r"|(?<!n't )(?<!nt )(?<!not )(?<!never )stopped)\b",
+    re.I,
+)
+
+
+def _plain(text: str) -> str:
+    """Typographic apostrophes (phone keyboards send them) as ASCII, so `hasn't` matches."""
+    return text.replace("\N{RIGHT SINGLE QUOTATION MARK}", "'").replace(
+        "\N{LEFT SINGLE QUOTATION MARK}", "'"
+    )
+
+
+def water_persists(text: str | None) -> bool:
+    """Whether the user reports water still reaching electricity (spec §8.1 G-SAFE-05)."""
+    for clause in _CLAUSES.split(_plain(text or "")):
+        cue = _CUE.search(_NOT_A_CUE.sub("", clause))
+        wet_electric = _WET_HERE.search(clause) and _ELECTRIC_HERE.search(clause)
+        if cue and wet_electric and not _RESOLVED.search(clause):
+            return True
+    return False
+
+
 def keyword_hazards(text: str | None, *, category: str | None = None) -> list[HazardSignal]:
     """Hazards matched by the English keyword rules, in `HazardSignal` order."""
     if not text:
         return []
+    text = _plain(text)
     found = {
         hazard for hazard, patterns in _COMPILED.items() if any(p.search(text) for p in patterns)
     }
