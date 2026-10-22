@@ -229,6 +229,50 @@ async def test_openrouter_is_skipped_without_its_key() -> None:
     assert completion.calls[-1]["api_key"] == "r"
 
 
+async def test_cost_reported_by_the_provider_is_recorded() -> None:
+    """LiteLLM has no OpenRouter prices; it keeps the cost OpenRouter reports in hidden params,
+    which `completion_cost` ignores. Without it the spend cap would see $0."""
+
+    async def completion(**kwargs: Any) -> Any:
+        response = _response("ok")
+        response._hidden_params = {
+            "additional_headers": {"llm_provider-x-litellm-response-cost": 0.0123}
+        }
+        return response
+
+    sink: list[LLMUsage] = []
+    client = LiteLLMClient(
+        ModelRegistry.load(
+            overrides={"nlu": {"model": "openrouter/anthropic/claude-haiku-5.5", "fallbacks": []}}
+        ),
+        {"openrouter": "r"},
+        completion_fn=completion,
+        usage_sink=sink.append,
+    )
+    await client.text("nlu", MESSAGES)
+    assert [u.cost_usd for u in sink] == [0.0123]
+
+
+async def test_configured_reasoning_is_kept_except_for_openai_tool_turns() -> None:
+    effort = {"structured_output": "json_object", "reasoning_effort": "high", "fallbacks": []}
+    completion = ScriptedCompletion(
+        {
+            "openai/gpt-5.5": [[("parts_catalog__search_parts", "{}")]],
+            "openai/glm-5.3": [[("parts_catalog__search_parts", "{}")]],
+        }
+    )
+    for model in ("openai/gpt-5.5", "opencode_go/openai/glm-5.3"):
+        client = LiteLLMClient(
+            ModelRegistry.load(overrides={"nlu": {"model": model, **effort}}),
+            {"openai": "o", "opencode_go": "g"},
+            completion_fn=completion,
+        )
+        await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    openai, go = completion.calls
+    assert openai["reasoning_effort"] == "none"
+    assert go["reasoning_effort"] == "high"  # Go's custom api_base never takes the bridge
+
+
 def _opencode_client(
     completion: ScriptedCompletion, model: str, sink: list[LLMUsage] | None = None
 ) -> LiteLLMClient:

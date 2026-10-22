@@ -1,7 +1,8 @@
 # Task → model mapping (docs/SPEC.md §9.1). A release manifest may override `model`/`fallbacks` per task.
 # Model ids use LiteLLM's "<provider>/<model>" form. Fallbacks whose provider has no API key are skipped.
 # Claude tasks fall back to the same model on OpenRouter first (another account, same behavior; its ids
-# use dots), then to OpenAI.
+# use dots), then to OpenAI. OpenAI tool turns always run with reasoning_effort=none (litellm_client.py),
+# whatever a task sets here.
 # `opencode_go/<openai|anthropic>/<model>` (OpenCode Go subscription) is for eval-experiment
 # overrides only; never use it as a default here.
 tasks:

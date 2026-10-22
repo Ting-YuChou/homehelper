@@ -57,6 +57,7 @@ jobs:
       MODELS: ${{ inputs.models }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
       # A database holding the knowledge base (M8 infra; see the note at the top).
       DATABASE_URL: ${{ secrets.RELEASE_DATABASE_URL }}

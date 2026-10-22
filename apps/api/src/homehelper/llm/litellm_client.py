@@ -14,6 +14,7 @@ from typing import Any
 os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
 
 import litellm
+from litellm.cost_calculator import get_response_cost_from_hidden_params
 from pydantic import BaseModel, ValidationError
 
 from homehelper.core.logging import get_logger
@@ -283,7 +284,14 @@ class LiteLLMClient:
     def _usage(task: str, model: str, response: Any, latency_ms: float) -> LLMUsage:
         tokens = getattr(response, "usage", None)
         try:
-            cost = float(litellm.completion_cost(completion_response=response, model=model))
+            # A provider-reported cost first: LiteLLM has no OpenRouter prices, and
+            # `completion_cost` ignores the cost OpenRouter returns.
+            reported = get_response_cost_from_hidden_params(getattr(response, "_hidden_params", {}))
+            cost = float(
+                reported
+                if reported is not None
+                else litellm.completion_cost(completion_response=response, model=model)
+            )
         except Exception:
             cost = 0.0  # unknown pricing must never fail the call
         return LLMUsage(
