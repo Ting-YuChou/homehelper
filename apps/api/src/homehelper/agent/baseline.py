@@ -93,7 +93,7 @@ class BaselineAgent:
                 }
                 for chunk in retrieval.chunks
             ],
-            web_block=format_for_responder(retrieval.web_findings)
+            web_block=prompts.Trusted(format_for_responder(retrieval.web_findings))
             if retrieval.web_findings
             else "",
         )

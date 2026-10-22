@@ -174,7 +174,7 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
             }
             for chunk in plan.excerpts
         ],
-        web_block=format_for_responder(web) if web else "",
+        web_block=prompts.Trusted(format_for_responder(web)) if web else "",
         notices=turn.notices,
         prefix=prefix,
         power_off_first=power_off_first,
