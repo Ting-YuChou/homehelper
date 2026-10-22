@@ -39,7 +39,11 @@ def test_load_manuals_maps_files_and_aliases(tmp_path: Path) -> None:
     path.write_text(MANIFEST)
     manuals = load_manuals(path)
     ref = manuals["WD5100D_WEB_IB_SU-PJT_COMBO-MD.pdf"]
-    assert (ref.doc_id, ref.model_number) == ("samsung-wd5100d-combo", "WD5100D")
+    assert (ref.doc_id, ref.brand, ref.model_number) == (
+        "samsung-wd5100d-combo",
+        "Samsung",
+        "WD5100D",
+    )
     assert manuals["WD5100D_WEB_IB_SU-PJT_COMBO-MD(1).pdf"] == ref
     assert manuals["unknown.pdf"].model_number is None
     empty = tmp_path / "empty.yaml"

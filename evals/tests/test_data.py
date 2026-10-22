@@ -10,6 +10,7 @@ from homehelper.mcp_servers.mock_data import load_mock_data
 from homehelper.mcp_servers.registry import TOOL_SPECS
 from homehelper_evals import REPO_ROOT, ROOT_CAUSES_PATH
 from homehelper_evals.cases import load_dataset, scenario_case
+from homehelper_evals.manifest import load_manuals
 from homehelper_evals.root_cause import LABEL_TASK, label_variant
 from homehelper_evals.scenarios import (
     is_solvable,
@@ -191,3 +192,15 @@ def test_non_answer_root_causes_are_not_solvable() -> None:
     assert 592 in unsolvable  # "I apologize, but the attached manual does not contain..."
     assert 646 not in unsolvable  # "I don't know.", but not user-fixable: handing off passes
     assert len(unsolvable) == 21
+
+
+def test_scenario_case_takes_the_brand_from_the_manifest() -> None:
+    labels = load_root_causes()
+    manuals = load_manuals()
+    brands = {}
+    for variant in load_variants():
+        case = scenario_case(variant, labels[variant.variant_id], manuals=manuals)
+        brands[variant.appliance_name] = case.brand
+    assert brands["BrewSense_12-cup_Drip_CoffeeMaker_KF7070SI.pdf"] == "Braun"  # "BraunHousehold"
+    assert brands["bosch_fridge.pdf"] == "Bosch"
+    assert brands["MyJo_Single_Cup_CoffeeMaker.pdf"] == "Presto"

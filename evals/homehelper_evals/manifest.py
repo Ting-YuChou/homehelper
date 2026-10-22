@@ -16,6 +16,7 @@ MIN_MODEL_LENGTH = 4  # "LM*" expands to "LM", which names no real model
 
 class ManualRef(BaseModel):
     doc_id: str
+    brand: str | None = None  # reviewed display name: "Mr. Coffee", not the dataset's "Mr.Coffee"
     model_number: str | None = None
 
 
@@ -41,6 +42,7 @@ def load_manuals(path: Path = MANIFEST_PATH) -> dict[str, ManualRef]:
     for entry in entries:
         ref = ManualRef(
             doc_id=entry["doc_id"],
+            brand=entry.get("brand"),
             model_number=example_model_number(entry.get("model_patterns") or []),
         )
         for filename in [entry["file"], *(entry.get("aliases") or [])]:
