@@ -48,8 +48,9 @@ class JourneyAgent:
         # checkpoint of this conversation.
         turn = {"turn": TurnScratch(message=message)}
         config = _config(message.conversation_id)
-        before = await self._graph.aget_state(config)
+        before: GraphState | None = None
         try:
+            before = await self._state(config)
             with self._turn_span(message):
                 async for event in self._graph.astream(
                     turn,  # type: ignore[arg-type]  # a partial update, not a whole GraphState
@@ -59,7 +60,8 @@ class JourneyAgent:
                     await queue.put(cast(AgentEvent, event))
         except Exception as exc:
             log.exception("agent_turn_failed", conversation_id=message.conversation_id)
-            await self._roll_back(message.conversation_id, before.values)
+            if before is not None:  # the turn ran: undo what it saved
+                await self._roll_back(message.conversation_id, before)
             await queue.put(
                 ErrorEvent(
                     code="agent_error", message=f"The assistant failed: {type(exc).__name__}"
@@ -68,13 +70,15 @@ class JourneyAgent:
         finally:
             await queue.put(None)
 
-    async def _roll_back(self, conversation_id: str, values: dict[str, Any] | None) -> None:
+    async def _roll_back(self, conversation_id: str, before: GraphState) -> None:
         """Undo a failed turn so it can simply be retried. LangGraph checkpoints after every node,
         so the nodes that ran before the failure (step results, plan position, tool calls) are
-        already saved; writing the previous values back as `emit` puts the thread where the turn
-        started, with nothing pending."""
+        already saved; writing every field's previous value back as `emit` puts the thread where
+        the turn started, with nothing pending. Fields never written before the turn are reset to
+        their defaults too."""
         try:
-            if values:
+            if before.agent is not None:
+                values = {name: getattr(before, name) for name in GraphState.model_fields}
                 await self._graph.aupdate_state(_config(conversation_id), values, as_node="emit")
             else:  # the conversation's first turn
                 await self._checkpointer.adelete_thread(conversation_id)
@@ -94,10 +98,13 @@ class JourneyAgent:
             input=said,
         )
 
+    async def _state(self, config: RunnableConfig) -> GraphState:
+        snapshot = await self._graph.aget_state(config)
+        return GraphState.model_validate(snapshot.values or {})
+
     async def state(self, conversation_id: str) -> GraphState | None:
-        snapshot = await self._graph.aget_state(_config(conversation_id))
-        values: dict[str, Any] = snapshot.values or {}
-        return GraphState.model_validate(values) if values else None
+        graph = await self._state(_config(conversation_id))
+        return graph if graph.agent is not None else None
 
     async def snapshot(self, conversation_id: str) -> AgentSnapshot:
         graph = await self.state(conversation_id)

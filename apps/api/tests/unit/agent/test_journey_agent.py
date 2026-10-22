@@ -1,3 +1,5 @@
+import asyncio
+
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.nodes.act import PlanDraft, PlanDraftItem
 from homehelper.agent.runtime import JourneyAgent
@@ -264,6 +266,36 @@ async def test_a_turn_that_fails_after_a_step_result_is_rolled_back() -> None:
     state = await agent.state("conv-1")
     assert state is not None
     assert [item.status for item in state.state.plan][:2] == ["done_not_fixed", "presented"]
+
+
+async def test_rollback_also_resets_fields_the_turn_wrote_for_the_first_time() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [NLUResult(intent="small_talk"), REPORT],
+            "planner": [PLAN],
+            "responder": [AgentReply(message="Hi!"), RuntimeError("down")],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "hello")
+    before = await agent.state("conv-1")
+    assert before is not None and before.search_query is None
+    failed = await _send(agent, "My Bosch dishwasher won't drain")
+    assert isinstance(failed[-1], ErrorEvent)
+    after = await agent.state("conv-1")
+    assert after is not None
+    assert after.model_dump(exclude={"turn"}) == before.model_dump(exclude={"turn"})
+
+
+async def test_a_failing_checkpoint_read_ends_the_turn_with_an_error() -> None:
+    agent = _agent(FakeLLMClient())
+
+    async def down(*args: object, **kwargs: object) -> None:
+        raise ConnectionError("db down")
+
+    agent._graph.aget_state = down  # type: ignore[method-assign]
+    events = await asyncio.wait_for(_send(agent, "hello"), timeout=5)
+    assert isinstance(events[-1], ErrorEvent)
 
 
 async def test_a_failed_first_turn_leaves_no_checkpoint() -> None:
