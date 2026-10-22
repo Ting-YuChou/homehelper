@@ -120,3 +120,4 @@ Boundaries that keep the tracks apart (spec v0.8):
   - Write-type MCP tools (`book`, `add_*`) are only called by code in step actions, never exposed to the LLM.
   - Hazard replies are fixed templates, never LLM-generated.
 - Use the latest stable versions of libraries at implementation time; verify APIs against current docs rather than memory.
+- After implementing new code, launch a fresh-context agent (not a fork, and not the agent that wrote the code) to review the diff before pushing or opening a PR. Fix the confirmed findings, and say in the PR description what the review found.
