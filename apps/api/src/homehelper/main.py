@@ -19,6 +19,7 @@ from homehelper.db.engine import create_engine, create_sessionmaker
 from homehelper.db.redis import create_redis
 from homehelper.mcp_servers.factory import build_mcp_servers
 from homehelper.ratelimit import TurnGuards
+from homehelper.releases.runtime import load_active_release, record_release
 
 log = get_logger(__name__)
 
@@ -31,11 +32,15 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
+    # The release manifest for RELEASE_ID, if any (spec §17.3): its kb_version and model overrides.
+    release = load_active_release(settings)
+    settings = release.settings
     tracer = tracer or Tracer(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("startup", environment=settings.app_env, tracing=tracer.enabled)
+        await record_release(app.state.db_engine, release)
         async with app.state.mcp.run():
             yield
             # Turns still running may call MCP tools, so they finish before the servers stop.
@@ -48,6 +53,12 @@ def create_app(
     # Clients connect lazily, so creating them here keeps the app usable without running lifespan.
     app.state.settings = settings
     app.state.tracer = tracer
+    app.state.release = release.manifest
+    # models.yaml plus the release's overrides. Nothing built here calls an LLM or embeds yet, so
+    # nothing reads it in this function. The journey agent factory (M3) must build its LLM client
+    # and retriever from it (`build_llm_client(..., registry=app.state.model_registry)`,
+    # `knowledge.backends.build_retriever(..., registry=...)`); both default to plain models.yaml.
+    app.state.model_registry = release.registry
     # The scripted stub until the journey agent lands (M3); tests and evals inject their own.
     app.state.agent = agent or StubAgent()
     app.state.db_engine = create_engine(settings.database_url)
