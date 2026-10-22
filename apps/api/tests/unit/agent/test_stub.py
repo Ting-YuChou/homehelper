@@ -71,3 +71,26 @@ async def test_app_uses_stub_unless_an_agent_is_injected() -> None:
     for app in (default, custom):
         await app.state.redis.aclose()
         await app.state.db_engine.dispose()
+
+
+async def test_deferred_agent_delegates_once_attached() -> None:
+    import pytest
+
+    from homehelper.agent.factory import DeferredAgent
+
+    deferred = DeferredAgent()
+    with pytest.raises(RuntimeError, match="not ready"):
+        await deferred.snapshot("c1")
+    stub = StubAgent()
+    deferred.attach(stub)
+    events = [e async for e in deferred.handle(InboundMessage(conversation_id="c1", text="hi"))]
+    assert isinstance(events[-1], MessageCompletedEvent)
+    assert (await deferred.snapshot("c1")).journey == "troubleshoot"
+
+
+def test_journey_runtime_setting_installs_a_deferred_agent() -> None:
+    from homehelper.agent.factory import DeferredAgent
+
+    app = create_app(make_settings(agent_runtime="journey"))
+    assert isinstance(app.state.agent, DeferredAgent)
+    assert app.state.conversations is not None

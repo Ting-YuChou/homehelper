@@ -13,7 +13,7 @@ from homehelper.agent.guardrails.templates import FixedReply
 from homehelper.agent.protocol import ToolCall
 from homehelper.agent.state import AgentState, NLUResult
 from homehelper.channels.events import InboundMessage
-from homehelper.knowledge.schemas import Citation, RetrievalResult
+from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalResult
 
 MAX_TRANSCRIPT_LINES = 24  # what NLU and the responder see of the conversation
 
@@ -70,6 +70,7 @@ class GraphState(BaseModel):
 # Types the checkpointer may revive (LangGraph's msgpack allowlist).
 CHECKPOINT_TYPES: list[type] = [
     AgentState,
+    CategoryId,
     TurnScratch,
     TranscriptLine,
     Citation,

@@ -210,3 +210,28 @@ async def test_llm_failure_becomes_an_error_event_and_the_turn_can_be_retried() 
     assert isinstance(failed[-1], ErrorEvent)
     retried = await _send(agent, "hello")
     assert _text(retried) == "Hi! What can I help with?"
+
+
+async def test_checkpoints_revive_without_blocked_types() -> None:
+    from langgraph.checkpoint.serde.event_hooks import register_serde_event_listener
+
+    events: list[dict] = []
+    unregister = register_serde_event_listener(lambda event: events.append(dict(event)))
+    try:
+        llm = FakeLLMClient(
+            {
+                "nlu": [REPORT],
+                "planner": [PLAN],
+                "responder": [AgentReply(message="Try it."), AgentReply(message="Next.")],
+                "supervisor": [PASS, PASS],
+            }
+        )
+        agent = _agent(llm)
+        await _send(agent, "My Bosch dishwasher won't drain")
+        await _send(agent, result="not_fixed")  # reads the first turn's checkpoint back
+        state = await agent.state("conv-1")
+        assert state is not None and state.state.last_retrieval is not None
+        assert state.state.last_retrieval.query.category == CategoryId("dishwasher")
+    finally:
+        unregister()
+    assert [e for e in events if "blocked" in str(e.get("kind", ""))] == []
