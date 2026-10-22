@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from homehelper.agent.guardrails.templates import FixedReply
 from homehelper.agent.protocol import ToolCall
 from homehelper.agent.state import AgentState, NLUResult
+from homehelper.agent.tools import ToolOutcome
 from homehelper.channels.events import InboundMessage
 from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalResult
 
@@ -46,6 +47,8 @@ class TurnScratch(BaseModel):
     side_question: bool = False
     # Retrieval the responder may cite this turn: the step's own, or a side question's.
     retrieval: RetrievalResult | None = None
+    # MCP results this turn (step actions, then the responder's calls); facts the reply may use.
+    tool_results: list[ToolOutcome] = Field(default_factory=list)
     reply: AgentReply | None = None
     verdict: SupervisorVerdict | None = None
     revisions: int = 0
@@ -75,4 +78,5 @@ CHECKPOINT_TYPES: list[type] = [
     TranscriptLine,
     Citation,
     ToolCall,
+    ToolOutcome,
 ]

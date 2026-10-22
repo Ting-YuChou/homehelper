@@ -17,9 +17,17 @@ from homehelper.agent.engine.transition import (
 )
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
-from homehelper.agent.state import AgentState, PausedIssue
+from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue, UserContext
 from homehelper.channels.events import InboundMessage, StructuredAction
-from tests.unit.agent.helpers import new_state, plan, press, run_turn, say, vision_slot
+from tests.unit.agent.helpers import (
+    DIAGNOSE_ACTIONS,
+    new_state,
+    plan,
+    press,
+    run_turn,
+    say,
+    vision_slot,
+)
 
 DISHWASHER = {"appliance_category": "dishwasher", "symptom": "won't drain"}
 
@@ -49,7 +57,7 @@ def test_fixed_path_walks_gather_to_resolved(catalog: JourneyCatalog) -> None:
     )
     assert first.state.active_journey == "troubleshoot"
     assert first.state.step_id == "diagnose"
-    assert first.actions == ["knowledge.search", "plan.build"]
+    assert first.actions == DIAGNOSE_ACTIONS
     assert first.continue_after_actions
     steps = [(d.from_step, d.to_step, d.predicate) for d in first.decisions if d.kind != "route"]
     assert steps == [
@@ -92,6 +100,16 @@ def test_plan_exhausted_escalates_then_booking_ends(catalog: JourneyCatalog) -> 
     assert [item.status for item in result.state.plan] == ["done_not_fixed", "skipped"]
     assert result.decisions[-1].predicate == "plan_exhausted"
 
+    assert result.actions == ["mcp:service_booking.list_slots"]
+
+    # Only an offered slot (set by code from `list_slots`) can be booked.
+    stale = transition(catalog, result.state, press("select_booking_slot", "slot-42"))
+    assert stale.state.step_id == "escalate"
+    assert stale.state.selected_booking_slot is None
+    assert "not one of the offered slots" in stale.decisions[0].reason
+    result.state.offered_slots = [
+        OfferedSlot(slot_id="slot-42", starts_at="2026-10-21T09:00:00Z", technician="Ann (Fix Co)")
+    ]
     booked = transition(catalog, result.state, press("select_booking_slot", "slot-42"))
     assert booked.state.step_id == "escalated_end"
     assert booked.state.selected_booking_slot == "slot-42"
@@ -668,3 +686,93 @@ def test_resume_requires_paused_issue(catalog: JourneyCatalog) -> None:
     )
     result = transition(catalog, state, say("confirm", "yes"))
     assert (result.state.active_journey, result.state.step_id) == ("how_to_use", "answer")
+
+
+def test_a_side_question_does_not_change_the_active_issue(catalog: JourneyCatalog) -> None:
+    state = start_guide(catalog)
+    before = dict(state.slots)
+    parts = say("ask_parts", "do Whirlpool filters fit?", slots={"brand": "Whirlpool"})
+    result = transition(catalog, state, parts)
+    assert result.side_question
+    assert result.state.slots == before
+
+
+def test_a_tool_question_about_another_appliance_stays_on_the_side(
+    catalog: JourneyCatalog,
+) -> None:
+    state = start_guide(catalog)
+    state.profile = UserContext(zip_code="94110")
+    warranty = say(
+        "my_appliances", "is my dryer under warranty?", slots={"appliance_category": "dryer"}
+    )
+    result = transition(catalog, state, warranty)
+    assert result.side_question
+    assert (result.state.active_issue_id, result.state.step_id) == ("iss_1", "guide")
+    assert result.state.paused_issues == []
+    # A guest has no appliances to ask about: the my_appliances journey answers (sign in).
+    state.profile = None
+    guest = transition(catalog, state, warranty)
+    assert guest.state.active_journey == "my_appliances"
+
+
+def test_a_side_question_while_collecting_still_corrects_details(catalog: JourneyCatalog) -> None:
+    state = transition(
+        catalog,
+        new_state(),
+        say("report_problem", "my dishwasher", slots={"appliance_category": "dishwasher"}),
+    ).state
+    assert state.step_id == "gather"
+    parts = say("ask_parts", "it leaks, do I need a new pump?", slots={"symptom": "leaks"})
+    result = transition(catalog, state, parts)
+    assert result.state.slots["symptom"].value == "leaks"
+
+
+def test_asking_for_a_technician_first_escalates(catalog: JourneyCatalog) -> None:
+    ask = say("book_technician", "send a technician", slots={"appliance_category": "dishwasher"})
+    result = transition(catalog, new_state(), ask)
+    assert (result.state.active_journey, result.state.step_id) == ("troubleshoot", "escalate")
+
+
+def test_asking_for_a_technician_mid_how_to_escalates_there(catalog: JourneyCatalog) -> None:
+    how_to = say("ask_how_to", slots={"appliance_category": "coffee_maker", "question": "descale"})
+    state = transition(catalog, transition(catalog, new_state(), how_to).state, None).state
+    assert state.step_id == "answer"
+    result = transition(catalog, state, say("book_technician", "just send someone"))
+    assert (result.state.active_journey, result.state.step_id) == ("how_to_use", "escalate")
+    assert result.state.paused_issues == []
+
+
+def test_a_side_question_while_collecting_keeps_the_appliance(catalog: JourneyCatalog) -> None:
+    state = transition(
+        catalog, new_state(), say("report_problem", slots={"appliance_category": "dishwasher"})
+    ).state
+    state.profile = UserContext(zip_code="94110")
+    warranty = say("my_appliances", slots={"appliance_category": "dryer", "brand": "LG"})
+    result = transition(catalog, state, warranty)
+    assert result.side_question
+    assert result.state.slots["appliance_category"].value == "dishwasher"
+    assert "brand" not in result.state.slots
+
+
+def test_a_side_question_about_another_appliance_leaves_the_topic(
+    catalog: JourneyCatalog,
+) -> None:
+    state = transition(
+        catalog, new_state(), say("report_problem", slots={"appliance_category": "dishwasher"})
+    ).state
+    state.profile = UserContext(zip_code="94110")
+    parts = say("ask_parts", slots={"appliance_category": "dryer", "symptom": "won't heat"})
+    result = transition(catalog, state, parts)
+    assert result.side_question
+    assert "symptom" not in result.state.slots
+
+
+def test_a_side_question_about_the_same_appliance_fills_the_topic(
+    catalog: JourneyCatalog,
+) -> None:
+    state = transition(
+        catalog, new_state(), say("report_problem", slots={"appliance_category": "dishwasher"})
+    ).state
+    parts = say("ask_parts", slots={"appliance_category": "dishwasher", "symptom": "leaks"})
+    result = transition(catalog, state, parts)
+    assert result.state.slots["symptom"].value == "leaks"

@@ -102,6 +102,7 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
         "injection_resistance": _rate(trials_of.get("injection", [])),
         "out_of_scope_pass_rate": _rate(trials_of.get("out_of_scope", [])),
         "multi_issue_pass_rate": _rate(trials_of.get("multi_issue", [])),
+        "tool_scenario_pass_rate": _rate(trials_of.get("tools", [])),
         # Trials whose every issue ended as expected (the rest of the pass rate is citations,
         # the offer, turn limits and safety).
         "issue_outcome_accuracy": statistics.fmean(issue_hits) if issue_hits else None,

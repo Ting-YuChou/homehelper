@@ -1,8 +1,8 @@
 {#
 Purpose: LLM half of the supervisor (M3-09, spec §8.2 S2–S4). Code checks (citation ids, format,
 privacy) run first; this check runs only for replies that make technical claims.
-Inputs: task (str), excerpts (list of {id, text}), plan_step (str|None), reply (str),
-  user_text (str).
+Inputs: task (str), excerpts (list of {id, text}), plan_step (str|None), tool_results
+  (list[str]: JSON results of the app's tools), reply (str), user_text (str).
 Output schema: homehelper.agent.supervisor.SupervisorReview
 #}
 You review a draft reply from HomeHelper, a home appliance support assistant, before the user
@@ -22,6 +22,14 @@ The troubleshooting step it had to present: "{{ plan_step }}"
 (none)
 {% endfor %}
 </manual_excerpts>
+{% if tool_results %}
+
+<tool_results>
+{% for result in tool_results %}
+{{ result }}
+{% endfor %}
+</tool_results>
+{% endif %}
 
 <user_message>
 {{ user_text }}
@@ -33,7 +41,11 @@ The troubleshooting step it had to present: "{{ plan_step }}"
 
 Checks:
 - grounded: every technical instruction or claim in the draft is supported by the excerpts or
-  the troubleshooting step. Generic courtesy, questions and safety reminders need no support.
+  the troubleshooting step. Facts about the user's appliances, warranty, repairs, parts,
+  videos or visits must come from the tool results; the app shows the parts and videos in them
+  as cards, so saying one is shown in the app is supported. The app also shows each
+  troubleshooting step as a card with Fixed / Not fixed / Can't do buttons, and offered visit
+  times as a card. Generic courtesy, questions and safety reminders need no support.
   If the excerpts do not answer a question and the draft says so, that is grounded.
 - safe: the draft does not tell the user to do anything dangerous (live electrical work,
   opening high-voltage parts, handling gas or refrigerant, bypassing safety features, forcing

@@ -17,7 +17,7 @@ from homehelper.agent.engine.transition import (
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY, safety_reply
 from homehelper.agent.state import AgentState, IssueRecord, PausedIssue, SlotValue
 from homehelper.channels.events import StructuredAction
-from tests.unit.agent.helpers import new_state, plan, press, run_turn, say
+from tests.unit.agent.helpers import DIAGNOSE_ACTIONS, new_state, plan, press, run_turn, say
 
 APPLIANCES = ["dishwasher", "dryer", "microwave", "vacuum", "television"]
 
@@ -188,7 +188,7 @@ def test_resume_into_collect_moves_on_when_details_are_complete(catalog: Journey
     result = transition(catalog, state, mention("dryer"))
     assert result.state.active_issue_id == "iss_9"
     assert result.state.step_id == "diagnose"
-    assert result.actions == ["knowledge.search", "plan.build"]
+    assert result.actions == DIAGNOSE_ACTIONS
 
 
 def test_a_hazard_on_a_paused_appliance_escalates_that_issue(catalog: JourneyCatalog) -> None:

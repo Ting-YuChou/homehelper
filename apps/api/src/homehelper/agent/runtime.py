@@ -16,6 +16,7 @@ from homehelper.agent.state import AgentState
 from homehelper.agent.turn import GraphState, TurnScratch
 from homehelper.channels.events import AgentEvent, ErrorEvent, InboundMessage
 from homehelper.core.logging import get_logger
+from homehelper.mcp_servers.registry import WRITE_TOOLS
 
 log = get_logger(__name__)
 
@@ -106,6 +107,15 @@ class JourneyAgent:
         try:
             if before.agent is not None:
                 values = {name: getattr(before, name) for name in GraphState.model_fields}
+                # A write that succeeded cannot be undone: keep its record, so the retry finds it
+                # and does not book or record twice (`run_mcp_action`).
+                failed = await self._state(_config(conversation_id))
+                writes = [
+                    call
+                    for call in failed.tool_calls[len(before.tool_calls) :]
+                    if call.ok and call.name in WRITE_TOOLS
+                ]
+                values["tool_calls"] = [*before.tool_calls, *writes]
                 await self._graph.aupdate_state(_config(conversation_id), values, as_node="emit")
             else:  # the conversation's first turn
                 await self._checkpointer.adelete_thread(conversation_id)

@@ -38,6 +38,10 @@ Fields:
   - ask_parts: asks about parts or tools to buy.
   - my_appliances: asks about their registered appliances, warranty or repair history.
   - book_technician: asks for a technician, a repair visit or professional help.
+  When a message describes a problem and explicitly asks which part to buy or for a technician
+  to come, the request decides the intent (ask_parts, book_technician) and the problem still
+  goes in symptom. Asking whether a part is the cause ("do I need a new pump?") is still
+  report_problem.
   - confirm / deny: answers yes or no to a question the assistant asked.
   - small_talk: greetings, thanks and pleasantries about this conversation.
   - out_of_scope: anything unrelated to home appliances: chit-chat or questions about other
@@ -49,7 +53,8 @@ Fields:
 - slot_updates: only details the user stated in THIS message. Allowed names:
   - appliance_category: one of {{ categories | join(", ") }}. Map synonyms (fridge ->
     refrigerator, washer -> washing_machine, Roomba -> vacuum, TV -> television, ...).
-  - symptom: a short description of the problem (for report_problem).
+  - symptom: a short description of the problem (for report_problem, ask_parts and
+    book_technician).
   - question: the user's question (for ask_how_to).
   - brand, model_number, error_code: exactly as the user wrote them.
 - step_feedback: when the message reports on the step they were asked to try: "fixed" (it

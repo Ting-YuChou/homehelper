@@ -1,0 +1,137 @@
+# Tool-using scenarios (M5-08, spec §12, §16.3): a signed-in demo user from data/mock/ (or a
+# guest) whose conversation needs the MCP tools. Graded on the outcome and on which tools were
+# called (`required_tool_calls`), or must never be (`forbidden_tool_calls`).
+#
+# user_turns are sent verbatim; the simulated user then continues from `scenario`. The mock
+# servers run on a fixed clock (2026-10-20), so warranty status is stable:
+#   demo_alex  washer LG WM4000HWA (warranty expired; past OE drain repair),
+#              dryer Samsung DVE45B6300W (under warranty)
+#   demo_jordan dishwasher Bosch SHE3AR76UC (past E15 repair), vacuum Shark NV352
+#   demo_maria washer LG WM9900HBA (under warranty), ZIP 94612
+version: 1
+cases:
+  - id: tools-prefill-history
+    user_id: demo_alex
+    category: washing_machine
+    brand: LG
+    persona: Frustrated but Polite
+    scenario: >-
+      The LG front-load washer will not drain and shows the OE error again. The drain pump filter
+      is clogged with lint and a sock; cleaning it fixes the problem.
+    solution_steps:
+      - Clean the drain pump filter behind the access panel at the bottom front.
+      - Check the drain hose for kinks.
+    root_cause_step: 1
+    user_turns:
+      - My washer won't drain again and it's showing OE.
+    simulator_notes: You don't remember the model number; the assistant may already know it.
+    expected_outcomes: [resolved]
+    assertions:
+      required_tool_calls:
+        - user_profile.get_warranty_status
+        - user_profile.list_repair_history
+
+  - id: tools-warranty-question
+    user_id: demo_alex
+    category: dryer
+    brand: Samsung
+    persona: Overwhelmed Newbie
+    scenario: You want to know whether your dryer is still under warranty before calling anyone.
+    user_turns:
+      - Is my dryer still under warranty?
+    simulator_notes: Once you get a clear answer with the warranty date, thank the assistant.
+    expected_outcomes: [resolved]
+    max_turns: 4
+    assertions:
+      required_tool_calls: [user_profile.get_warranty_status]
+
+  - id: tools-list-appliances
+    user_id: demo_jordan
+    persona: Overwhelmed Newbie
+    scenario: You can't remember which appliances you registered and want the list.
+    user_turns:
+      - Which appliances do I have registered with you?
+    simulator_notes: Once you get the list, thank the assistant.
+    expected_outcomes: [resolved]
+    max_turns: 4
+    assertions:
+      required_tool_calls: [user_profile.list_appliances]
+
+  - id: tools-book-technician
+    user_id: demo_maria
+    category: washing_machine
+    brand: LG
+    persona: Frustrated but Polite
+    scenario: >-
+      The LG washer makes a loud grinding noise during spin and you want a technician to come and
+      look at it. You do not want to troubleshoot it yourself.
+    user_turns:
+      - My LG washer is making a loud grinding noise when it spins. Can you send a technician?
+    simulator_notes: When visit times are offered, pick the first one.
+    expected_outcomes: [escalated]
+    max_turns: 6
+    assertions:
+      required_tool_calls: [service_booking.list_slots, service_booking.book]
+
+  - id: tools-guest-no-booking
+    persona: Frustrated but Polite
+    category: dishwasher
+    brand: Bosch
+    scenario: >-
+      You are not signed in. The Bosch dishwasher leaves dishes dirty and you want a technician.
+    user_turns:
+      - My Bosch dishwasher leaves everything dirty. I just want a technician to come out.
+    simulator_notes: You will contact a technician yourself if the assistant cannot book one.
+    expected_outcomes: [escalated]
+    max_turns: 5
+    assertions:
+      forbidden_tool_calls: [service_booking.book]
+
+  - id: tools-parts-vacuum
+    user_id: demo_jordan
+    category: vacuum
+    brand: Shark
+    persona: DIY Enthusiast
+    scenario: >-
+      The Shark vacuum lost suction; you already washed the foam filters and want to buy
+      replacement filters or the part that usually fixes this.
+    user_turns:
+      - My Shark vacuum lost suction even after I washed the filters. What part should I buy?
+    simulator_notes: Once a part is suggested, thank the assistant.
+    expected_outcomes: [resolved]
+    max_turns: 5
+    assertions:
+      required_tool_calls: [parts_catalog.search_parts]
+
+  - id: tools-repeat-error-code
+    user_id: demo_jordan
+    category: dishwasher
+    brand: Bosch
+    persona: Frustrated but Polite
+    scenario: >-
+      The Bosch dishwasher stopped mid-cycle with the E15 error again. Water in the base pan
+      triggers it; tilting the dishwasher to drain the base pan and checking for a small leak
+      fixes it.
+    solution_steps:
+      - Turn off the power and drain the water from the base pan.
+      - Check the hoses and connections for a small leak.
+    root_cause_step: 1
+    user_turns:
+      - My Bosch dishwasher stopped in the middle of a cycle with E15 again.
+    expected_outcomes: [resolved]
+    assertions:
+      required_tool_calls: [user_profile.list_repair_history]
+
+  - id: tools-video-how-to
+    user_id: demo_alex
+    category: dryer
+    brand: Samsung
+    persona: Overwhelmed Newbie
+    scenario: You want a short video that shows how to clean the dryer's lint filter.
+    user_turns:
+      - Is there a video that shows how to clean the lint filter on my Samsung dryer?
+    simulator_notes: Once a video or clear instructions are given, thank the assistant.
+    expected_outcomes: [resolved]
+    max_turns: 4
+    assertions:
+      required_tool_calls: [tutorials.search_videos]

@@ -18,7 +18,13 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 
-from homehelper.agent.protocol import AgentRuntime, AgentSnapshot, IssueSnapshot, Outcome
+from homehelper.agent.protocol import (
+    AgentRuntime,
+    AgentSnapshot,
+    IssueSnapshot,
+    Outcome,
+    ToolCall,
+)
 from homehelper.channels.events import (
     AgentEvent,
     CardEvent,
@@ -147,6 +153,8 @@ class OracleStubAgent:
             conversation_id=conversation_id,
             outcome=state.outcome,
             hazard_flags=state.hazard_flags,
+            # The oracle "calls" exactly the tools a tools case requires (pipeline check only).
+            tool_calls=[ToolCall(name=name) for name in self._case.assertions.required_tool_calls],
         )
 
     def _respond(self, state: _Conversation, message: InboundMessage) -> list[AgentEvent]:
@@ -169,7 +177,8 @@ class OracleStubAgent:
                 hazard="water_near_electric",
                 instructions=["Switch off the circuit breaker before touching anything wet."],
             )
-        if message.action is None and state.next_step == 0 and not _APPLIANCE.search(text):
+        off_topic = not _APPLIANCE.search(text) and self._case.kind != "tools"
+        if message.action is None and state.next_step == 0 and off_topic:
             state.outcome = "out_of_scope"
             return _reply(
                 "I can only help with home appliance problems. Is there an appliance I can "
@@ -190,6 +199,10 @@ class OracleStubAgent:
             return _reply("Great, glad that fixed it!", journey="troubleshoot")
 
         steps = self._case.solution_steps
+        if not steps and "resolved" in self._case.expected_outcomes:
+            # A question answered from the tools (warranty, parts, videos): nothing to try.
+            state.outcome = "resolved"
+            return _reply("Here is what I found for you.", journey="my_appliances")
         if state.next_step >= len(steps):
             state.outcome = "escalated"
             return _reply(

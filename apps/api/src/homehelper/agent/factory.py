@@ -14,6 +14,7 @@ from homehelper.agent.checkpoint import postgres_checkpointer
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.protocol import AgentRuntime, AgentSnapshot
 from homehelper.agent.runtime import JourneyAgent
+from homehelper.agent.tools import McpToolbox
 from homehelper.channels.events import AgentEvent, InboundMessage
 from homehelper.core.config import Settings
 from homehelper.core.tracing import Tracer
@@ -21,6 +22,7 @@ from homehelper.knowledge.backends import build_retriever
 from homehelper.knowledge.retriever import ResultCache
 from homehelper.knowledge.web import build_web_fallback
 from homehelper.llm import ModelRegistry, build_llm_client
+from homehelper.mcp_servers.factory import McpServers
 
 
 class DeferredAgent:
@@ -52,6 +54,7 @@ async def journey_agent(
     tracer: Tracer | None = None,
     cache: ResultCache | None = None,
     registry: ModelRegistry | None = None,
+    mcp: McpServers | None = None,
 ) -> AsyncIterator[JourneyAgent]:
     """`registry` is the release's model mapping (`app.state.model_registry`, M7-03); without it
     both the LLM client and the retriever use plain `models.yaml`."""
@@ -61,7 +64,10 @@ async def journey_agent(
     )
     try:
         async with postgres_checkpointer(settings.database_url) as checkpointer:
-            deps = AgentDeps.default(llm, retriever, settings.release_id, tracer=tracer)
+            tools = McpToolbox(mcp) if mcp is not None else None
+            deps = AgentDeps.default(
+                llm, retriever, settings.release_id, tracer=tracer, tools=tools
+            )
             yield JourneyAgent(deps, checkpointer)
     finally:
         await backend.close()

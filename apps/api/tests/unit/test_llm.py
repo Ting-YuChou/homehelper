@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from types import SimpleNamespace
 from typing import Any
 
@@ -12,8 +13,13 @@ from homehelper.llm import (
     LLMUsage,
     Message,
     ModelRegistry,
+    ToolCallRequest,
+    ToolSpec,
+    ToolTurn,
+    litellm_client,  # imports litellm after setting LITELLM_MODE
     track_usage,
 )
+from homehelper.llm.litellm_client import TOOL_CALL_NUDGE
 from tests.conftest import make_settings
 
 MESSAGES = [Message(role="user", content="hi")]
@@ -23,9 +29,18 @@ class Answer(BaseModel):
     value: int
 
 
-def _response(content: str) -> Any:
+def _response(content: Any) -> Any:
+    # A str is a text reply; a list of (name, raw arguments) pairs is a tool-calling reply.
+    if isinstance(content, list):
+        calls = [
+            SimpleNamespace(id=f"call_{i}", function=SimpleNamespace(name=name, arguments=args))
+            for i, (name, args) in enumerate(content)
+        ]
+        message = SimpleNamespace(content=None, tool_calls=calls)
+    else:
+        message = SimpleNamespace(content=content, tool_calls=None)
     return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+        choices=[SimpleNamespace(message=message)],
         usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
     )
 
@@ -131,7 +146,7 @@ async def test_json_object_mode_puts_the_schema_in_the_prompt() -> None:
     call = completion.calls[0]
     assert call["response_format"] == {"type": "json_object"}
     assert '"value"' in call["messages"][-1]["content"]  # the JSON schema
-    assert call["messages"][:-1] == [m.model_dump() for m in MESSAGES]
+    assert call["messages"][:-1] == [m.to_payload() for m in MESSAGES]
 
 
 async def test_reasoning_effort_is_sent_only_when_set() -> None:
@@ -245,3 +260,114 @@ async def test_fake_client_replays_script_and_records_calls() -> None:
     with pytest.raises(AssertionError, match="no scripted reply"):
         await fake.text("responder", MESSAGES)
     assert [c.schema_name for c in fake.calls_for("nlu")] == ["Answer"] * 3
+
+
+LOOKUP = ToolSpec(
+    name="parts_catalog__search_parts",
+    description="Search parts",
+    parameters={"type": "object", "properties": {"symptom": {"type": "string"}}},
+)
+
+
+async def test_tool_turn_sends_tools_and_parses_calls() -> None:
+    completion = ScriptedCompletion(
+        {"anthropic/primary": [[("parts_catalog__search_parts", '{"symptom": "no drain"}')]]}
+    )
+    turn = await _client(completion).tool_turn("nlu", MESSAGES, [LOOKUP])
+    assert turn.tool_calls == [
+        ToolCallRequest(
+            id="call_0", name="parts_catalog__search_parts", arguments={"symptom": "no drain"}
+        )
+    ]
+    sent = completion.calls[0]
+    assert sent["tool_choice"] == "auto"  # thinking modes reject a forced choice
+    assert sent["tools"] == [{"type": "function", "function": LOOKUP.model_dump()}]
+
+
+async def test_tool_turn_through_litellm_does_not_load_its_mcp_bridge() -> None:
+    """LiteLLM's MCP bridge needs mcp>=2; importing it failed every tool call (we pin mcp<2)."""
+    call = {"id": "c1", "type": "function", "function": {"name": LOOKUP.name, "arguments": "{}"}}
+    client = LiteLLMClient(
+        _registry(),
+        {"anthropic": "a", "openai": "o"},
+        completion_fn=functools.partial(litellm_client.litellm.acompletion, mock_tool_calls=[call]),
+    )
+    turn = await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    assert [c.name for c in turn.tool_calls] == [LOOKUP.name]
+
+
+async def test_tool_turn_retries_once_on_bad_arguments_then_fails() -> None:
+    bad = [("parts_catalog__search_parts", "{not json")]
+    good = [("parts_catalog__search_parts", "{}")]
+    completion = ScriptedCompletion({"anthropic/primary": [bad, good, bad, ["x"]]})
+    client = _client(completion)
+    assert (await client.tool_turn("nlu", MESSAGES, [LOOKUP])).tool_calls[0].arguments == {}
+    completion.script["anthropic/primary"] = [bad, '"no call"']
+    with pytest.raises(LLMError, match="tool call invalid after retry"):
+        await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+
+
+async def test_a_required_tool_call_is_asked_for_again() -> None:
+    completion = ScriptedCompletion(
+        {"anthropic/primary": ['"plain text"', [("parts_catalog__search_parts", "{}")]]}
+    )
+    turn = await _client(completion).tool_turn("nlu", MESSAGES, [LOOKUP])
+    assert turn.tool_calls[0].name == "parts_catalog__search_parts"
+    retry = completion.calls[1]["messages"]
+    assert retry[-1]["content"] == TOOL_CALL_NUDGE
+
+
+async def test_tool_turn_without_requirement_may_answer_in_text() -> None:
+    completion = ScriptedCompletion({"anthropic/primary": ["just text"]})
+    turn = await _client(completion).tool_turn("nlu", MESSAGES, [LOOKUP], require_tool=False)
+    assert turn == ToolTurn(content="just text")
+    assert completion.calls[0]["tool_choice"] == "auto"
+
+
+async def test_tool_turn_falls_back_and_reports_usage() -> None:
+    sink: list[LLMUsage] = []
+    completion = ScriptedCompletion(
+        {
+            "anthropic/primary": [RuntimeError("down")],
+            "openai/backup": [[("parts_catalog__search_parts", "{}")]],
+        }
+    )
+    await _client(completion, sink=sink).tool_turn("nlu", MESSAGES, [LOOKUP])
+    assert [u.model for u in sink] == ["openai/backup"]
+
+
+async def test_tool_history_is_sent_in_openai_format() -> None:
+    call = ToolCallRequest(id="c1", name="parts_catalog__search_parts", arguments={"a": 1})
+    history = [
+        *MESSAGES,
+        Message(role="assistant", content="", tool_calls=[call]),
+        Message(role="tool", content='{"parts": []}', tool_call_id="c1"),
+    ]
+    completion = ScriptedCompletion({"anthropic/primary": ["done"]})
+    await _client(completion).text("nlu", history)
+    sent = completion.calls[0]["messages"]
+    assert sent[0] == {"role": "user", "content": "hi"}
+    assert sent[1]["tool_calls"] == [
+        {
+            "id": "c1",
+            "type": "function",
+            "function": {"name": "parts_catalog__search_parts", "arguments": '{"a": 1}'},
+        }
+    ]
+    assert sent[2] == {"role": "tool", "content": '{"parts": []}', "tool_call_id": "c1"}
+
+
+async def test_fake_client_scripts_tool_turns() -> None:
+    fake = FakeLLMClient(
+        {
+            "responder": [
+                {"tool_calls": [{"id": "1", "name": "service_booking__book", "arguments": {}}]},
+                ToolTurn(),
+            ]
+        }
+    )
+    turn = await fake.tool_turn("responder", MESSAGES, [LOOKUP])
+    assert turn.tool_calls[0].name == "service_booking__book"  # not offered: passed through
+    assert fake.calls[0].tools == ["parts_catalog__search_parts"]
+    with pytest.raises(AssertionError, match="must call a tool"):
+        await fake.tool_turn("responder", MESSAGES, [LOOKUP])

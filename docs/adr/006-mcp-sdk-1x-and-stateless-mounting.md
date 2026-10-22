@@ -1,6 +1,6 @@
 # ADR-006: MCP SDK 1.x, stateless mounted servers, and a tool registry
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by ADR-008 (the agent uses its own thin client, not `langchain-mcp-adapters`, so the `mcp<2` pin now only reflects the servers' FastMCP 1.x)
 - **Date:** 2026-10-21
 - **Spec:** §12.1
 

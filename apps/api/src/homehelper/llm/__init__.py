@@ -3,7 +3,15 @@ from homehelper.core.tracing import Tracer
 from homehelper.llm.fake import FakeLLMClient
 from homehelper.llm.litellm_client import LiteLLMClient, UsageSink
 from homehelper.llm.registry import ModelRegistry
-from homehelper.llm.types import LLMClient, LLMError, LLMUsage, Message
+from homehelper.llm.types import (
+    LLMClient,
+    LLMError,
+    LLMUsage,
+    Message,
+    ToolCallRequest,
+    ToolSpec,
+    ToolTurn,
+)
 from homehelper.llm.usage import UsageTally, record_usage, track_usage
 
 __all__ = [
@@ -14,6 +22,9 @@ __all__ = [
     "LiteLLMClient",
     "Message",
     "ModelRegistry",
+    "ToolCallRequest",
+    "ToolSpec",
+    "ToolTurn",
     "UsageTally",
     "build_llm_client",
     "record_usage",

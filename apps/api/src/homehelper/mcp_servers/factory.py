@@ -133,16 +133,26 @@ def web_search_client_for(settings: Settings, data: MockData) -> WebSearchClient
 
 
 def build_mcp_servers(
-    settings: Settings, *, engine: AsyncEngine, overrides: McpOverrides | None = None
+    settings: Settings, *, engine: AsyncEngine | None = None, overrides: McpOverrides | None = None
 ) -> McpServers:
+    """`engine` is needed only for the Postgres stores of real mode (mock mode and evals run
+    without a database)."""
     o = overrides or McpOverrides()
     mock = settings.mcp_mode == "mock"
+
+    def require_engine() -> AsyncEngine:
+        if engine is None:
+            raise ValueError("MCP_MODE=real needs a database engine for its stores")
+        return engine
+
     data = o.data or load_mock_data(settings.mock_dir)
     clock = o.clock or utc_now
     profiles = o.profile_store or (
-        InMemoryProfileStore(data) if mock else PostgresProfileStore(engine)
+        InMemoryProfileStore(data) if mock else PostgresProfileStore(require_engine())
     )
-    bookings = o.booking_store or (InMemoryBookingStore() if mock else PostgresBookingStore(engine))
+    bookings = o.booking_store or (
+        InMemoryBookingStore() if mock else PostgresBookingStore(require_engine())
+    )
     videos = o.video_search or video_search_for(settings, data)
     web = o.web_search_client or web_search_client_for(settings, data)
     return McpServers(

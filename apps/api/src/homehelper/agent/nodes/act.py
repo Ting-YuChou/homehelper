@@ -2,8 +2,8 @@
 going while the engine is at a `system` step (e.g. diagnose → knowledge.search, plan.build).
 
 `plan.build` is M3-07: the planner drafts items from the retrieved excerpts, and code applies
-the §7.6 rules (`postprocess_plan`). MCP actions need the M5 tool client and are logged as
-skipped until then.
+the §7.6 rules (`postprocess_plan`). `mcp:` actions call MCP tools with arguments built by code
+(`mcp_actions`); their results are this turn's `tool_results`.
 """
 
 from collections.abc import Callable
@@ -14,16 +14,26 @@ from pydantic import BaseModel, Field
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
+from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
+from homehelper.agent.nodes.mcp_actions import (
+    as_tool_call,
+    booking_confirmation,
+    run_mcp_action,
+    similar_repairs,
+    warranty_active,
+)
 from homehelper.agent.nodes.understand import QUERY_INTENTS
 from homehelper.agent.state import AgentState, Decision, PlanItem
+from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState
 from homehelper.channels.events import StatusEvent
 from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalQuery, RetrievalResult
 from homehelper.llm import Message
 
 MAX_ACTION_ROUNDS = 4  # system steps chained in one turn; the catalog needs at most two
+NOTICE_REPAIR_HISTORY = "repair_history"  # an earlier repair looks like this problem
 Emit = Callable[[object], None]
 
 
@@ -109,7 +119,11 @@ def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
 
 
 async def build_plan(
-    deps: AgentDeps, state: AgentState, user_said: list[str] | None = None
+    deps: AgentDeps,
+    state: AgentState,
+    user_said: list[str] | None = None,
+    *,
+    in_warranty: bool = False,
 ) -> tuple[list[PlanItem], list[Decision]]:
     retrieval = state.last_retrieval
     if retrieval is None or not retrieval.chunks:
@@ -142,8 +156,10 @@ async def build_plan(
         )
         for index, item in enumerate(rank_draft(draft.items), start=1)
     ]
-    # Warranty status comes from the user profile (M5); until then nothing is under warranty.
-    edit = postprocess_plan(items, category=_slot(state, "appliance_category"))
+    # `in_warranty` comes from the profile's warranty check (G-WARR-01).
+    edit = postprocess_plan(
+        items, category=_slot(state, "appliance_category"), in_warranty=in_warranty
+    )
     decisions = [
         Decision(
             kind="plan",
@@ -159,9 +175,14 @@ async def build_plan(
 
 
 async def run_action(
-    action: str, graph: GraphState, state: AgentState, deps: AgentDeps, emit: Emit
+    action: str,
+    graph: GraphState,
+    state: AgentState,
+    deps: AgentDeps,
+    emit: Emit,
+    outcomes: list[ToolOutcome] | None = None,
 ) -> AgentState:
-    """Run one step action against `state` (mutated and returned)."""
+    """Run one step action against `state` (mutated and returned); MCP results go to `outcomes`."""
     if action == "knowledge.search":
         text = graph.search_query or _slot(state, "symptom") or _slot(state, "question") or ""
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
@@ -188,7 +209,9 @@ async def run_action(
             user_said = [line.text for line in graph.transcript if line.role == "user"]
             if graph.turn.message is not None and graph.turn.message.text:
                 user_said.append(graph.turn.message.text)
-            state.plan, decisions = await build_plan(deps, state, user_said)
+            state.plan, decisions = await build_plan(
+                deps, state, user_said, in_warranty=warranty_active(outcomes or [])
+            )
             record(
                 span,
                 output={
@@ -199,13 +222,9 @@ async def run_action(
         state.plan_cursor = 0
         state.decision_log.extend(decisions)
     else:
-        state.decision_log.append(
-            Decision(
-                kind="plan",
-                journey=state.active_journey,
-                reason=f"skipped {action}: MCP tools are not connected yet (M5)",
-            )
-        )
+        outcome = await run_mcp_action(action, graph, state, deps)
+        if outcome is not None and outcomes is not None:
+            outcomes.append(outcome)
     return state
 
 
@@ -234,10 +253,11 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
         }
     )
     graph = graph.model_copy(update={"citations": dict(graph.citations)})
+    outcomes: list[ToolOutcome] = []
     if not result.skip_respond:
         for _ in range(MAX_ACTION_ROUNDS):
             for action in result.actions:
-                state = await run_action(action, graph, state, deps, emit)
+                state = await run_action(action, graph, state, deps, emit, outcomes)
             _remember_citations(graph, state.last_retrieval)
             if not result.continue_after_actions:
                 break
@@ -246,8 +266,21 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.fixed_replies.extend(result.fixed_replies)
             turn.notices.extend(result.notices)
         turn.retrieval = state.last_retrieval
+    else:
+        # A template replaces the reply (e.g. a hazard escalation), but read tools still run:
+        # the visit times offered with it come from them.
+        for action in result.actions:
+            if action.startswith("mcp:") and not is_write_tool(action):
+                state = await run_action(action, graph, state, deps, emit, outcomes)
+    turn.tool_results = outcomes
+    confirmation = booking_confirmation(outcomes, state)
+    if confirmation is not None:
+        turn.fixed_replies.append(confirmation)
+    if similar_repairs(outcomes, state):
+        turn.notices.append(NOTICE_REPAIR_HISTORY)
 
-    if turn.side_question and turn.nlu and turn.nlu.search_query_en:
+    how_to = turn.nlu is not None and turn.nlu.intent == "ask_how_to"
+    if turn.side_question and how_to and turn.nlu and turn.nlu.search_query_en:
         # Answer a how-to question during another journey without touching its step (§7.4).
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
         query = retrieval_query(state, turn.nlu.search_query_en)
@@ -261,4 +294,8 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
         "turn": turn,
         "citations": graph.citations,
         "search_query": graph.search_query,
+        "tool_calls": [
+            *graph.tool_calls,
+            *(as_tool_call(o, "action", state.active_issue_id) for o in outcomes if not o.replayed),
+        ],
     }

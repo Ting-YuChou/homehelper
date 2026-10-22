@@ -104,6 +104,7 @@ def pause_active(state: AgentState) -> list[str]:
             plan_cursor=state.plan_cursor,
             step_attempts=state.step_attempts,
             last_retrieval=state.last_retrieval,
+            appliance_id=state.appliance_id,
         ).model_copy(deep=True)
     )
     dropped: list[str] = []
@@ -130,7 +131,9 @@ def restore(state: AgentState, paused: PausedIssue) -> None:
     state.plan_cursor = paused.plan_cursor
     state.step_attempts = paused.step_attempts
     state.last_retrieval = paused.last_retrieval
+    state.appliance_id = paused.appliance_id
     state.selected_booking_slot = None
+    state.offered_slots = []
 
 
 def paused_for_category(state: AgentState, category: str) -> PausedIssue | None:

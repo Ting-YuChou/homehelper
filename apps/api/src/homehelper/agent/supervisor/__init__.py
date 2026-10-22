@@ -13,7 +13,12 @@ from pydantic import BaseModel, Field
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.guardrails import check_privacy, looks_english
-from homehelper.agent.nodes.respond import ResponsePlan, response_plan, user_text
+from homehelper.agent.nodes.respond import (
+    ResponsePlan,
+    response_plan,
+    tool_result_text,
+    user_text,
+)
 from homehelper.agent.state import Decision
 from homehelper.agent.turn import AgentReply, GraphState, SupervisorVerdict
 from homehelper.core.logging import get_logger
@@ -62,6 +67,7 @@ async def llm_review(
         task=plan.task,
         excerpts=[{"id": c.chunk_id, "text": c.text} for c in plan.excerpts],
         plan_step=plan.plan_item["instruction"] if plan.plan_item else None,
+        tool_results=[tool_result_text(o) for o in graph.turn.tool_results],
         reply=reply.message,
         user_text=user_text(graph),
     )
@@ -83,6 +89,8 @@ async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     reply = turn.reply
     if reply is None:  # a fixed template replaced the response
         return {}
+    if turn.verdict is not None and turn.verdict.action == "pass":
+        return {}  # a reply built by code after an LLM failure (`booking_fallback`)
     plan = response_plan(graph, deps)
     state = graph.state.model_copy(deep=True)
 
@@ -102,7 +110,7 @@ async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
 
     step = deps.step(state)
     reasons = code_checks(reply, booking_in_progress=step is not None and step.type == "handoff")
-    if not reasons and plan.cite:
+    if not reasons and (plan.cite or graph.turn.tool_results):
         reasons = await llm_review(graph, deps, plan, reply)
 
     if not reasons:

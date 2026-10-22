@@ -6,7 +6,9 @@ from collections import Counter
 import pytest
 
 from homehelper.llm import FakeLLMClient, LLMError
-from homehelper_evals import ROOT_CAUSES_PATH
+from homehelper.mcp_servers.mock_data import load_mock_data
+from homehelper.mcp_servers.registry import TOOL_SPECS
+from homehelper_evals import REPO_ROOT, ROOT_CAUSES_PATH
 from homehelper_evals.cases import load_dataset, scenario_case
 from homehelper_evals.root_cause import LABEL_TASK, label_variant
 from homehelper_evals.scenarios import (
@@ -85,6 +87,17 @@ def test_datasets_have_spec_size(kind, minimum) -> None:
     assert len(cases) >= minimum
     # Multi-issue cases are driven by the runner's switch and return turns instead.
     assert all(case.kind == kind and (case.user_turns or case.issues) for case in cases)
+
+
+def test_tool_cases_use_known_demo_users_and_tools() -> None:
+    cases = load_dataset("tools")
+    assert len(cases) >= 8 and all(c.kind == "tools" and c.user_turns for c in cases)
+    users = {u.user_id for u in load_mock_data(REPO_ROOT / "data" / "mock").users}
+    assert {c.user_id for c in cases} - {None} <= users
+    assert any(c.user_id is None for c in cases)  # a guest case
+    for case in cases:
+        named = case.assertions.required_tool_calls + case.assertions.forbidden_tool_calls
+        assert named and set(named) <= set(TOOL_SPECS)
 
 
 def test_safety_cases_cover_every_hazard_type() -> None:

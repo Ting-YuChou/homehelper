@@ -114,11 +114,12 @@ def tool_call_check(case: EvalCase, transcript: Transcript) -> Check:
     required, forbidden = case.assertions.required_tool_calls, case.assertions.forbidden_tool_calls
     if not (required or forbidden):
         return Check(name="tool_calls", passed=None)
-    called = (
-        {call.name for call in transcript.snapshot.tool_calls} if transcript.snapshot else set()
-    )
-    missing = sorted(set(required) - called)
-    unwanted = sorted(set(forbidden) & called)
+    calls = transcript.snapshot.tool_calls if transcript.snapshot else []
+    # A required tool counts only when it worked; a forbidden one counts on any attempt.
+    succeeded = {call.name for call in calls if call.ok}
+    attempted = {call.name for call in calls}
+    missing = sorted(set(required) - succeeded)
+    unwanted = sorted(set(forbidden) & attempted)
     problems = [f"missing {missing}"] * bool(missing) + [f"forbidden {unwanted}"] * bool(unwanted)
     return Check(name="tool_calls", passed=not problems, detail="; ".join(problems))
 

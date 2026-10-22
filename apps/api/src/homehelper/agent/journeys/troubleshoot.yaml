@@ -2,7 +2,7 @@
 id: troubleshoot
 version: 1
 goal: The user confirms the problem is fixed, or is safely referred to a professional.
-entry_intents: [report_problem]
+entry_intents: [report_problem, book_technician]  # the guardrail below escalates the latter
 
 slots:
   appliance_category: { type: enum, values: categories, required: true }
@@ -43,7 +43,9 @@ steps:
 
   - id: diagnose
     type: system
-    actions: [knowledge.search, plan.build]
+    # Warranty and repair history need an issue linked to a profile appliance; skipped otherwise.
+    actions: [mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history,
+              knowledge.search, plan.build]
     transitions:
       - when: plan_available
         to: guide
@@ -71,7 +73,7 @@ steps:
     type: handoff
     goal: Explain why professional help is recommended and offer booking options.
     outcome: escalated
-    tools_allowed: [mcp:service_booking.list_slots]  # read-only tools only
+    actions: [mcp:service_booking.list_slots]   # code: the profile's ZIP and the category  # read-only tools only
     transitions:
       - when: booking_confirmed   # BookingSlots card action; code then calls service_booking.book
         to: escalated_end

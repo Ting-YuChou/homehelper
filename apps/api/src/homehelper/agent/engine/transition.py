@@ -40,6 +40,7 @@ from homehelper.agent.engine.predicates import (
     PredicateContext,
     unconfirmed_low_confidence,
 )
+from homehelper.agent.engine.profile import link_profile_appliance
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
 from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards, water_persists
@@ -77,6 +78,14 @@ CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
 # Steps still collecting details: an issue set aside here has barely started.
 COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
+# Questions answered on the side during another journey, without leaving its step (spec §7.4).
+SIDE_INTENTS = frozenset({"ask_how_to", "my_appliances", "ask_parts"})
+# Side questions answered with tools: they may name another appliance ("is my dryer still under
+# warranty?") and still stay on the side. A how-to about another appliance needs its manuals, so
+# it starts its own journey.
+TOOL_SIDE_INTENTS = frozenset({"my_appliances", "ask_parts"})
+# What a side question may fill in while the active issue's details are collected.
+SIDE_QUESTION_SLOTS = frozenset({*TOPIC_SLOTS, "error_code"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -163,6 +172,18 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
         changed = current is not None and new_category is not None and new_category != current.value
+        # Guests have no profile: their `my_appliances` journey answers with the sign-in template.
+        tool_side = (
+            signals.intent in TOOL_SIDE_INTENTS
+            and not signals.escalating_hazards
+            and state.profile is not None
+        )
+        if changed and tool_side and target is not None and target.id != active.id:
+            return Route(
+                kind="side_question",
+                journey=active.id,
+                reason=f"{signals.intent} question about the {new_category} during {active.id}",
+            )
         if changed and step_type in SWITCH_STEP_TYPES:
             assert current is not None and new_category is not None
             if new_category not in CATEGORY_VALUES:
@@ -194,12 +215,16 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         if signals.intent == "out_of_scope" and not signals.escalating_hazards:
             return Route(kind="scope_side", journey=active.id, reason="off-topic during a journey")
+        if signals.intent == "book_technician" and _has_guardrail(
+            active, "user_requested_technician"
+        ):
+            return Route(kind="stay", journey=active.id, reason="technician requested")
         if target is not None and target.id != active.id:
-            if signals.intent == "ask_how_to":
+            if signals.intent in SIDE_INTENTS:
                 return Route(
                     kind="side_question",
                     journey=active.id,
-                    reason=f"how-to question during {active.id}",
+                    reason=f"{signals.intent} question during {active.id}",
                 )
             return Route(
                 kind="switch",
@@ -296,7 +321,17 @@ def _resumable(
 
 
 def _has_hazard_guardrail(journey: Journey) -> bool:
-    return any(guard.when == "hazard_detected" for guard in journey.guardrails)
+    return _has_guardrail(journey, "hazard_detected")
+
+
+def _names_other_appliance(state: AgentState, signals: TurnSignals) -> bool:
+    named = _category_update(signals)
+    current = state.slots.get(CATEGORY_SLOT)
+    return named is not None and (current is None or named != current.value)
+
+
+def _has_guardrail(journey: Journey, when: str) -> bool:
+    return any(guard.when == when for guard in journey.guardrails)
 
 
 def _normalize_enum(value: str) -> str:
@@ -353,7 +388,19 @@ class _Run:
         self._apply_route(decided)
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
-            self._apply_slot_updates(journey, signals)
+            # A side question's details ("do Whirlpool filters fit?") are about the question, not
+            # the active issue: they must not change its appliance or its profile link. While
+            # the issue's details are being collected, its topic ("it leaks") still counts.
+            if decided.kind != "side_question":
+                self._apply_slot_updates(journey, signals)
+                self.decisions.extend(link_profile_appliance(self.state, journey))
+            elif self._step_type(journey) in COLLECT_STEP_TYPES and not _names_other_appliance(
+                self.state, signals
+            ):
+                topic = [u for u in signals.slot_updates if u.name in SIDE_QUESTION_SLOTS]
+                self._apply_slot_updates(
+                    journey, signals.model_copy(update={"slot_updates": topic})
+                )
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
             if not self._guardrails(journey, signals):
@@ -570,7 +617,10 @@ class _Run:
         state.plan_cursor = 0
         state.step_attempts = {}
         state.last_retrieval = None
+        if "appliance_category" not in carried:
+            state.appliance_id = None  # the same appliance keeps its link across journeys
         state.selected_booking_slot = None
+        state.offered_slots = []
         # A new problem gets its own warning (hazards are detected before routing, so a warning
         # given on this very turn counts for the journey it starts).
         state.water_warning_given = any(h.signal == "water_near_electric" for h in self.hazards)
@@ -636,10 +686,15 @@ class _Run:
                     item.status = FEEDBACK_STATUS[signals.feedback]
                     break
         elif signals.booking_slot_id is not None:
-            if step.type == "handoff":
+            offered = {slot.slot_id for slot in state.offered_slots}
+            if step.type == "handoff" and signals.booking_slot_id in offered:
                 state.selected_booking_slot = signals.booking_slot_id
             else:
-                self._log("route", f"ignored booking slot selection at {step.type} step {step.id}")
+                self._log(
+                    "route",
+                    f"ignored booking slot {signals.booking_slot_id!r} at {step.type} step "
+                    f"{step.id}: not one of the offered slots",
+                )
 
     # --- transitions ----------------------------------------------------------------------
 

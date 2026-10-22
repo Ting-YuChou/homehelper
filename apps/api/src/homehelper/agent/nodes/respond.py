@@ -3,10 +3,17 @@
 Code decides what the message must do (`ResponsePlan`): ask for one missing detail, present one
 plan item, answer from excerpts, or explain a handoff. The LLM only words it and cites excerpt
 ids. A fixed template that replaces the response (hazards, scope) skips the LLM entirely.
+
+At a step with `tools_allowed` (spec §7.3) the responder may first call those read tools, at
+most `MAX_TOOL_CALLS` times; its reply is itself a `reply` tool call, so the output stays a
+validated `AgentReply`. A revision reuses the results instead of calling the tools again.
 """
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import ValidationError
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
@@ -17,11 +24,53 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUMED_ISSUE,
 )
 from homehelper.agent.guardrails import HAZARD_RULES
+from homehelper.agent.nodes.mcp_actions import as_tool_call, booked, booking_fallback, tool_user
 from homehelper.agent.state import AgentState
+from homehelper.agent.tools import ToolOutcome, from_llm_name, without_user
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
+from homehelper.core.logging import get_logger
+from homehelper.core.text import neutralize_tags
 from homehelper.knowledge.schemas import RetrievedChunk
 from homehelper.knowledge.web import format_for_responder
-from homehelper.llm import Message
+from homehelper.llm import LLMError, Message, ToolSpec
+
+log = get_logger(__name__)
+
+MAX_TOOL_CALLS = 3  # spec §7.3
+BOOK_ACTION = "mcp:service_booking.book"
+# Read tools for a side question asked during another journey (spec §7.4).
+SIDE_TOOLS = {
+    "my_appliances": [
+        "mcp:user_profile.list_appliances",
+        "mcp:user_profile.get_appliance",
+        "mcp:user_profile.get_warranty_status",
+        "mcp:user_profile.list_repair_history",
+    ],
+    "ask_parts": [
+        "mcp:parts_catalog.search_parts",
+        "mcp:parts_catalog.get_part",
+        "mcp:tutorials.search_videos",
+    ],
+}
+SIDE_TASKS = {
+    "my_appliances": (
+        "Answer the user's question about their appliances, warranty or repairs using the "
+        "tools (if you cannot look it up, say they need to be signed in), then remind them of "
+        "the step they were trying and ask how it went."
+    ),
+    "ask_parts": (
+        "Suggest the parts, tools or videos that fit using the tools, then remind them of the "
+        "step they were trying and ask how it went."
+    ),
+}
+MAX_TOOL_RESULT_CHARS = 3000
+REPLY_TOOL = ToolSpec(
+    name="reply",
+    description=(
+        "Send your message to the user. Call this exactly once, when you are ready to answer."
+    ),
+    parameters=AgentReply.model_json_schema(),
+)
 
 SLOT_QUESTIONS = {
     "appliance_category": "which appliance it is (for example a washer, dryer or refrigerator)",
@@ -41,8 +90,12 @@ RESULT_TEXT = {
     "cannot_do": "they could not do it",
 }
 BOOKING_NOTE = (
-    "Booking a technician is not available in this chat yet, so suggest contacting the "
-    "manufacturer's service or a qualified local technician."
+    "Booking a technician is not available for this appliance in this chat, so suggest "
+    "contacting the manufacturer's service or a qualified local technician."
+)
+SLOTS_NOTE = (
+    "The app shows a few technician visit times below your message; say the user can pick one "
+    "to book it. Do not list the times yourself."
 )
 
 
@@ -69,6 +122,9 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
     state = graph.state
     turn = graph.turn
     retrieved = list(turn.retrieval.chunks) if turn.retrieval else []
+    side_intent = turn.nlu.intent if turn.nlu else None
+    if turn.side_question and side_intent in SIDE_TASKS:
+        return ResponsePlan(task=SIDE_TASKS[side_intent])
     if turn.side_question:
         return ResponsePlan(
             task=(
@@ -113,6 +169,14 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                 },
                 cite=True,
             )
+        case "inform" if turn.retrieval is None:
+            # Answered from tools (profile, parts, videos), not from the manuals.
+            return ResponsePlan(
+                task=(
+                    f"{step.goal} Use the tool results and tools. Mention only what they "
+                    "return; if there is nothing, say so. End by asking whether that helps."
+                )
+            )
         case "inform":
             return ResponsePlan(
                 task=(
@@ -124,13 +188,37 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                 cite=True,
             )
         case "handoff":
+            note = SLOTS_NOTE if state.offered_slots else BOOKING_NOTE
             return ResponsePlan(
                 task=(
                     "Explain briefly that a professional technician is the best next step "
-                    f"because {_handoff_reason(state)}. {BOOKING_NOTE}"
+                    f"because {_handoff_reason(state)}. {note}"
                 )
             )
         case _:  # end; `state.outcome` summarizes all issues, so read this step's own outcome
+            booking = booked(turn.tool_results)
+            if booking is not None and booking.ok:
+                return ResponsePlan(
+                    task=(
+                        "The technician visit is booked; the app states the date, time and "
+                        "technician right above your message. Close warmly."
+                    )
+                )
+            message = turn.message
+            picked = (
+                message is not None
+                and message.action is not None
+                and (message.action.type == "select_booking_slot")
+            )
+            if booking is not None or (picked and BOOK_ACTION in step.actions):
+                # The visit was not booked: the tool failed, or it could not run at all.
+                return ResponsePlan(
+                    task=(
+                        "That visit time could not be booked (it may have just been taken). "
+                        "Apologize briefly and suggest contacting the manufacturer's service "
+                        "or a qualified local technician."
+                    )
+                )
             if step.outcome == "resolved":
                 return ResponsePlan(
                     task="The problem is solved. Close warmly and offer help with anything else."
@@ -177,7 +265,32 @@ def resumed_summary(graph: GraphState) -> str | None:
     return record.summary if record else None
 
 
-def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> list[Message]:
+def tool_result_text(outcome: ToolOutcome) -> str:
+    body: dict[str, Any] = {"tool": outcome.tool, "ok": outcome.ok}
+    if outcome.ok:
+        body["data"] = outcome.data
+    else:
+        body["error"] = outcome.error
+    # Tool data can hold text from outside (video titles, notes the user typed): it never
+    # passes through the prompt templates' `finalize` in a `tool` message, so neutralize it here.
+    text = neutralize_tags(json.dumps(body, default=str))
+    return text if len(text) <= MAX_TOOL_RESULT_CHARS else text[:MAX_TOOL_RESULT_CHARS] + "…"
+
+
+def step_tools(graph: GraphState, deps: AgentDeps) -> list[str]:
+    """The read tools the responder may call this turn (the step's `tools_allowed`)."""
+    if deps.tools is None:
+        return []
+    if graph.turn.side_question:
+        intent = graph.turn.nlu.intent if graph.turn.nlu else None
+        return SIDE_TOOLS.get(intent or "", [])
+    step = deps.step(graph.state)
+    return list(step.tools_allowed) if step is not None else []
+
+
+def respond_messages(
+    graph: GraphState, deps: AgentDeps, plan: ResponsePlan, *, tools_offered: bool = False
+) -> list[Message]:
     turn = graph.turn
     journey = deps.journey(graph.state)
     prefix = " ".join(r.text for r in turn.fixed_replies if not r.replaces_response) or None
@@ -207,6 +320,8 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
         power_off_first=power_off_first,
         open_issues=open_issue_summaries(graph),
         resumed_issue=resumed_summary(graph),
+        tool_results=[tool_result_text(o) for o in turn.tool_results],
+        tools_offered=tools_offered,
         feedback=turn.verdict.reasons if turn.verdict and turn.verdict.action == "revise" else [],
         transcript=graph.transcript[-MAX_TRANSCRIPT_LINES:],
         user_text=user_text(graph),
@@ -214,11 +329,93 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
     return [Message(role="user", content=prompt)]
 
 
+async def tool_loop(
+    deps: AgentDeps,
+    messages: list[Message],
+    tools: list[ToolSpec],
+    allowed: list[str],
+    user_id: str | None,
+) -> tuple[AgentReply | None, list[ToolOutcome]]:
+    """Let the responder call read tools, then reply. None if it never sent a valid reply."""
+    assert deps.tools is not None
+    history = list(messages)
+    outcomes: list[ToolOutcome] = []
+    # Tool calls are capped by count; the extra rounds give the model a chance to reply after it.
+    for _ in range(MAX_TOOL_CALLS + 2):
+        offered = [*tools, REPLY_TOOL] if len(outcomes) < MAX_TOOL_CALLS else [REPLY_TOOL]
+        try:
+            turn = await deps.llm.tool_turn("responder", history, offered)
+        except LLMError as exc:
+            # A provider that fails tool calling must not fail the turn: reply without tools.
+            log.warning("responder_tool_turn_failed", error=str(exc))
+            return None, outcomes
+        final = next((c for c in turn.tool_calls if c.name == REPLY_TOOL.name), None)
+        if final is not None:
+            try:
+                return AgentReply.model_validate(final.arguments), outcomes
+            except ValidationError as exc:
+                log.warning("responder_reply_invalid", errors=exc.error_count())
+                return None, outcomes
+        answers = []
+        for call in turn.tool_calls:
+            if len(outcomes) >= MAX_TOOL_CALLS:
+                outcome = ToolOutcome(
+                    tool=from_llm_name(call.name),
+                    arguments=without_user(call.arguments),
+                    ok=False,
+                    error="tool call limit reached; reply now",
+                )
+            else:
+                outcome = await deps.tools.call_llm(
+                    call.name, call.arguments, allowed=allowed, user_id=user_id
+                )
+                outcomes.append(outcome)
+            answers.append(
+                Message(role="tool", content=tool_result_text(outcome), tool_call_id=call.id)
+            )
+        history.append(Message(role="assistant", content=turn.content, tool_calls=turn.tool_calls))
+        history.extend(answers)
+    return None, outcomes
+
+
 async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
+    try:
+        return await _respond(graph, deps)
+    except LLMError:
+        fallback = booking_fallback(graph.turn)
+        if fallback is None:
+            raise
+        log.warning("responder_failed_after_booking")
+        return {"turn": fallback}
+
+
+async def _respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     turn = graph.turn
     if any(reply.replaces_response for reply in turn.fixed_replies):
         return {}
     plan = response_plan(graph, deps)
-    reply = await deps.llm.structured("responder", respond_messages(graph, deps, plan), AgentReply)
     revisions = turn.revisions + (1 if turn.reply is not None else 0)
-    return {"turn": turn.model_copy(update={"reply": reply, "revisions": revisions})}
+    allowed = step_tools(graph, deps) if turn.reply is None else []  # revisions reuse results
+    tools = (
+        await deps.tools.llm_tools(allowed, user_id=tool_user(graph.state))
+        if deps.tools is not None and allowed
+        else []
+    )
+    update: dict[str, Any] = {}
+    reply: AgentReply | None = None
+    if tools:
+        messages = respond_messages(graph, deps, plan, tools_offered=True)
+        reply, outcomes = await tool_loop(deps, messages, tools, allowed, tool_user(graph.state))
+        if outcomes:
+            turn = turn.model_copy(update={"tool_results": [*turn.tool_results, *outcomes]})
+            graph = graph.model_copy(update={"turn": turn})
+            update["tool_calls"] = [
+                *graph.tool_calls,
+                *(as_tool_call(o, "llm", graph.state.active_issue_id) for o in outcomes),
+            ]
+    if reply is None:
+        reply = await deps.llm.structured(
+            "responder", respond_messages(graph, deps, plan), AgentReply
+        )
+    update["turn"] = turn.model_copy(update={"reply": reply, "revisions": revisions})
+    return update
