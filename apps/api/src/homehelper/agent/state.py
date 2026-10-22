@@ -37,7 +37,9 @@ StepFeedback = Literal["fixed", "not_fixed", "cannot_do", "unclear"]
 
 PlanItemStatus = Literal["pending", "presented", "done_not_fixed", "fixed", "skipped"]
 
-DecisionKind = Literal["route", "transition", "skip", "guardrail", "slot", "plan", "supervisor"]
+DecisionKind = Literal[
+    "route", "transition", "skip", "guardrail", "slot", "plan", "supervisor", "tool"
+]
 
 
 class SlotValue(BaseModel):

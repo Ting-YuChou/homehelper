@@ -13,7 +13,9 @@ Outcome = Literal["resolved", "escalated", "abandoned", "out_of_scope"]
 
 class ToolCall(BaseModel):
     name: str  # e.g. "service_booking.book"
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    arguments: dict[str, Any] = Field(default_factory=dict)  # never includes `user_id`
+    source: Literal["action", "llm"] = "action"  # a step action (code) or the responder
+    ok: bool = True
 
 
 IssueStatus = Literal["active", "paused", "ended"]

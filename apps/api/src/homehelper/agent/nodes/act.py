@@ -2,8 +2,8 @@
 going while the engine is at a `system` step (e.g. diagnose → knowledge.search, plan.build).
 
 `plan.build` is M3-07: the planner drafts items from the retrieved excerpts, and code applies
-the §7.6 rules (`postprocess_plan`). MCP actions need the M5 tool client and are logged as
-skipped until then.
+the §7.6 rules (`postprocess_plan`). `mcp:` actions call MCP tools with arguments built by code
+(`mcp_actions`); their results are this turn's `tool_results`.
 """
 
 from collections.abc import Callable
@@ -16,8 +16,10 @@ from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
+from homehelper.agent.nodes.mcp_actions import as_tool_call, run_mcp_action
 from homehelper.agent.nodes.understand import QUERY_INTENTS
 from homehelper.agent.state import AgentState, Decision, PlanItem
+from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState
 from homehelper.channels.events import StatusEvent
 from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalQuery, RetrievalResult
@@ -159,9 +161,14 @@ async def build_plan(
 
 
 async def run_action(
-    action: str, graph: GraphState, state: AgentState, deps: AgentDeps, emit: Emit
+    action: str,
+    graph: GraphState,
+    state: AgentState,
+    deps: AgentDeps,
+    emit: Emit,
+    outcomes: list[ToolOutcome] | None = None,
 ) -> AgentState:
-    """Run one step action against `state` (mutated and returned)."""
+    """Run one step action against `state` (mutated and returned); MCP results go to `outcomes`."""
     if action == "knowledge.search":
         text = graph.search_query or _slot(state, "symptom") or _slot(state, "question") or ""
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
@@ -199,13 +206,9 @@ async def run_action(
         state.plan_cursor = 0
         state.decision_log.extend(decisions)
     else:
-        state.decision_log.append(
-            Decision(
-                kind="plan",
-                journey=state.active_journey,
-                reason=f"skipped {action}: MCP tools are not connected yet (M5)",
-            )
-        )
+        outcome = await run_mcp_action(action, graph, state, deps)
+        if outcome is not None and outcomes is not None:
+            outcomes.append(outcome)
     return state
 
 
@@ -234,10 +237,11 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
         }
     )
     graph = graph.model_copy(update={"citations": dict(graph.citations)})
+    outcomes: list[ToolOutcome] = []
     if not result.skip_respond:
         for _ in range(MAX_ACTION_ROUNDS):
             for action in result.actions:
-                state = await run_action(action, graph, state, deps, emit)
+                state = await run_action(action, graph, state, deps, emit, outcomes)
             _remember_citations(graph, state.last_retrieval)
             if not result.continue_after_actions:
                 break
@@ -246,6 +250,7 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.fixed_replies.extend(result.fixed_replies)
             turn.notices.extend(result.notices)
         turn.retrieval = state.last_retrieval
+    turn.tool_results = outcomes
 
     if turn.side_question and turn.nlu and turn.nlu.search_query_en:
         # Answer a how-to question during another journey without touching its step (§7.4).
@@ -261,4 +266,5 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
         "turn": turn,
         "citations": graph.citations,
         "search_query": graph.search_query,
+        "tool_calls": [*graph.tool_calls, *(as_tool_call(o, "action") for o in outcomes)],
     }

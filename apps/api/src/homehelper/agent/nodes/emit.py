@@ -1,7 +1,8 @@
 """`emit` (spec §7.3 `persist_and_emit`): turn the checked reply and the state into events.
 
 Cards come from state, never from the LLM: the step card from the presented plan item, safety
-cards from fixed templates, the handoff card at a handoff step. The transcript the graph keeps
+cards from fixed templates, the handoff card at a handoff step, part and video cards from this
+turn's tool results. The transcript the graph keeps
 for NLU and the responder is updated here; the checkpointer persists it with the rest of the
 state (the API writes `messages` from these events, spec v0.8).
 """
@@ -13,6 +14,7 @@ from typing import Any
 from homehelper.agent.deps import AgentDeps, presented_item
 from homehelper.agent.engine.transition import NOTICE_REMIND_PAUSED, NOTICE_RESUME_PAUSED
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
+from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState, TranscriptLine
 from homehelper.channels.events import (
     AgentEvent,
@@ -23,11 +25,14 @@ from homehelper.channels.events import (
     IssuesCard,
     MessageCompletedEvent,
     MessageDeltaEvent,
+    PartCard,
     StepCard,
+    VideoCard,
 )
 from homehelper.knowledge.schemas import Citation
 
 KEEP_TRANSCRIPT_LINES = 60
+MAX_RESULT_CARDS = 3  # per kind (parts, videos)
 
 HANDOFF_CARD_REASONS = {
     "hazard_detected": "Safety hazard",
@@ -44,6 +49,42 @@ def _handoff_card_reason(graph: GraphState) -> str:
         if decision.to_step == state.step_id and decision.predicate in HANDOFF_REASONS:
             return HANDOFF_CARD_REASONS[decision.predicate]
     return "Professional help recommended"
+
+
+def _records(outcome: ToolOutcome) -> list[dict[str, Any]]:
+    data = outcome.data
+    items = data if isinstance(data, list) else [data]
+    return [item for item in items if isinstance(item, dict)]
+
+
+def result_cards(outcomes: list[ToolOutcome]) -> list[Card]:
+    """Part and video cards from the tools' structured results (never from the reply text)."""
+    parts: dict[str, PartCard] = {}
+    videos: dict[str, VideoCard] = {}
+    for outcome in outcomes:
+        if not outcome.ok:
+            continue
+        for record in _records(outcome):
+            if outcome.tool in ("parts_catalog.search_parts", "parts_catalog.get_part"):
+                parts.setdefault(
+                    record["part_id"],
+                    PartCard(
+                        part_id=record["part_id"],
+                        name=record["name"],
+                        price_usd=record.get("price_usd"),
+                        image_url=record.get("image_url"),
+                    ),
+                )
+            elif outcome.tool == "tutorials.search_videos":
+                videos.setdefault(
+                    record["url"],
+                    VideoCard(
+                        title=record["title"],
+                        url=record["url"],
+                        thumbnail_url=record.get("thumbnail_url"),
+                    ),
+                )
+    return [*list(parts.values())[:MAX_RESULT_CARDS], *list(videos.values())[:MAX_RESULT_CARDS]]
 
 
 def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[Citation]]:
@@ -84,6 +125,8 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
             citations.extend(item_citations)
     if step is not None and step.type == "handoff":
         cards.append(HandoffCard(reason=_handoff_card_reason(graph), booking_available=False))
+    if not replacing and not blocked:
+        cards.extend(result_cards(turn.tool_results))
     offer = NOTICE_RESUME_PAUSED in turn.notices or NOTICE_REMIND_PAUSED in turn.notices
     if offer and state.paused_issues and not replacing:
         options = [

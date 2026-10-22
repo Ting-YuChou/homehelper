@@ -3,10 +3,17 @@
 Code decides what the message must do (`ResponsePlan`): ask for one missing detail, present one
 plan item, answer from excerpts, or explain a handoff. The LLM only words it and cites excerpt
 ids. A fixed template that replaces the response (hazards, scope) skips the LLM entirely.
+
+At a step with `tools_allowed` (spec §7.3) the responder may first call those read tools, at
+most `MAX_TOOL_CALLS` times; its reply is itself a `reply` tool call, so the output stays a
+validated `AgentReply`. A revision reuses the results instead of calling the tools again.
 """
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import ValidationError
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
@@ -17,11 +24,26 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUMED_ISSUE,
 )
 from homehelper.agent.guardrails import HAZARD_RULES
+from homehelper.agent.nodes.mcp_actions import as_tool_call, tool_user
 from homehelper.agent.state import AgentState
+from homehelper.agent.tools import ToolOutcome, from_llm_name
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
+from homehelper.core.logging import get_logger
 from homehelper.knowledge.schemas import RetrievedChunk
 from homehelper.knowledge.web import format_for_responder
-from homehelper.llm import Message
+from homehelper.llm import Message, ToolSpec
+
+log = get_logger(__name__)
+
+MAX_TOOL_CALLS = 3  # spec §7.3
+MAX_TOOL_RESULT_CHARS = 3000
+REPLY_TOOL = ToolSpec(
+    name="reply",
+    description=(
+        "Send your message to the user. Call this exactly once, when you are ready to answer."
+    ),
+    parameters=AgentReply.model_json_schema(),
+)
 
 SLOT_QUESTIONS = {
     "appliance_category": "which appliance it is (for example a washer, dryer or refrigerator)",
@@ -177,7 +199,27 @@ def resumed_summary(graph: GraphState) -> str | None:
     return record.summary if record else None
 
 
-def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> list[Message]:
+def tool_result_text(outcome: ToolOutcome) -> str:
+    body: dict[str, Any] = {"tool": outcome.tool, "ok": outcome.ok}
+    if outcome.ok:
+        body["data"] = outcome.data
+    else:
+        body["error"] = outcome.error
+    text = json.dumps(body, default=str)
+    return text if len(text) <= MAX_TOOL_RESULT_CHARS else text[:MAX_TOOL_RESULT_CHARS] + "…"
+
+
+def step_tools(graph: GraphState, deps: AgentDeps) -> list[str]:
+    """The read tools the responder may call this turn (the step's `tools_allowed`)."""
+    if deps.tools is None or graph.turn.side_question:
+        return []
+    step = deps.step(graph.state)
+    return list(step.tools_allowed) if step is not None else []
+
+
+def respond_messages(
+    graph: GraphState, deps: AgentDeps, plan: ResponsePlan, *, tools_offered: bool = False
+) -> list[Message]:
     turn = graph.turn
     journey = deps.journey(graph.state)
     prefix = " ".join(r.text for r in turn.fixed_replies if not r.replaces_response) or None
@@ -207,6 +249,8 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
         power_off_first=power_off_first,
         open_issues=open_issue_summaries(graph),
         resumed_issue=resumed_summary(graph),
+        tool_results=[tool_result_text(o) for o in turn.tool_results],
+        tools_offered=tools_offered,
         feedback=turn.verdict.reasons if turn.verdict and turn.verdict.action == "revise" else [],
         transcript=graph.transcript[-MAX_TRANSCRIPT_LINES:],
         user_text=user_text(graph),
@@ -214,11 +258,77 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
     return [Message(role="user", content=prompt)]
 
 
+async def tool_loop(
+    deps: AgentDeps,
+    messages: list[Message],
+    tools: list[ToolSpec],
+    allowed: list[str],
+    user_id: str | None,
+) -> tuple[AgentReply | None, list[ToolOutcome]]:
+    """Let the responder call read tools, then reply. None if it never sent a valid reply."""
+    assert deps.tools is not None
+    history = list(messages)
+    outcomes: list[ToolOutcome] = []
+    # Tool calls are capped by count; the extra rounds give the model a chance to reply after it.
+    for _ in range(MAX_TOOL_CALLS + 2):
+        offered = [*tools, REPLY_TOOL] if len(outcomes) < MAX_TOOL_CALLS else [REPLY_TOOL]
+        turn = await deps.llm.tool_turn("responder", history, offered)
+        final = next((c for c in turn.tool_calls if c.name == REPLY_TOOL.name), None)
+        if final is not None:
+            try:
+                return AgentReply.model_validate(final.arguments), outcomes
+            except ValidationError as exc:
+                log.warning("responder_reply_invalid", errors=exc.error_count())
+                return None, outcomes
+        answers = []
+        for call in turn.tool_calls:
+            if len(outcomes) >= MAX_TOOL_CALLS:
+                outcome = ToolOutcome(
+                    tool=from_llm_name(call.name),
+                    arguments=call.arguments,
+                    ok=False,
+                    error="tool call limit reached; reply now",
+                )
+            else:
+                outcome = await deps.tools.call_llm(
+                    call.name, call.arguments, allowed=allowed, user_id=user_id
+                )
+                outcomes.append(outcome)
+            answers.append(
+                Message(role="tool", content=tool_result_text(outcome), tool_call_id=call.id)
+            )
+        history.append(Message(role="assistant", content=turn.content, tool_calls=turn.tool_calls))
+        history.extend(answers)
+    return None, outcomes
+
+
 async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     turn = graph.turn
     if any(reply.replaces_response for reply in turn.fixed_replies):
         return {}
     plan = response_plan(graph, deps)
-    reply = await deps.llm.structured("responder", respond_messages(graph, deps, plan), AgentReply)
     revisions = turn.revisions + (1 if turn.reply is not None else 0)
-    return {"turn": turn.model_copy(update={"reply": reply, "revisions": revisions})}
+    allowed = step_tools(graph, deps) if turn.reply is None else []  # revisions reuse results
+    tools = (
+        await deps.tools.llm_tools(allowed, user_id=tool_user(graph.state))
+        if deps.tools is not None and allowed
+        else []
+    )
+    update: dict[str, Any] = {}
+    reply: AgentReply | None = None
+    if tools:
+        messages = respond_messages(graph, deps, plan, tools_offered=True)
+        reply, outcomes = await tool_loop(deps, messages, tools, allowed, tool_user(graph.state))
+        if outcomes:
+            turn = turn.model_copy(update={"tool_results": [*turn.tool_results, *outcomes]})
+            graph = graph.model_copy(update={"turn": turn})
+            update["tool_calls"] = [
+                *graph.tool_calls,
+                *(as_tool_call(o, "llm") for o in outcomes),
+            ]
+    if reply is None:
+        reply = await deps.llm.structured(
+            "responder", respond_messages(graph, deps, plan), AgentReply
+        )
+    update["turn"] = turn.model_copy(update={"reply": reply, "revisions": revisions})
+    return update
