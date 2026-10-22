@@ -26,6 +26,7 @@ export type CitationCard = Schemas["CitationCard"];
 export type PartCard = Schemas["PartCard"];
 export type VideoCard = Schemas["VideoCard"];
 export type BookingSlotsCard = Schemas["BookingSlotsCard"];
+export type IssuesCard = Schemas["IssuesCard"];
 
 export type AgentEvent = Schemas["SSEEvent"];
 export type StatusEvent = Schemas["StatusEvent"];

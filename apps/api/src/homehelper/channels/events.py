@@ -17,7 +17,13 @@ StepResult = Literal["fixed", "not_fixed", "cannot_do"]
 class StructuredAction(BaseModel):
     """A button press from a card; bypasses NLU (spec §7.3)."""
 
-    type: Literal["step_result", "confirm_appliance", "select_booking_slot"]
+    type: Literal[
+        "step_result",
+        "confirm_appliance",
+        "select_booking_slot",
+        "resume_issue",  # value: an issue id from an IssuesCard (ADR-007)
+        "close_issue",
+    ]
     value: str
 
 
@@ -42,6 +48,7 @@ class StepCard(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     actions: list[StepResult] = Field(default_factory=lambda: ["fixed", "not_fixed", "cannot_do"])
     warranty_warning: bool = False
+    issue_id: str | None = None  # the issue this plan belongs to (ADR-007)
 
 
 class CitationCard(BaseModel):
@@ -96,6 +103,18 @@ class HandoffCard(BaseModel):
     booking_available: bool
 
 
+class IssueOption(BaseModel):
+    issue_id: str
+    summary: str  # built by code from the issue's slots, e.g. "Bosch dryer: not heating"
+
+
+class IssuesCard(BaseModel):
+    """Problems set aside earlier in the conversation; buttons send `resume_issue`/`close_issue`."""
+
+    type: Literal["issues"] = "issues"
+    issues: list[IssueOption]
+
+
 Card = Annotated[
     StepCard
     | CitationCard
@@ -104,7 +123,8 @@ Card = Annotated[
     | PartCard
     | VideoCard
     | BookingSlotsCard
-    | HandoffCard,
+    | HandoffCard
+    | IssuesCard,
     Field(discriminator="type"),
 ]
 

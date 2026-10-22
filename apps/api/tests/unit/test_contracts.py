@@ -1,6 +1,6 @@
 from pydantic import TypeAdapter
 
-from homehelper.channels.events import AgentEvent, CardEvent, StepCard
+from homehelper.channels.events import AgentEvent, CardEvent, IssuesCard, StepCard
 from homehelper.knowledge.schemas import (
     CategoryId,
     ChunkMetadata,
@@ -29,6 +29,17 @@ def test_agent_events_round_trip_through_discriminator() -> None:
     assert isinstance(event, CardEvent)
     assert isinstance(event.card, StepCard)
     assert event.card.actions == ["fixed", "not_fixed", "cannot_do"]
+    assert EVENTS.validate_json(EVENTS.dump_json(event)) == event
+
+
+def test_issues_card_round_trips() -> None:
+    raw = {
+        "type": "card",
+        "message_id": "msg_1",
+        "card": {"type": "issues", "issues": [{"issue_id": "iss_1", "summary": "LG dryer: noisy"}]},
+    }
+    event = EVENTS.validate_python(raw)
+    assert isinstance(event, CardEvent) and isinstance(event.card, IssuesCard)
     assert EVENTS.validate_json(EVENTS.dump_json(event)) == event
 
 

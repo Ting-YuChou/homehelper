@@ -1,0 +1,43 @@
+# Multi-issue set (ADR-007, spec §7.4, §16.3): two problems in one conversation.
+# Each case pairs two frozen test-split scenarios by variant id; the scenario text, the fix, the
+# model number and the correct manual come from the dataset. The runner brings up the second
+# problem once the agent has shown `switch_after_steps` step cards for the first, and returns to
+# the first once the second is settled, by `return_via`:
+#   card      press "Continue" on the IssuesCard (falls back to naming the appliance)
+#   appliance "Now, back to my <appliance> from before."
+#   confirm   "Yes, let's go back to the other problem." (a typed confirm)
+#   close     press "Close" on the IssuesCard: the first problem must end as abandoned
+# Graded per issue (outcome of each, citations from the manual of the issue being discussed),
+# plus that the agent offered the paused problem when the second one was settled.
+version: 1
+cases:
+  - id: multi-washer-dryer
+    issues: [2bc6c9cf308e, e3ff980edafa]
+    return_via: card
+  - id: multi-dishwasher-vacuum
+    issues: [28dd9e46d14f, ddbc765cba6c]
+    return_via: card
+  - id: multi-fridge-coffee
+    issues: [39c481394638, 4c123ca84957]
+    return_via: card
+  - id: multi-vacuum-microwave
+    issues: [d1ad249286a1, 7201ff35a751]
+    return_via: card
+  - id: multi-purifier-blender
+    issues: [2163058a3110, f72e1ecd5e02]
+    return_via: appliance
+  - id: multi-coffee-tv
+    issues: [04f23414db00, 6bc522d91bcb]
+    return_via: appliance
+  - id: multi-dryer-dishwasher
+    issues: [c0abb3cae02e, d3d38f2ead7d]
+    return_via: confirm
+  - id: multi-washer-fridge
+    issues: [88573afb9c65, 302b7bcc0716]
+    return_via: confirm
+  - id: multi-microwave-purifier
+    issues: [9d947e159c3e, ea065182b425]
+    return_via: close
+  - id: multi-blender-dryer
+    issues: [f30f5d862646, e3ff980edafa]
+    return_via: close

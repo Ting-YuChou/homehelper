@@ -6,6 +6,7 @@ from homehelper.channels.events import (
     Card,
     CitationCard,
     HandoffCard,
+    IssuesCard,
     PartCard,
     SafetyCard,
     StepCard,
@@ -37,6 +38,9 @@ def render_card(card: Card) -> str:
             return f"[Part: {card.name}]"
         case VideoCard():
             return f"[Video: {card.title}]"
+        case IssuesCard():
+            issues = "; ".join(f"{i.issue_id}: {i.summary}" for i in card.issues)
+            return f"[Open problems: {issues} (buttons per problem: resume_issue / close_issue)]"
 
 
 def render_agent_turn(turn: AgentTurn) -> str:

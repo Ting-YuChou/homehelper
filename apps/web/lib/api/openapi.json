@@ -221,6 +221,7 @@
                 "booking_slots": "#/components/schemas/BookingSlotsCard",
                 "citation": "#/components/schemas/CitationCard",
                 "handoff": "#/components/schemas/HandoffCard",
+                "issues": "#/components/schemas/IssuesCard",
                 "part": "#/components/schemas/PartCard",
                 "safety": "#/components/schemas/SafetyCard",
                 "step": "#/components/schemas/StepCard",
@@ -252,6 +253,9 @@
               },
               {
                 "$ref": "#/components/schemas/HandoffCard"
+              },
+              {
+                "$ref": "#/components/schemas/IssuesCard"
               }
             ],
             "title": "Card"
@@ -690,6 +694,47 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "IssueOption": {
+        "properties": {
+          "issue_id": {
+            "title": "Issue Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_id",
+          "summary"
+        ],
+        "title": "IssueOption",
+        "type": "object"
+      },
+      "IssuesCard": {
+        "description": "Problems set aside earlier in the conversation; buttons send `resume_issue`/`close_issue`.",
+        "properties": {
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOption"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "type": {
+            "const": "issues",
+            "default": "issues",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issues"
+        ],
+        "title": "IssuesCard",
+        "type": "object"
+      },
       "ManualOut": {
         "properties": {
           "brand": {
@@ -819,6 +864,7 @@
                   "booking_slots": "#/components/schemas/BookingSlotsCard",
                   "citation": "#/components/schemas/CitationCard",
                   "handoff": "#/components/schemas/HandoffCard",
+                  "issues": "#/components/schemas/IssuesCard",
                   "part": "#/components/schemas/PartCard",
                   "safety": "#/components/schemas/SafetyCard",
                   "step": "#/components/schemas/StepCard",
@@ -850,6 +896,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/HandoffCard"
+                },
+                {
+                  "$ref": "#/components/schemas/IssuesCard"
                 }
               ]
             },
@@ -1227,6 +1276,17 @@
             "title": "Instruction",
             "type": "string"
           },
+          "issue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Id"
+          },
           "plan_item_id": {
             "title": "Plan Item Id",
             "type": "string"
@@ -1263,7 +1323,9 @@
             "enum": [
               "step_result",
               "confirm_appliance",
-              "select_booking_slot"
+              "select_booking_slot",
+              "resume_issue",
+              "close_issue"
             ],
             "title": "Type",
             "type": "string"

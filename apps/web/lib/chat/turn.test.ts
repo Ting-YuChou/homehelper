@@ -80,5 +80,8 @@ describe("actionLabel", () => {
   it("describes card button presses", () => {
     expect(actionLabel({ type: "step_result", value: "fixed" })).toBe("That fixed it");
     expect(actionLabel({ type: "confirm_appliance", value: "no" })).toBe("No, that's not it");
+    expect(actionLabel({ type: "resume_issue", value: "iss_1" })).toBe(
+      "Let's go back to that problem",
+    );
   });
 });

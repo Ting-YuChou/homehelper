@@ -11,12 +11,39 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.graph import build_graph, checkpoint_serde
-from homehelper.agent.protocol import AgentSnapshot
+from homehelper.agent.protocol import AgentSnapshot, IssueSnapshot, IssueStatus, Outcome
+from homehelper.agent.state import AgentState
 from homehelper.agent.turn import GraphState, TurnScratch
 from homehelper.channels.events import AgentEvent, ErrorEvent, InboundMessage
 from homehelper.core.logging import get_logger
 
 log = get_logger(__name__)
+
+
+def issue_snapshots(state: AgentState, step_outcome: Outcome | None) -> list[IssueSnapshot]:
+    """Each issue's status; the active one reports its step's provisional outcome."""
+    paused = {p.issue_id for p in state.paused_issues}
+    views: list[IssueSnapshot] = []
+    for record in state.issues:
+        status: IssueStatus
+        outcome = record.outcome
+        if record.issue_id in paused:
+            status = "paused"
+        elif outcome is None and record.issue_id == state.active_issue_id:
+            status, outcome = "active", step_outcome
+        else:
+            status = "ended"
+        views.append(
+            IssueSnapshot(
+                issue_id=record.issue_id,
+                journey=record.journey,
+                appliance_category=record.appliance_category,
+                summary=record.summary,
+                status=status,
+                outcome=outcome,
+            )
+        )
+    return views
 
 
 def _config(conversation_id: str) -> RunnableConfig:
@@ -111,6 +138,7 @@ class JourneyAgent:
         if graph is None or graph.agent is None:
             return AgentSnapshot(conversation_id=conversation_id)
         state = graph.agent
+        step = self._deps.step(state)
         return AgentSnapshot(
             conversation_id=conversation_id,
             outcome=state.outcome,
@@ -119,4 +147,5 @@ class JourneyAgent:
             hazard_flags=list(state.hazard_flags),
             tool_calls=list(graph.tool_calls),
             decision_log=[d.model_dump(exclude_none=True) for d in state.decision_log],
+            issues=issue_snapshots(state, step.outcome if step else None),
         )

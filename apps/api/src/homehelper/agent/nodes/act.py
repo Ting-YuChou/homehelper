@@ -16,6 +16,7 @@ from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
+from homehelper.agent.nodes.understand import QUERY_INTENTS
 from homehelper.agent.state import AgentState, Decision, PlanItem
 from homehelper.agent.turn import GraphState
 from homehelper.channels.events import StatusEvent
@@ -219,6 +220,12 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     assert message is not None
     result = transition(deps.catalog, graph.state, TurnInput.from_message(message, graph.turn.nlu))
     state = result.state
+    nlu = graph.turn.nlu
+    # The same rule `understand` uses to store the query.
+    fresh_query = nlu is not None and bool(nlu.search_query_en) and nlu.intent in QUERY_INTENTS
+    if state.active_issue_id != graph.state.active_issue_id and not fresh_query:
+        # The query from an earlier turn was about another issue; search by this one's slots.
+        graph = graph.model_copy(update={"search_query": None})
     turn = graph.turn.model_copy(
         update={
             "fixed_replies": list(result.fixed_replies),
@@ -249,4 +256,9 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             record(span, output=retrieval_summary(side))
         _remember_citations(graph, side)
         turn.retrieval = side
-    return {"agent": state, "turn": turn, "citations": graph.citations}
+    return {
+        "agent": state,
+        "turn": turn,
+        "citations": graph.citations,
+        "search_query": graph.search_query,
+    }

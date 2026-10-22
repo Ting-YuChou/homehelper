@@ -39,7 +39,10 @@ class TurnSignals(BaseModel):
     # Non-escalating hazards that escalate this turn: G-SAFE-05 reported again after its warning.
     persisting: list[HazardSignal] = Field(default_factory=list)
     sentiment: Literal["neutral", "frustrated", "confused"] | None = None
+    resume_issue: str | None = None  # issue id from an IssuesCard button (ADR-007)
+    close_issue: str | None = None
     rejected_action: str | None = None  # why a structured action was ignored
+    from_card: bool = False  # set by a card button rather than by what the user wrote
 
     @property
     def escalating_hazards(self) -> list[HazardSignal]:
@@ -67,6 +70,10 @@ def signals_from_input(turn: TurnInput) -> TurnSignals:
 
 
 def _from_action(action: StructuredAction) -> TurnSignals:
+    return _action_signals(action).model_copy(update={"from_card": True})
+
+
+def _action_signals(action: StructuredAction) -> TurnSignals:
     value = action.value.strip()
     match action.type:
         case "step_result":
@@ -81,4 +88,10 @@ def _from_action(action: StructuredAction) -> TurnSignals:
         case "select_booking_slot":
             if value:
                 return TurnSignals(booking_slot_id=value)
+        case "resume_issue":
+            if value:
+                return TurnSignals(resume_issue=value)
+        case "close_issue":
+            if value:
+                return TurnSignals(close_issue=value)
     return TurnSignals(rejected_action=f"unrecognized {action.type} value {action.value!r}")

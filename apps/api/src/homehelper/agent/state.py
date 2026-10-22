@@ -71,22 +71,41 @@ class Decision(BaseModel):
     reason: str
 
 
-class PausedJourney(BaseModel):
-    """A journey set aside by a topic or appliance switch; only one level is kept (spec §7.4)."""
+class PausedIssue(BaseModel):
+    """An unfinished issue set aside by a topic or appliance switch (spec §7.4, ADR-007): the
+    progress of its journey, restored as-is when the user comes back to it."""
 
+    issue_id: str
     journey: str
+    summary: str
     step_id: str | None
     slots: dict[str, SlotValue] = Field(default_factory=dict)
     plan: list[PlanItem] = Field(default_factory=list)
     plan_cursor: int = 0
+    step_attempts: dict[str, int] = Field(default_factory=dict)
+    last_retrieval: RetrievalResult | None = None  # the excerpts its plan cites
+
+
+class IssueRecord(BaseModel):
+    """Every issue opened in the conversation; `outcome` is set when it ends."""
+
+    issue_id: str  # "iss_1", "iss_2", ... in opening order
+    journey: str
+    summary: str = ""  # built by code from the slots, e.g. "Bosch washing machine: not draining"
+    appliance_category: str | None = None
+    outcome: Outcome | None = None
 
 
 class AgentState(BaseModel):
     conversation_id: str
     release_id: str
     user_id: str | None = None
+    # The active issue owns the fields from `active_journey` to `last_retrieval`. Journeys that
+    # end on entry (the out-of-scope decline) are replies, not issues, and have no id.
+    active_issue_id: str | None = None
     active_journey: str | None = None
-    paused_journey: PausedJourney | None = None
+    paused_issues: list[PausedIssue] = Field(default_factory=list)  # oldest first
+    issues: list[IssueRecord] = Field(default_factory=list)
     step_id: str | None = None
     slots: dict[str, SlotValue] = Field(default_factory=dict)
     plan: list[PlanItem] = Field(default_factory=list)
@@ -98,7 +117,9 @@ class AgentState(BaseModel):
     frustrated_turns: int = 0  # consecutive turns with user_sentiment == "frustrated" (G-LOOP-01)
     selected_booking_slot: str | None = None  # from a BookingSlots card; read by the `book` action
     last_retrieval: RetrievalResult | None = None
-    outcome: Outcome | None = None
+    # The once-per-issue reminder about paused issues was given, or the user declined an offer.
+    paused_reminder_used: bool = False
+    outcome: Outcome | None = None  # summary over all issues (spec §7.4)
     decision_log: list[Decision] = Field(default_factory=list)
 
 

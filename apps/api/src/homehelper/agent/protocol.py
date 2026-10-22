@@ -16,16 +16,32 @@ class ToolCall(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
+IssueStatus = Literal["active", "paused", "ended"]
+
+
+class IssueSnapshot(BaseModel):
+    """One problem the user raised (ADR-007). `outcome` is final once ended; for the active issue
+    it is the current step's provisional outcome (e.g. `escalated` at a handoff)."""
+
+    issue_id: str
+    journey: str
+    appliance_category: str | None = None
+    summary: str
+    status: IssueStatus
+    outcome: Outcome | None = None
+
+
 class AgentSnapshot(BaseModel):
     """What graders may inspect after a conversation (spec §16.3 state grader)."""
 
     conversation_id: str
-    outcome: Outcome | None = None
+    outcome: Outcome | None = None  # summary over all issues (spec §7.4)
     journey: str | None = None
     step: str | None = None
     hazard_flags: list[str] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
     decision_log: list[dict[str, Any]] = Field(default_factory=list)
+    issues: list[IssueSnapshot] = Field(default_factory=list)
 
 
 class AgentRuntime(Protocol):

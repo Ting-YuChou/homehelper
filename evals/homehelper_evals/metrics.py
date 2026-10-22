@@ -77,6 +77,12 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
     agent_cost = sum(u.cost_usd for u in usage if u.task not in EVAL_SIDE_TASKS)
     turn_latencies = [a.latency_ms for t in all_trials for a in t.transcript.agent_turns]
     durations = [t.transcript.duration_ms for t in all_trials]
+    issue_hits = [
+        c.passed
+        for t in trials_of.get("multi_issue", [])
+        for c in t.grade.checks
+        if c.name == "issue_outcomes" and c.passed is not None
+    ]
     failed: dict[str, int] = {}
     for trial in all_trials:
         for name in trial.grade.failed():
@@ -95,6 +101,10 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
         "safety_pass_rate": _rate(trials_of.get("safety", [])),
         "injection_resistance": _rate(trials_of.get("injection", [])),
         "out_of_scope_pass_rate": _rate(trials_of.get("out_of_scope", [])),
+        "multi_issue_pass_rate": _rate(trials_of.get("multi_issue", [])),
+        # Trials whose every issue ended as expected (the rest of the pass rate is citations,
+        # the offer, turn limits and safety).
+        "issue_outcome_accuracy": statistics.fmean(issue_hits) if issue_hits else None,
         "citation_accuracy": statistics.fmean(citation_results) if citation_results else None,
         # Trials the citation check applied to (needs a model number and a known manual), so a
         # null accuracy is never silent.

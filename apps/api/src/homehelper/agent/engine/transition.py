@@ -3,8 +3,9 @@
 One call handles one user turn:
 
 1. Detect hazards (keywords OR NLU), attach fixed safety templates (spec §8.1).
-2. `route()`: keep, start, switch (pausing one level), or resume a journey; or answer a side
-   question / off-topic message without changing the step.
+2. `route()`: keep, start, switch (setting the active issue aside), or resume a paused issue; or
+   answer a side question / off-topic message without changing the step. Issues (ADR-007) are
+   tracked in `issues.py`.
 3. Apply the input: slot updates, then step effects (confirm/deny, plan item feedback, booking).
 4. Journey guardrails, which override step transitions when they fire.
 5. Otherwise the current step's transitions, first match wins.
@@ -19,6 +20,20 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from homehelper.agent.engine.issues import (
+    TOPIC_SLOTS,
+    close_issue,
+    close_paused,
+    find_paused,
+    is_issue_journey,
+    open_issue,
+    pause_active,
+    paused_for_category,
+    restore,
+    summary_outcome,
+    sync_active_record,
+    take_paused,
+)
 from homehelper.agent.engine.loader import JourneyCatalog, slot_values
 from homehelper.agent.engine.predicates import (
     PREDICATES,
@@ -42,12 +57,13 @@ from homehelper.agent.guardrails.templates import (
     FixedReply,
     safety_reply,
 )
+from homehelper.agent.protocol import Outcome
 from homehelper.agent.state import (
     AgentState,
     Decision,
     DecisionKind,
     HazardSignal,
-    PausedJourney,
+    PausedIssue,
     PlanItemStatus,
     SlotValue,
 )
@@ -59,6 +75,8 @@ CATEGORY_SLOT = "appliance_category"
 CATEGORY_VALUES = frozenset(category.value for category in CategoryId)
 # Once a journey works on an appliance, naming another one is a switch, not a correction.
 SWITCH_STEP_TYPES: frozenset[StepType] = frozenset({"guide", "inform", "handoff"})
+# Steps still collecting details: an issue set aside here has barely started.
+COLLECT_STEP_TYPES: frozenset[StepType] = frozenset({"collect", "confirm"})
 
 FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
     "fixed": "fixed",
@@ -68,13 +86,18 @@ FEEDBACK_STATUS: dict[str, PlanItemStatus] = {
 GUARDRAIL_RULE_IDS = {"max_failed_steps_reached": "G-LOOP-01"}
 
 NOTICE_OFFER_HANDOFF = "G-LOOP-01"  # responder offers a referral
-NOTICE_RESUME_PAUSED = "resume_paused"  # responder offers to return to the paused journey
+NOTICE_RESUME_PAUSED = "resume_paused"  # an issue ended; offer the paused ones (IssuesCard)
+NOTICE_REMIND_PAUSED = "remind_paused"  # the user is wrapping up; mention the paused ones once
+NOTICE_RESUMED_ISSUE = "resumed_issue"  # back to a paused issue: say where we left off
 
 RouteKind = Literal[
     "stay",
     "start",
     "switch",
     "resume",
+    "close",
+    "decline",
+    "ignore",
     "side_question",
     "scope_side",
     "unsupported_appliance",
@@ -85,6 +108,7 @@ RouteKind = Literal[
 class Route(BaseModel):
     kind: RouteKind
     journey: str | None = None
+    issue_id: str | None = None  # for resume / close
     carry_slots: bool = True
     reason: str
 
@@ -113,6 +137,7 @@ def transition(
     Pure: the input `state` is not mutated; the new state is in the result.
     """
     run = _Run(catalog, state.model_copy(deep=True))
+    run.ensure_active_issue()
     if turn is None:
         run.on_continue()
     else:
@@ -125,32 +150,42 @@ def is_ended(journey: Journey, state: AgentState) -> bool:
 
 
 def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> Route:
-    """Decide which journey handles this turn. Pure; `transition` applies the result."""
+    """Decide which journey (and issue) handles this turn. Pure; `transition` applies the result."""
     active = catalog.journeys.get(state.active_journey) if state.active_journey else None
     target = catalog.for_intent(signals.intent)
+
+    card = _issue_card_route(state, signals)
+    if card is not None:
+        return card
 
     if active is not None and not is_ended(active, state):
         step_type = active.step(state.step_id).type if state.step_id else None
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
-        if (
-            current is not None
-            and new_category is not None
-            and new_category != current.value
-            and step_type in SWITCH_STEP_TYPES
-        ):
+        changed = current is not None and new_category is not None and new_category != current.value
+        if changed and step_type in SWITCH_STEP_TYPES:
+            assert current is not None and new_category is not None
             if new_category not in CATEGORY_VALUES:
                 return Route(
                     kind="unsupported_appliance",
                     journey=active.id,
                     reason=f"no manuals for {new_category}; staying on {active.id}",
                 )
+            paused = _resumable(catalog, state, signals, target, new_category)
+            if paused is not None:
+                return _resume(paused, f"appliance changed back to {new_category}")
             return Route(
                 kind="switch",
                 journey=(target or active).id,
                 carry_slots=False,
                 reason=f"appliance changed from {current.value} to {new_category}",
             )
+        if changed and step_type in COLLECT_STEP_TYPES:
+            assert new_category is not None
+            paused = _resumable(catalog, state, signals, target, new_category)
+            if paused is not None:
+                return _resume(paused, f"the user went back to the {new_category}")
+            # Otherwise the new category is a correction of the one being collected.
         if signals.escalating_hazards and not _has_hazard_guardrail(active):
             return Route(
                 kind="switch",
@@ -173,21 +208,91 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         return Route(kind="stay", journey=active.id, reason="continue the active journey")
 
+    dropped = _dropped_by_name(state, signals)
+    if dropped is not None:
+        return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
+    new_category = _category_update(signals)
+    # A goodbye that mentions a paused appliance is not going back to it (the reminder covers it).
+    farewell = signals.intent == "small_talk" and not signals.escalating_hazards
+    paused = (
+        _resumable(catalog, state, signals, target, new_category)
+        if new_category and not farewell
+        else None
+    )
     if signals.escalating_hazards:
+        if paused is not None:
+            return _resume(paused, f"hazard reported on the {new_category}")
         journey = target if target and _has_hazard_guardrail(target) else None
         hazard_journey = journey or catalog[catalog.hazard_journey]
         return Route(
             kind="start", journey=hazard_journey.id, reason="hazard with no running journey"
         )
-    if signals.intent == "confirm" and state.paused_journey is not None:
-        return Route(
-            kind="resume",
-            journey=state.paused_journey.journey,
-            reason="user agreed to return to the paused journey",
-        )
+    if paused is not None:
+        return _resume(paused, f"the user went back to the {new_category}")
+    # Only words answer the offer: a `confirm_appliance` button belongs to an earlier question.
+    if signals.intent == "confirm" and state.paused_issues and not signals.from_card:
+        return _resume(state.paused_issues[-1], "user agreed to return to the paused issue")
+    if signals.intent == "deny" and state.paused_issues and not signals.from_card:
+        return Route(kind="decline", reason="user declined to return to the paused issues")
     if target is not None:
         return Route(kind="start", journey=target.id, reason=f"intent {signals.intent}")
     return Route(kind="none", reason=f"no journey handles intent {signals.intent}")
+
+
+def _issue_card_route(state: AgentState, signals: TurnSignals) -> Route | None:
+    """IssuesCard buttons. A stale or unknown id changes nothing (it is not a step attempt)."""
+    issue_id = signals.resume_issue or signals.close_issue
+    if issue_id is None:
+        return None
+    paused = find_paused(state, issue_id)
+    if paused is not None and signals.resume_issue:
+        return _resume(paused, "chosen on the issues card")  # its guardrails see any hazard
+    if signals.escalating_hazards:
+        return None  # the hazard comes first: route the turn as if no card was pressed
+    if paused is None:
+        return Route(kind="ignore", reason=f"issue {issue_id} is not paused")
+    return Route(kind="close", issue_id=issue_id, reason="closed on the issues card")
+
+
+def _dropped_by_name(state: AgentState, signals: TurnSignals) -> PausedIssue | None:
+    """A paused issue the user turns down by naming its appliance ("forget the dishwasher") when
+    nothing else is running. Mid-journey a `deny` naming another appliance is ambiguous ("no, I
+    meant the dishwasher"), so it resumes as before."""
+    if signals.intent != "deny" or signals.from_card or signals.escalating_hazards:
+        return None
+    if signals.feedback is not None:
+        return None
+    category = _category_update(signals)
+    return paused_for_category(state, category) if category else None
+
+
+def _resume(paused: PausedIssue, reason: str) -> Route:
+    return Route(kind="resume", journey=paused.journey, issue_id=paused.issue_id, reason=reason)
+
+
+def _resumable(
+    catalog: JourneyCatalog,
+    state: AgentState,
+    signals: TurnSignals,
+    target: Journey | None,
+    category: str,
+) -> PausedIssue | None:
+    """A paused issue this turn returns to by naming its appliance (spec §7.4).
+
+    A new symptom or question on that appliance is a new problem, and an intent that belongs to
+    another journey starts that journey; a reported hazard always goes back to the paused issue,
+    so its guardrail can escalate it.
+    """
+    paused = paused_for_category(state, category)
+    if paused is None:
+        return None
+    if signals.escalating_hazards:
+        return paused if _has_hazard_guardrail(catalog[paused.journey]) else None
+    if any(u.name in TOPIC_SLOTS and u.value.strip() for u in signals.slot_updates):
+        return None
+    if target is not None and target.id != paused.journey:
+        return None
+    return paused
 
 
 def _has_hazard_guardrail(journey: Journey) -> bool:
@@ -217,6 +322,19 @@ class _Run:
         self.hazards: list[HazardHit] = []
         self.side_question = False
         self.notices: list[str] = []
+        self.offer_paused = False  # an issue ended this turn: offer the paused ones
+        self.remind_paused = False  # the user is wrapping up: remind them once
+        self.hazard_category: str | None = None  # the appliance this turn's hazards are about
+
+    def ensure_active_issue(self) -> None:
+        """State saved before issues existed has an active journey but no issue id."""
+        state = self.state
+        journey = self._journey()
+        if state.active_issue_id is None and journey is not None and is_issue_journey(journey):
+            issue_id = open_issue(state, journey.id)
+            step = self._current_step(journey)
+            if step is not None and step.type == "end" and step.outcome is not None:
+                close_issue(state, issue_id, step.outcome)
 
     # --- entry points ---------------------------------------------------------------------
 
@@ -234,7 +352,7 @@ class _Run:
         decided = route(self.catalog, self.state, signals)
         self._apply_route(decided)
         journey = self._journey()
-        if decided.kind != "none" and journey is not None:
+        if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
             self._apply_slot_updates(journey, signals)
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
@@ -243,6 +361,19 @@ class _Run:
                     self._enter(journey, journey.entry_step)
                 elif decided.kind == "stay":
                     self._step_transitions(journey, signals)
+                elif decided.kind == "resume" and self._step_type(journey) in COLLECT_STEP_TYPES:
+                    # The details may be complete now; move on as a fresh turn would.
+                    self._step_transitions(journey, None)
+        if signals.escalating_hazards:
+            if signals.close_issue and find_paused(self.state, signals.close_issue):
+                # The hazard was routed first; the close the user pressed still applies.
+                take_paused(self.state, signals.close_issue)
+                close_issue(self.state, signals.close_issue, "abandoned")
+                self._log("route", f"closed {signals.close_issue} (abandoned): issues card")
+            self._close_paused_after_hazard(signals)
+        if signals.intent == "small_talk":
+            step_type = self._step_type(journey)
+            self.remind_paused = step_type is None or step_type == "end"
         self._add_notices()
 
     def on_continue(self) -> None:
@@ -253,9 +384,19 @@ class _Run:
             self._step_transitions(journey, None)
 
     def result(self) -> TransitionResult:
-        self.state.decision_log.extend(self.decisions)
+        state = self.state
         journey = self._journey()
         step = self._current_step(journey)
+        sync_active_record(state)
+        state.outcome = summary_outcome(state, step.outcome if step else None)
+        replaced = any(reply.replaces_response for reply in self.fixed_replies)
+        if state.paused_issues and not replaced:
+            if self.offer_paused:
+                self.notices.append(NOTICE_RESUME_PAUSED)
+            elif self.remind_paused and not state.paused_reminder_used:
+                self.notices.append(NOTICE_REMIND_PAUSED)
+                state.paused_reminder_used = True
+        state.decision_log.extend(self.decisions)
         return TransitionResult(
             state=self.state,
             actions=self.actions,
@@ -281,6 +422,10 @@ class _Run:
             return None
         return journey.step(self.state.step_id)
 
+    def _step_type(self, journey: Journey | None) -> StepType | None:
+        step = self._current_step(journey)
+        return step.type if step else None
+
     def _log(self, kind: DecisionKind, reason: str, **fields: str | None) -> None:
         self.decisions.append(
             Decision(kind=kind, journey=self.state.active_journey, reason=reason, **fields)
@@ -293,9 +438,13 @@ class _Run:
 
     def _detect_hazards(self, turn: TurnInput, signals: TurnSignals) -> TurnSignals:
         current = self.state.slots.get(CATEGORY_SLOT)
-        category = _category_update(signals) or (current.value if current else None)
+        # On a card resume the turn is about the resumed issue's appliance.
+        resumed = find_paused(self.state, signals.resume_issue) if signals.resume_issue else None
+        about = (resumed.slots.get(CATEGORY_SLOT) if resumed else None) or current
+        category = _category_update(signals) or (about.value if about else None)
         nlu_signals = turn.nlu.hazard_signals if turn.nlu else None
         self.hazards = detect_hazards(turn.text, nlu_signals, category=category)
+        self.hazard_category = category
         replied_rules: set[str] = set()
         persisting: list[HazardSignal] = []
         for hit in self.hazards:
@@ -313,7 +462,7 @@ class _Run:
                 journey = self._journey()
                 switched = (
                     category is not None and current is not None and category != current.value
-                )
+                ) or resumed is not None
                 # Another appliance mid-journey is a new problem: it gets its own warning.
                 ongoing = journey is not None and not is_ended(journey, self.state) and not switched
                 if not (self.state.water_warning_given and ongoing):
@@ -332,6 +481,19 @@ class _Run:
         return signals.model_copy(
             update={"hazards": [hit.signal for hit in self.hazards], "persisting": persisting}
         )
+
+    def _close_paused_after_hazard(self, signals: TurnSignals) -> None:
+        """DIY help has ended for that appliance: its paused issues must not come back with
+        steps. A gas smell, or a hazard on an unknown appliance, ends all of them."""
+        # An issues-card turn has no NLU and moves between issues, so a hazard typed with it may
+        # be about any appliance. (A step-result card is about the active one.)
+        switching_card = bool(signals.resume_issue or signals.close_issue)
+        unknown = "gas_smell" in signals.escalating_hazards or switching_card
+        category = None if unknown else self.hazard_category
+        for issue_id in close_paused(self.state, category, "escalated"):
+            self._log(
+                "route", f"closed {issue_id} (escalated): hazard {signals.escalating_hazards[0]}"
+            )
 
     def _apply_route(self, decided: Route) -> None:
         state = self.state
@@ -354,36 +516,41 @@ class _Run:
                 self.fixed_replies.append(UNSUPPORTED_APPLIANCE_REPLY)
                 self._log("guardrail", decided.reason, rule_id="G-SCOPE-01")
                 return
+            case "ignore":
+                self._log("route", f"ignored card action: {decided.reason}")
+                return
+            case "decline":
+                state.paused_reminder_used = True
+                self._log("route", decided.reason)
+                return
+            case "close":
+                assert decided.issue_id is not None
+                take_paused(state, decided.issue_id)
+                close_issue(state, decided.issue_id, "abandoned")
+                self._log("route", f"closed {decided.issue_id} (abandoned): {decided.reason}")
+                journey = self._journey()
+                if journey is None or is_ended(journey, state):
+                    self.offer_paused = True  # offer the ones still paused
+                return
             case "resume":
-                paused = state.paused_journey
-                assert paused is not None
-                state.active_journey = paused.journey
-                state.step_id = paused.step_id
-                state.slots = paused.slots
-                state.plan = paused.plan
-                state.plan_cursor = paused.plan_cursor
-                state.step_attempts = {}
-                state.paused_journey = None
-                state.outcome = None
-                state.selected_booking_slot = None
+                assert decided.issue_id is not None
+                # Take it out first, so setting the active issue aside cannot evict it.
+                paused = take_paused(state, decided.issue_id)
+                self._set_aside(f"back to {paused.issue_id}")
+                restore(state, paused)
+                state.paused_reminder_used = False
                 # The paused problem's warning was not saved: warn again rather than assume.
                 state.water_warning_given = any(
                     h.signal == "water_near_electric" for h in self.hazards
                 )
-                self._log("route", decided.reason, to_step=state.step_id)
+                self.notices.append(NOTICE_RESUMED_ISSUE)
+                self._log(
+                    "route", f"resumed {paused.issue_id}: {decided.reason}", to_step=state.step_id
+                )
                 return
             case "switch":
                 assert state.active_journey is not None
-                if state.paused_journey is not None:
-                    self._log("route", f"dropped paused journey {state.paused_journey.journey}")
-                state.paused_journey = PausedJourney(
-                    journey=state.active_journey,
-                    step_id=state.step_id,
-                    slots=state.slots,
-                    plan=state.plan,
-                    plan_cursor=state.plan_cursor,
-                ).model_copy(deep=True)
-                self._log("route", f"paused {state.active_journey}: {decided.reason}")
+                self._set_aside(decided.reason)
         assert decided.journey is not None
         journey = self.catalog[decided.journey]
         carried = (
@@ -396,18 +563,39 @@ class _Run:
             else {}
         )
         state.active_journey = journey.id
+        state.active_issue_id = open_issue(state, journey.id) if is_issue_journey(journey) else None
         state.step_id = None
         state.slots = carried
         state.plan = []
         state.plan_cursor = 0
         state.step_attempts = {}
-        state.outcome = None
         state.last_retrieval = None
         state.selected_booking_slot = None
         # A new problem gets its own warning (hazards are detected before routing, so a warning
         # given on this very turn counts for the journey it starts).
         state.water_warning_given = any(h.signal == "water_near_electric" for h in self.hazards)
-        self._log("route", f"started {journey.id}: {decided.reason}")
+        issue = f" as {state.active_issue_id}" if state.active_issue_id else ""
+        self._log("route", f"started {journey.id}{issue}: {decided.reason}")
+
+    def _set_aside(self, reason: str) -> None:
+        """Make room for another issue (spec §7.4). An unfinished issue is paused; one that
+        already has its answer (an `inform` or `handoff` step) is closed with that outcome; one
+        still collecting details is closed as `abandoned`."""
+        state = self.state
+        journey = self._journey()
+        step = self._current_step(journey)
+        issue_id = state.active_issue_id
+        if journey is None or issue_id is None or step is None or step.type == "end":
+            return
+        if step.outcome is not None or step.type in COLLECT_STEP_TYPES:
+            outcome = step.outcome or "abandoned"
+            sync_active_record(state)
+            close_issue(state, issue_id, outcome)
+            self._log("route", f"closed {issue_id} ({outcome}): {reason}")
+            return
+        for dropped in pause_active(state):
+            self._log("route", f"closed {dropped} (abandoned): too many paused issues")
+        self._log("route", f"paused {issue_id}: {reason}")
 
     # --- input effects --------------------------------------------------------------------
 
@@ -512,8 +700,8 @@ class _Run:
                 )
                 step_id = target
                 continue
-            if step.outcome is not None:
-                self.state.outcome = step.outcome
+            if step.type == "end":
+                self._end_issue(step.outcome)
             if step.type == "guide":
                 self._present_next_item()
             if step.template is not None:
@@ -536,6 +724,12 @@ class _Run:
             step_id = nxt.to
         self._log("transition", f"transition chain limit reached; stopped at {self.state.step_id}")
 
+    def _end_issue(self, outcome: Outcome | None) -> None:
+        if self.state.active_issue_id is not None and outcome is not None:
+            close_issue(self.state, self.state.active_issue_id, outcome)
+        self.state.paused_reminder_used = False
+        self.offer_paused = True
+
     def _present_next_item(self) -> None:
         plan = self.state.plan
         if any(item.status == "presented" for item in plan):
@@ -549,11 +743,8 @@ class _Run:
     def _add_notices(self) -> None:
         journey = self._journey()
         step = self._current_step(journey)
-        if step is None:
+        if step is None or step.type == "end":
             return
-        if step.type == "end":
-            if self.state.paused_journey is not None:
-                self.notices.append(NOTICE_RESUME_PAUSED)
-        elif self.state.frustrated_turns >= MAX_FRUSTRATED_TURNS and step.type != "handoff":
+        if self.state.frustrated_turns >= MAX_FRUSTRATED_TURNS and step.type != "handoff":
             self.notices.append(NOTICE_OFFER_HANDOFF)
             self._log("guardrail", "user frustrated for consecutive turns", rule_id="G-LOOP-01")

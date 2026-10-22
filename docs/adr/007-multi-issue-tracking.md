@@ -1,6 +1,6 @@
 # ADR-007: Track several open issues per conversation
 
-- **Status:** Accepted (design only; implementation pending)
+- **Status:** Accepted; implemented in M3-13 with the amendments below
 - **Date:** 2026-10-21
 - **Spec:** §7.2, §7.4
 
@@ -44,3 +44,17 @@ Replace the single paused slot with **issues**: every journey run is an issue wi
 - **Let the LLM pick which issue a message belongs to:** more flexible, but it puts control flow in the LLM (against P1), cannot be unit-tested as a pure function, and misroutes are hard to explain.
 - **Keep one paused journey and only add a resume card:** fixes problem 3 but not 1, 2 or 4.
 - **One conversation per issue:** simple state, but users do not think in conversations, and it moves the problem into the UI.
+
+## Amendments made while implementing (M3-13)
+
+- **Settled issues are closed, not paused.** When the user switches away from an issue that already has its answer, it ends with that outcome: an `inform` step as `resolved`, a `handoff` step as `escalated` (booking arrives in M5; revisit then). An issue still collecting details (`collect`/`confirm`) ends as `abandoned`. Paused issues are therefore always unfinished, and "ask when an issue ends" stays meaningful.
+- **The provisional outcome is derived, not stored.** `_enter` no longer writes `state.outcome`. Each turn computes the conversation outcome from the issue records plus the active step's outcome (provisional at `handoff`/`inform`), so a single escalation still reports `escalated` at the handoff step, as before.
+- **Replies are not issues.** A journey whose entry step is an `end` step (the out-of-scope decline) gets no issue id and no record; its outcome still counts in the summary.
+- **Stricter resume-by-appliance.** Besides "no new symptom", the turn must bring no new `question`, its intent's journey must be none or the paused one's, and the category must differ from the active issue's. An escalating hazard on a paused appliance resumes that issue regardless, so its guardrail escalates it instead of the issue staying paused after the user was told to stop using the appliance.
+- **An escalating hazard closes the paused issues on that appliance** as `escalated` (all of them for a gas smell, or when the appliance is unknown), so DIY steps cannot come back for an appliance the user was told to stop using. Issues-card turns skip the NLU and move between issues, so a hazard typed with a resume or close card may be about any appliance and closes all of them. A close or stale card on a hazard turn does not stop the hazard from being routed as usual (the close still applies).
+- **Turning a paused issue down by name closes it** when nothing else is running: a `deny` naming a paused appliance ("forget the dishwasher") closes it as `abandoned`, unless the turn also answers a step. Mid-journey such a `deny` is ambiguous ("no, I meant the dishwasher") and resumes as before. A goodbye (`small_talk`) that names a paused appliance never resumes it; the closing reminder covers it. A `confirm_appliance` button never answers the offer: only words do.
+- **A card resume is another problem for G-SAFE-05**: water mentioned on the same turn gets the full warning, not the reminder.
+- **Each paused issue keeps its `last_retrieval`**, so a resumed step cites its own manual; the search query from a turn about another issue is not reused.
+- **A closing reminder.** Besides the offer when an issue ends, the user is reminded once when they wrap up with small talk and paused issues remain (`remind_paused`, `paused_reminder_used`). A declined offer uses it up.
+- **Stale card presses** (an id that is not paused) are ignored and logged; they are not step attempts.
+- **Evaluation.** The `multi_issue` suite (10 cases) is driven by the runner: it brings up the second problem after the first step card and returns to the first once the second is settled, by card, appliance name, typed "yes", or closing it. Grading is per issue, plus "the paused issue was offered" and per-turn citations against the active issue's manual.

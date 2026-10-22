@@ -432,7 +432,7 @@ export interface components {
         /** CardEvent */
         CardEvent: {
             /** Card */
-            card: components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"];
+            card: components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"] | components["schemas"]["IssuesCard"];
             /** Message Id */
             message_id: string;
             /**
@@ -597,6 +597,26 @@ export interface components {
              */
             status: "ok";
         };
+        /** IssueOption */
+        IssueOption: {
+            /** Issue Id */
+            issue_id: string;
+            /** Summary */
+            summary: string;
+        };
+        /**
+         * IssuesCard
+         * @description Problems set aside earlier in the conversation; buttons send `resume_issue`/`close_issue`.
+         */
+        IssuesCard: {
+            /** Issues */
+            issues: components["schemas"]["IssueOption"][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "issues";
+        };
         /** ManualOut */
         ManualOut: {
             /** Brand */
@@ -643,7 +663,7 @@ export interface components {
         MessageOut: {
             action: components["schemas"]["StructuredAction"] | null;
             /** Cards */
-            cards: (components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"])[];
+            cards: (components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"] | components["schemas"]["IssuesCard"])[];
             /** Citations */
             citations: components["schemas"]["Citation"][];
             /** Content */
@@ -782,6 +802,8 @@ export interface components {
             index: number;
             /** Instruction */
             instruction: string;
+            /** Issue Id */
+            issue_id?: string | null;
             /** Plan Item Id */
             plan_item_id: string;
             /** Total */
@@ -806,7 +828,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "step_result" | "confirm_appliance" | "select_booking_slot";
+            type: "step_result" | "confirm_appliance" | "select_booking_slot" | "resume_issue" | "close_issue";
             /** Value */
             value: string;
         };

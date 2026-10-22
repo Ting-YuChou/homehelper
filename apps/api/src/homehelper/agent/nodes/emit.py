@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import Any
 
 from homehelper.agent.deps import AgentDeps, presented_item
+from homehelper.agent.engine.transition import NOTICE_REMIND_PAUSED, NOTICE_RESUME_PAUSED
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
 from homehelper.agent.turn import GraphState, TranscriptLine
 from homehelper.channels.events import (
@@ -18,6 +19,8 @@ from homehelper.channels.events import (
     Card,
     CardEvent,
     HandoffCard,
+    IssueOption,
+    IssuesCard,
     MessageCompletedEvent,
     MessageDeltaEvent,
     StepCard,
@@ -75,11 +78,19 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
                     instruction=item.instruction,
                     citations=item_citations,
                     warranty_warning=item.warranty_warning,
+                    issue_id=state.active_issue_id,
                 )
             )
             citations.extend(item_citations)
     if step is not None and step.type == "handoff":
         cards.append(HandoffCard(reason=_handoff_card_reason(graph), booking_available=False))
+    offer = NOTICE_RESUME_PAUSED in turn.notices or NOTICE_REMIND_PAUSED in turn.notices
+    if offer and state.paused_issues and not replacing:
+        options = [
+            IssueOption(issue_id=p.issue_id, summary=p.summary)
+            for p in reversed(state.paused_issues)
+        ]
+        cards.append(IssuesCard(issues=options))
     return text, cards, list({c.chunk_id: c for c in citations}.values())
 
 
@@ -98,9 +109,13 @@ def emit(graph: GraphState, deps: AgentDeps, write: Callable[[AgentEvent], None]
             step=state.step_id,
         )
     )
-    shown = text + "".join(
-        f"\n[Step {c.index}/{c.total}: {c.instruction}]" for c in cards if isinstance(c, StepCard)
-    )
+    shown = text
+    for card in cards:
+        if isinstance(card, StepCard):
+            shown += f"\n[Step {card.index}/{card.total}: {card.instruction}]"
+        elif isinstance(card, IssuesCard):
+            # So NLU can resolve "yes, the dryer" on the next turn.
+            shown += "\n[Open problems: " + "; ".join(o.summary for o in card.issues) + "]"
     transcript = [
         *graph.transcript,
         TranscriptLine(role="user", text=user_text(graph)),
