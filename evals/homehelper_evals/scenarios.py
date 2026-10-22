@@ -33,6 +33,16 @@ PRODUCT_CATEGORIES: dict[str, CategoryId] = {
 }
 
 _STEP_PREFIX = re.compile(r"^\s*\d+[.)]\s*")
+# Steps the v1 generator wrote when it found no answer in the manual ("I don't know.",
+# "I'm sorry, the manual does not provide ...", "I apologize, but the attached manual ...",
+# "(Note: The manual does not provide ...)").
+_NON_ANSWER = re.compile(
+    r"^\W*(note:\s*)?(i don['\u2019]t know|i['\u2019]m sorry|i am sorry|i apologi[sz]e"
+    r"|(the|this) (attached |provided )?manual (provided |content provided )?"
+    r"(does not|doesn['\u2019]t) "
+    r"(provide|contain|include|address|mention|specify))",
+    re.I,
+)
 
 
 class ScenarioRow(BaseModel):
@@ -93,6 +103,16 @@ def load_variants(path: Path = SCENARIOS_PATH) -> list[ScenarioVariant]:
             )
         )
     return sorted(variants, key=lambda v: v.rows[0].id)
+
+
+def is_solvable(variant: ScenarioVariant, root_cause: RootCause) -> bool:
+    """False when a user-fixable variant's root-cause step is a generator non-answer: the
+    simulated user could never report "fixed", so the case would fail whatever the agent does.
+    Variants that are not user-fixable stay: the simulator never sees their root-cause text, and
+    an agent that hands off passes."""
+    if not root_cause.user_fixable:
+        return True
+    return not _NON_ANSWER.search(variant.solution_steps[root_cause.root_cause_step - 1])
 
 
 def load_root_causes(path: Path = ROOT_CAUSES_PATH) -> dict[str, RootCause]:

@@ -22,7 +22,7 @@ from homehelper_evals.graders import Check, Grade, RubricJudge, grade
 from homehelper_evals.manifest import load_manuals
 from homehelper_evals.media import MEDIA_ROOT, missing_media
 from homehelper_evals.metrics import CaseResult, TrialResult, compute_metrics
-from homehelper_evals.scenarios import load_root_causes, load_variants, sample_variants
+from homehelper_evals.scenarios import is_solvable, load_root_causes, load_variants, sample_variants
 from homehelper_evals.simulator import UserSimulator
 from homehelper_evals.splits import Split
 from homehelper_evals.transcript import Transcript
@@ -87,7 +87,12 @@ def build_cases(
     if config.scenarios_per_category:
         root_causes = load_root_causes()
         manuals = load_manuals()
-        candidates = [v for v in load_variants() if root_causes[v.variant_id].troubleshootable]
+        candidates = [
+            v
+            for v in load_variants()
+            if root_causes[v.variant_id].troubleshootable
+            and is_solvable(v, root_causes[v.variant_id])
+        ]
         for variant in sample_variants(
             candidates,
             split=config.scenario_split,

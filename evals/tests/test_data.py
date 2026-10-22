@@ -12,6 +12,7 @@ from homehelper_evals import REPO_ROOT, ROOT_CAUSES_PATH
 from homehelper_evals.cases import load_dataset, scenario_case
 from homehelper_evals.root_cause import LABEL_TASK, label_variant
 from homehelper_evals.scenarios import (
+    is_solvable,
     load_root_causes,
     load_variants,
     parse_steps,
@@ -181,3 +182,12 @@ def test_guardrail_hazard_words_accept_escalation(phrase) -> None:
         "resolved",
         "escalated",
     ]
+
+
+def test_non_answer_root_causes_are_not_solvable() -> None:
+    labels = load_root_causes()
+    unsolvable = {v.rows[0].id for v in load_variants() if not is_solvable(v, labels[v.variant_id])}
+    assert {346, 343, 2086} <= unsolvable  # "I don't know.", "I'm sorry, the manual does not..."
+    assert 592 in unsolvable  # "I apologize, but the attached manual does not contain..."
+    assert 646 not in unsolvable  # "I don't know.", but not user-fixable: handing off passes
+    assert len(unsolvable) == 21
