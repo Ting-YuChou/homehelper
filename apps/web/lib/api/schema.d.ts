@@ -291,7 +291,8 @@ export interface paths {
         /**
          * My Appliances
          * @description Guests have no profile, so they get an empty list, as does a demo user the data platform
-         *     does not know (e.g. one removed from `data/mock/` after they signed in).
+         *     does not know (e.g. one removed from `data/mock/` after they signed in). Any other tool
+         *     failure (e.g. the database is down) is a 503, not an empty list.
          */
         get: operations["my_appliances_v1_me_appliances_get"];
         put?: never;
