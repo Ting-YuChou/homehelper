@@ -17,7 +17,7 @@ from homehelper.agent.engine.transition import (
 )
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
-from homehelper.agent.state import AgentState, PausedIssue
+from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import (
     DIAGNOSE_ACTIONS,
@@ -100,6 +100,16 @@ def test_plan_exhausted_escalates_then_booking_ends(catalog: JourneyCatalog) -> 
     assert [item.status for item in result.state.plan] == ["done_not_fixed", "skipped"]
     assert result.decisions[-1].predicate == "plan_exhausted"
 
+    assert result.actions == ["mcp:service_booking.list_slots"]
+
+    # Only an offered slot (set by code from `list_slots`) can be booked.
+    stale = transition(catalog, result.state, press("select_booking_slot", "slot-42"))
+    assert stale.state.step_id == "escalate"
+    assert stale.state.selected_booking_slot is None
+    assert "not one of the offered slots" in stale.decisions[0].reason
+    result.state.offered_slots = [
+        OfferedSlot(slot_id="slot-42", starts_at="2026-10-21T09:00:00Z", technician="Ann (Fix Co)")
+    ]
     booked = transition(catalog, result.state, press("select_booking_slot", "slot-42"))
     assert booked.state.step_id == "escalated_end"
     assert booked.state.selected_booking_slot == "slot-42"

@@ -13,11 +13,20 @@ from typing import Any
 
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.protocol import ToolCall
-from homehelper.agent.state import AgentState, Decision, ProfileAppliance, UserContext
+from homehelper.agent.state import (
+    AgentState,
+    Decision,
+    OfferedSlot,
+    ProfileAppliance,
+    UserContext,
+)
 from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState
 
 GET_WARRANTY = "mcp:user_profile.get_warranty_status"
+LIST_SLOTS = "mcp:service_booking.list_slots"
+BOOK = "mcp:service_booking.book"
+OFFERED_SLOTS = 4
 LIST_REPAIRS = "mcp:user_profile.list_repair_history"
 MIN_SHARED_WORD = 4  # letters; shorter words ("the", "won't") say nothing about the problem
 
@@ -101,12 +110,54 @@ def _repair_record_args(graph: GraphState, state: AgentState) -> dict[str, Any] 
     }
 
 
+def _slots_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    # Booking is for an appliance in the user's profile: `book` needs its id.
+    appliance = _appliance(state)
+    if isinstance(appliance, Skip):
+        return appliance
+    zip_code = state.profile.zip_code if state.profile else None
+    category = _slot(state, "appliance_category")
+    if not zip_code or not category:
+        return Skip("no ZIP code or appliance category to look up visits")
+    return {"zip_code": zip_code, "category": category, "limit": OFFERED_SLOTS}
+
+
+def _book_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    appliance = _appliance(state)
+    if isinstance(appliance, Skip):
+        return appliance
+    if state.selected_booking_slot is None:
+        return Skip("no visit time was picked")
+    issue = _slot(state, "symptom") or _slot(state, "question") or "Appliance repair"
+    return {"slot_id": state.selected_booking_slot, "appliance_id": appliance, "issue": issue}
+
+
 ACTION_ARGS: dict[str, ArgBuilder] = {
     "mcp:tutorials.search_videos": _video_args,
     GET_WARRANTY: _appliance_args,
     LIST_REPAIRS: _history_args,
     "mcp:user_profile.add_repair_record": _repair_record_args,
+    LIST_SLOTS: _slots_args,
+    BOOK: _book_args,
 }
+
+
+def apply_result(state: AgentState, outcome: ToolOutcome) -> None:
+    """State that later turns need from a tool result: the slots that may be booked."""
+    if outcome.tool == "service_booking.list_slots":
+        slots = outcome.data if outcome.ok and isinstance(outcome.data, list) else []
+        state.offered_slots = [
+            OfferedSlot(
+                slot_id=slot["slot_id"],
+                starts_at=str(slot["starts_at"]),
+                technician=f"{slot['technician_name']} ({slot['company']})",
+            )
+            for slot in slots
+        ]
+
+
+def booked(outcomes: list[ToolOutcome]) -> ToolOutcome | None:
+    return next((o for o in outcomes if o.tool == "service_booking.book"), None)
 
 
 def warranty_active(outcomes: list[ToolOutcome]) -> bool:
@@ -173,6 +224,7 @@ async def run_mcp_action(
         outcome = await deps.tools.call_action(action, arguments, user_id=tool_user(state))
         if span is not None:
             span.update(output=outcome.model_dump(exclude={"arguments"}))
+    apply_result(state, outcome)
     state.decision_log.append(
         Decision(
             kind="tool",

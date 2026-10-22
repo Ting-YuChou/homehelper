@@ -91,6 +91,14 @@ class UserContext(BaseModel):
     appliances: list[ProfileAppliance] = Field(default_factory=list)
 
 
+class OfferedSlot(BaseModel):
+    """A technician visit offered on a BookingSlots card (from `service_booking.list_slots`)."""
+
+    slot_id: str
+    starts_at: str  # ISO 8601
+    technician: str
+
+
 class PausedIssue(BaseModel):
     """An unfinished issue set aside by a topic or appliance switch (spec §7.4, ADR-007): the
     progress of its journey, restored as-is when the user comes back to it."""
@@ -138,6 +146,7 @@ class AgentState(BaseModel):
     water_warning_given: bool = False
     frustrated_turns: int = 0  # consecutive turns with user_sentiment == "frustrated" (G-LOOP-01)
     selected_booking_slot: str | None = None  # from a BookingSlots card; read by the `book` action
+    offered_slots: list[OfferedSlot] = Field(default_factory=list)  # only these can be booked
     last_retrieval: RetrievalResult | None = None
     appliance_id: str | None = None  # the profile appliance of the active issue, once linked
     # The once-per-issue reminder about paused issues was given, or the user declined an offer.

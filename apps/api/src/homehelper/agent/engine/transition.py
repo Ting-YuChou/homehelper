@@ -577,6 +577,7 @@ class _Run:
         if "appliance_category" not in carried:
             state.appliance_id = None  # the same appliance keeps its link across journeys
         state.selected_booking_slot = None
+        state.offered_slots = []
         # A new problem gets its own warning (hazards are detected before routing, so a warning
         # given on this very turn counts for the journey it starts).
         state.water_warning_given = any(h.signal == "water_near_electric" for h in self.hazards)
@@ -642,10 +643,15 @@ class _Run:
                     item.status = FEEDBACK_STATUS[signals.feedback]
                     break
         elif signals.booking_slot_id is not None:
-            if step.type == "handoff":
+            offered = {slot.slot_id for slot in state.offered_slots}
+            if step.type == "handoff" and signals.booking_slot_id in offered:
                 state.selected_booking_slot = signals.booking_slot_id
             else:
-                self._log("route", f"ignored booking slot selection at {step.type} step {step.id}")
+                self._log(
+                    "route",
+                    f"ignored booking slot {signals.booking_slot_id!r} at {step.type} step "
+                    f"{step.id}: not one of the offered slots",
+                )
 
     # --- transitions ----------------------------------------------------------------------
 

@@ -133,6 +133,7 @@ def restore(state: AgentState, paused: PausedIssue) -> None:
     state.last_retrieval = paused.last_retrieval
     state.appliance_id = paused.appliance_id
     state.selected_booking_slot = None
+    state.offered_slots = []
 
 
 def paused_for_category(state: AgentState, category: str) -> PausedIssue | None:

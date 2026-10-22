@@ -166,8 +166,11 @@ def plan_exhausted(ctx: PredicateContext) -> bool:
 
 @predicate("booking_confirmed")
 def booking_confirmed(ctx: PredicateContext) -> bool:
-    """The user picked a slot on a BookingSlots card; code (not the LLM) then calls `book`."""
-    return ctx.signals is not None and ctx.signals.booking_slot_id is not None
+    """The user picked one of the offered slots on a BookingSlots card; code (not the LLM) then
+    calls `book`. A stale or made-up slot id is not a booking."""
+    if ctx.signals is None or ctx.signals.booking_slot_id is None:
+        return False
+    return ctx.signals.booking_slot_id in {slot.slot_id for slot in ctx.state.offered_slots}
 
 
 @predicate("user_satisfied")

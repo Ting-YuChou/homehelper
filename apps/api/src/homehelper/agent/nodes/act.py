@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
+from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
 from homehelper.agent.nodes.mcp_actions import (
@@ -264,6 +265,12 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.fixed_replies.extend(result.fixed_replies)
             turn.notices.extend(result.notices)
         turn.retrieval = state.last_retrieval
+    else:
+        # A template replaces the reply (e.g. a hazard escalation), but read tools still run:
+        # the visit times offered with it come from them.
+        for action in result.actions:
+            if action.startswith("mcp:") and not is_write_tool(action):
+                state = await run_action(action, graph, state, deps, emit, outcomes)
     turn.tool_results = outcomes
     if similar_repairs(outcomes, state):
         turn.notices.append(NOTICE_REPAIR_HISTORY)

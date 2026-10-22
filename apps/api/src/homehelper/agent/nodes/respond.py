@@ -24,7 +24,7 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUMED_ISSUE,
 )
 from homehelper.agent.guardrails import HAZARD_RULES
-from homehelper.agent.nodes.mcp_actions import as_tool_call, tool_user
+from homehelper.agent.nodes.mcp_actions import as_tool_call, booked, tool_user
 from homehelper.agent.state import AgentState
 from homehelper.agent.tools import ToolOutcome, from_llm_name
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
@@ -63,8 +63,12 @@ RESULT_TEXT = {
     "cannot_do": "they could not do it",
 }
 BOOKING_NOTE = (
-    "Booking a technician is not available in this chat yet, so suggest contacting the "
-    "manufacturer's service or a qualified local technician."
+    "Booking a technician is not available for this appliance in this chat, so suggest "
+    "contacting the manufacturer's service or a qualified local technician."
+)
+SLOTS_NOTE = (
+    "The app shows a few technician visit times below your message; say the user can pick one "
+    "to book it. Do not list the times yourself."
 )
 
 
@@ -146,13 +150,30 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                 cite=True,
             )
         case "handoff":
+            note = SLOTS_NOTE if state.offered_slots else BOOKING_NOTE
             return ResponsePlan(
                 task=(
                     "Explain briefly that a professional technician is the best next step "
-                    f"because {_handoff_reason(state)}. {BOOKING_NOTE}"
+                    f"because {_handoff_reason(state)}. {note}"
                 )
             )
         case _:  # end; `state.outcome` summarizes all issues, so read this step's own outcome
+            booking = booked(turn.tool_results)
+            if booking is not None and booking.ok:
+                return ResponsePlan(
+                    task=(
+                        "The technician visit is booked (details in the tool results). Confirm "
+                        "the date, time and technician, and close warmly."
+                    )
+                )
+            if booking is not None:
+                return ResponsePlan(
+                    task=(
+                        "That visit time could not be booked (it may have just been taken). "
+                        "Apologize briefly and suggest contacting the manufacturer's service "
+                        "or a qualified local technician."
+                    )
+                )
             if step.outcome == "resolved":
                 return ResponsePlan(
                     task="The problem is solved. Close warmly and offer help with anything else."

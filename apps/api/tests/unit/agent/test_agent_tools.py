@@ -9,7 +9,14 @@ from homehelper.agent.runtime import JourneyAgent
 from homehelper.agent.state import NLUResult, SlotUpdate
 from homehelper.agent.tools import McpToolbox
 from homehelper.agent.turn import AgentReply
-from homehelper.channels.events import InboundMessage, StepCard, StructuredAction, VideoCard
+from homehelper.channels.events import (
+    BookingSlotsCard,
+    HandoffCard,
+    InboundMessage,
+    StepCard,
+    StructuredAction,
+    VideoCard,
+)
 from homehelper.llm import FakeLLMClient, Message, ToolTurn
 from homehelper.mcp_servers.stores import InMemoryBookingStore
 from tests.unit.agent.test_journey_agent import PASS, PLAN, REPORT, FakeRetriever, _cards
@@ -322,3 +329,94 @@ async def test_guests_get_no_profile_and_no_user_tools() -> None:
         "skipped mcp:user_profile.get_warranty_status: no signed-in user" in d["reason"]
         for d in snapshot.decision_log
     )
+
+
+ONE_STEP = PlanDraft(items=[PlanDraftItem(instruction="Clean the filter.", citation_ids=["c1"])])
+
+
+async def _escalate(llm_replies: list[Any], bookings: InMemoryBookingStore, user_id: str):
+    llm = FakeLLMClient(
+        {
+            "nlu": [WASHER_REPORT],
+            "planner": [ONE_STEP],
+            "responder": llm_replies,
+            "supervisor": [PASS, PASS, PASS],
+        }
+    )
+    agent = _agent(llm, bookings)
+
+    async def send(text: str | None = None, action: StructuredAction | None = None) -> list[Any]:
+        message = InboundMessage(
+            conversation_id="conv-1", text=text, action=action, user_id=user_id
+        )
+        return [event async for event in agent.handle(message)]
+
+    await send("My washer won't drain and shows OE")
+    escalated = await send(action=StructuredAction(type="step_result", value="not_fixed"))
+    return agent, send, escalated
+
+
+async def test_escalation_offers_visit_times_and_books_the_one_picked() -> None:
+    bookings = InMemoryBookingStore()
+    agent, send, escalated = await _escalate(
+        [
+            reply("Let's clean the filter.", "c1"),
+            AgentReply(message="A technician is the best next step; pick a time below."),
+            AgentReply(message="You're booked!"),
+        ],
+        bookings,
+        "demo_alex",
+    )
+    handoff = next(c for c in _cards(escalated) if isinstance(c, HandoffCard))
+    assert handoff.booking_available
+    slots = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots
+    assert 0 < len(slots) <= 4
+    snapshot = await agent.snapshot("conv-1")
+    assert snapshot.step == "escalate"
+    assert snapshot.tool_calls[-1].arguments == {
+        "zip_code": "94110",
+        "category": "washing_machine",
+        "limit": 4,
+    }
+
+    await send(action=StructuredAction(type="select_booking_slot", value=slots[0].slot_id))
+    snapshot = await agent.snapshot("conv-1")
+    assert (snapshot.step, snapshot.outcome) == ("escalated_end", "escalated")
+    book = snapshot.tool_calls[-1]
+    assert (book.name, book.source, book.ok) == ("service_booking.book", "action", True)
+    assert book.arguments["appliance_id"] == "apl_alex_washer"
+    assert await bookings.active_slot_ids([slots[0].slot_id]) == {slots[0].slot_id}
+
+
+async def test_a_slot_that_was_not_offered_is_not_booked() -> None:
+    bookings = InMemoryBookingStore()
+    agent, send, _ = await _escalate(
+        [
+            reply("Let's clean the filter.", "c1"),
+            AgentReply(message="A technician is the best next step; pick a time below."),
+            AgentReply(message="Please pick one of the times shown."),
+        ],
+        bookings,
+        "demo_alex",
+    )
+    await send(action=StructuredAction(type="select_booking_slot", value="made-up-slot"))
+    snapshot = await agent.snapshot("conv-1")
+    assert snapshot.step == "escalate"
+    assert all(c.name != "service_booking.book" for c in snapshot.tool_calls)
+    assert bookings._bookings == {}
+
+
+async def test_guests_are_not_offered_booking() -> None:
+    bookings = InMemoryBookingStore()
+    _, _, escalated = await _escalate(
+        [
+            reply("Let's clean the filter.", "c1"),
+            AgentReply(message="A technician is the best next step."),
+        ],
+        bookings,
+        "guest_abc",
+    )
+    cards = _cards(escalated)
+    assert not any(isinstance(c, BookingSlotsCard) for c in cards)
+    handoff = next(c for c in cards if isinstance(c, HandoffCard))
+    assert not handoff.booking_available

@@ -50,7 +50,7 @@ steps:
     type: handoff
     goal: Explain why professional help is recommended and offer booking options.
     outcome: escalated
-    tools_allowed: [mcp:service_booking.list_slots]
+    actions: [mcp:service_booking.list_slots]   # code: the profile's ZIP and the category
     transitions:
       - when: booking_confirmed
         to: escalated_end

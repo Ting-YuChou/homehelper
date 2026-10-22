@@ -95,7 +95,9 @@ def test_troubleshoot_matches_spec_and_exposes_only_read_tools() -> None:
     ]
     assert troubleshoot.entry_step == "gather"
     assert troubleshoot.required_slots() == ["appliance_category", "symptom"]
-    assert troubleshoot.step("escalate").tools_allowed == ["mcp:service_booking.list_slots"]
+    # Visit times are looked up by code (the profile's ZIP), never by the LLM.
+    assert troubleshoot.step("escalate").actions == ["mcp:service_booking.list_slots"]
+    assert troubleshoot.step("escalate").tools_allowed == []
     for journey in default_catalog().journeys.values():
         for step in journey.steps:
             assert not any(is_write_tool(tool) for tool in step.tools_allowed)

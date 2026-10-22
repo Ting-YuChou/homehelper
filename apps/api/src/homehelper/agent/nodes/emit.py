@@ -18,6 +18,8 @@ from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState, TranscriptLine
 from homehelper.channels.events import (
     AgentEvent,
+    BookingSlot,
+    BookingSlotsCard,
     Card,
     CardEvent,
     HandoffCard,
@@ -124,7 +126,22 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
             )
             citations.extend(item_citations)
     if step is not None and step.type == "handoff":
-        cards.append(HandoffCard(reason=_handoff_card_reason(graph), booking_available=False))
+        offered = state.offered_slots
+        cards.append(
+            HandoffCard(reason=_handoff_card_reason(graph), booking_available=bool(offered))
+        )
+        just_listed = any(o.tool == "service_booking.list_slots" for o in turn.tool_results)
+        if offered and just_listed:
+            cards.append(
+                BookingSlotsCard(
+                    slots=[
+                        BookingSlot(
+                            slot_id=s.slot_id, starts_at=s.starts_at, technician=s.technician
+                        )
+                        for s in offered
+                    ]
+                )
+            )
     if not replacing and not blocked:
         cards.extend(result_cards(turn.tool_results))
     offer = NOTICE_RESUME_PAUSED in turn.notices or NOTICE_REMIND_PAUSED in turn.notices
