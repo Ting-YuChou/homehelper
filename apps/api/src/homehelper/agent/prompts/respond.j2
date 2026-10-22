@@ -66,6 +66,9 @@ ask whether they want to go back to one of them. The app shows a button for each
 The user is wrapping up. In one sentence, mention that these problems are still open and that
 they can come back to them any time:
 <open_problems>{{ open_issues | join("; ") }}</open_problems>
+{% elif notice == "repair_history" %}
+The user's repair history (in the tool results) has an earlier problem like this one. Mention it
+in one short sentence, and what fixed it then, if it fits this step.
 {% elif notice == "resumed_issue" %}
 You are going back to a problem the user raised earlier:
 <open_problems>{{ resumed_issue }}</open_problems>

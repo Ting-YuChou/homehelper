@@ -43,7 +43,9 @@ steps:
 
   - id: diagnose
     type: system
-    actions: [knowledge.search, plan.build]
+    # Warranty and repair history need an issue linked to a profile appliance; skipped otherwise.
+    actions: [mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history,
+              knowledge.search, plan.build]
     transitions:
       - when: plan_available
         to: guide

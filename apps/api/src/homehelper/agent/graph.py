@@ -20,6 +20,7 @@ from langgraph.graph.state import CompiledStateGraph
 from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.nodes.act import step_and_act
 from homehelper.agent.nodes.emit import emit
+from homehelper.agent.nodes.mcp_actions import load_profile
 from homehelper.agent.nodes.respond import respond
 from homehelper.agent.nodes.understand import understand
 from homehelper.agent.state import AgentState
@@ -42,15 +43,20 @@ def build_graph(
         get_stream_writer()(StatusEvent(stage="understanding", label="Reading your message…"))
         message = state.turn.message
         assert message is not None, "every turn starts with a message"
-        if state.agent is not None:
+        user_id = state.agent.user_id if state.agent is not None else message.user_id
+        profile = await load_profile(deps, user_id)
+        if state.agent is None:
+            return {
+                "agent": AgentState(
+                    conversation_id=message.conversation_id,
+                    release_id=deps.release_id,
+                    user_id=message.user_id,
+                    profile=profile,
+                )
+            }
+        if profile == state.agent.profile:
             return {}
-        return {
-            "agent": AgentState(
-                conversation_id=message.conversation_id,
-                release_id=deps.release_id,
-                user_id=message.user_id,
-            )
-        }
+        return {"agent": state.agent.model_copy(update={"profile": profile})}
 
     async def understand_node(state: GraphState) -> Update:
         with deps.span("understand") as span:

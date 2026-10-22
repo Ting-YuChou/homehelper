@@ -40,6 +40,7 @@ from homehelper.agent.engine.predicates import (
     PredicateContext,
     unconfirmed_low_confidence,
 )
+from homehelper.agent.engine.profile import link_profile_appliance
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
 from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards, water_persists
@@ -354,6 +355,9 @@ class _Run:
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
             self._apply_slot_updates(journey, signals)
+            linked = link_profile_appliance(self.state, journey)
+            if linked is not None:
+                self.decisions.append(linked)
             if decided.kind == "stay":
                 self._apply_step_effects(journey, signals)
             if not self._guardrails(journey, signals):
@@ -570,6 +574,8 @@ class _Run:
         state.plan_cursor = 0
         state.step_attempts = {}
         state.last_retrieval = None
+        if "appliance_category" not in carried:
+            state.appliance_id = None  # the same appliance keeps its link across journeys
         state.selected_booking_slot = None
         # A new problem gets its own warning (hazards are detected before routing, so a warning
         # given on this very turn counts for the journey it starts).

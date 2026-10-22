@@ -19,7 +19,15 @@ from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
 from homehelper.agent.state import AgentState, PausedIssue
 from homehelper.channels.events import InboundMessage, StructuredAction
-from tests.unit.agent.helpers import new_state, plan, press, run_turn, say, vision_slot
+from tests.unit.agent.helpers import (
+    DIAGNOSE_ACTIONS,
+    new_state,
+    plan,
+    press,
+    run_turn,
+    say,
+    vision_slot,
+)
 
 DISHWASHER = {"appliance_category": "dishwasher", "symptom": "won't drain"}
 
@@ -49,7 +57,7 @@ def test_fixed_path_walks_gather_to_resolved(catalog: JourneyCatalog) -> None:
     )
     assert first.state.active_journey == "troubleshoot"
     assert first.state.step_id == "diagnose"
-    assert first.actions == ["knowledge.search", "plan.build"]
+    assert first.actions == DIAGNOSE_ACTIONS
     assert first.continue_after_actions
     steps = [(d.from_step, d.to_step, d.predicate) for d in first.decisions if d.kind != "route"]
     assert steps == [

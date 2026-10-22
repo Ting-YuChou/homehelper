@@ -73,6 +73,24 @@ class Decision(BaseModel):
     reason: str
 
 
+class ProfileAppliance(BaseModel):
+    """An appliance from the user's profile (MCP `user_profile`)."""
+
+    appliance_id: str
+    category: str
+    brand: str
+    model_number: str
+    nickname: str | None = None
+
+
+class UserContext(BaseModel):
+    """The signed-in user's profile, read by `load_context` every turn (spec §12.2). Guests have
+    none, so tools that act for a user are unavailable to them."""
+
+    zip_code: str | None = None
+    appliances: list[ProfileAppliance] = Field(default_factory=list)
+
+
 class PausedIssue(BaseModel):
     """An unfinished issue set aside by a topic or appliance switch (spec §7.4, ADR-007): the
     progress of its journey, restored as-is when the user comes back to it."""
@@ -86,6 +104,7 @@ class PausedIssue(BaseModel):
     plan_cursor: int = 0
     step_attempts: dict[str, int] = Field(default_factory=dict)
     last_retrieval: RetrievalResult | None = None  # the excerpts its plan cites
+    appliance_id: str | None = None  # the profile appliance this issue is about
 
 
 class IssueRecord(BaseModel):
@@ -102,7 +121,8 @@ class AgentState(BaseModel):
     conversation_id: str
     release_id: str
     user_id: str | None = None
-    # The active issue owns the fields from `active_journey` to `last_retrieval`. Journeys that
+    profile: UserContext | None = None
+    # The active issue owns the fields from `active_journey` to `appliance_id`. Journeys that
     # end on entry (the out-of-scope decline) are replies, not issues, and have no id.
     active_issue_id: str | None = None
     active_journey: str | None = None
@@ -119,6 +139,7 @@ class AgentState(BaseModel):
     frustrated_turns: int = 0  # consecutive turns with user_sentiment == "frustrated" (G-LOOP-01)
     selected_booking_slot: str | None = None  # from a BookingSlots card; read by the `book` action
     last_retrieval: RetrievalResult | None = None
+    appliance_id: str | None = None  # the profile appliance of the active issue, once linked
     # The once-per-issue reminder about paused issues was given, or the user declined an offer.
     paused_reminder_used: bool = False
     outcome: Outcome | None = None  # summary over all issues (spec §7.4)

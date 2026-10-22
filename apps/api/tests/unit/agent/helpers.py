@@ -87,3 +87,12 @@ def run_turn(
         acted = fake_act(result.state, result.actions, items or [])
         result = transition(catalog, acted, None)
     return result
+
+
+# The troubleshoot journey's `diagnose` step actions.
+DIAGNOSE_ACTIONS = [
+    "mcp:user_profile.get_warranty_status",
+    "mcp:user_profile.list_repair_history",
+    "knowledge.search",
+    "plan.build",
+]

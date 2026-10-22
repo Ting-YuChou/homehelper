@@ -6,17 +6,20 @@ signed-in user, no matching appliance, ...). A skipped or failed action is logge
 and the journey carries on: a tool outage must not stop troubleshooting.
 """
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.protocol import ToolCall
-from homehelper.agent.state import AgentState, Decision
+from homehelper.agent.state import AgentState, Decision, ProfileAppliance, UserContext
 from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState
 
-GUEST_PREFIX = "guest_"
+GET_WARRANTY = "mcp:user_profile.get_warranty_status"
+LIST_REPAIRS = "mcp:user_profile.list_repair_history"
+MIN_SHARED_WORD = 4  # letters; shorter words ("the", "won't") say nothing about the problem
 
 
 @dataclass(frozen=True)
@@ -28,11 +31,24 @@ ArgBuilder = Callable[[GraphState, AgentState], dict[str, Any] | Skip]
 
 
 def tool_user(state: AgentState) -> str | None:
-    """The user MCP tools act for; guests have no profile, so their tools are unavailable."""
-    user_id = state.user_id
-    if user_id is None or user_id.startswith(GUEST_PREFIX):
+    """The user MCP tools act for: only a user with a profile (guests have none)."""
+    return state.user_id if state.profile is not None else None
+
+
+async def load_profile(deps: AgentDeps, user_id: str | None) -> UserContext | None:
+    """The user's profile and appliances, or None for guests or when the tools are down.
+    These context reads are not step actions, so they are not logged as tool calls."""
+    if deps.tools is None or user_id is None:
         return None
-    return user_id
+    profile = await deps.tools.call_action("mcp:user_profile.get_profile", {}, user_id=user_id)
+    if not profile.ok or not isinstance(profile.data, dict):
+        return None
+    listed = await deps.tools.call_action("mcp:user_profile.list_appliances", {}, user_id=user_id)
+    appliances = listed.data if listed.ok and isinstance(listed.data, list) else []
+    return UserContext(
+        zip_code=profile.data.get("zip_code"),
+        appliances=[ProfileAppliance.model_validate(a) for a in appliances],
+    )
 
 
 def _slot(state: AgentState, name: str) -> str | None:
@@ -52,16 +68,73 @@ def _video_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
     }
 
 
-def _repair_record_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+def _appliance(state: AgentState) -> str | Skip:
     if tool_user(state) is None:
-        return Skip("no signed-in user")
-    return Skip("the issue is not linked to an appliance in the user's profile")
+        return Skip("no signed-in user with a profile")
+    if state.appliance_id is None:
+        return Skip("the issue is not linked to an appliance in the user's profile")
+    return state.appliance_id
+
+
+def _appliance_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    appliance = _appliance(state)
+    return appliance if isinstance(appliance, Skip) else {"appliance_id": appliance}
+
+
+def _history_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    appliance = _appliance(state)
+    return appliance if isinstance(appliance, Skip) else {"appliance_id": appliance, "limit": 5}
+
+
+def _repair_record_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
+    appliance = _appliance(state)
+    if isinstance(appliance, Skip):
+        return appliance
+    fixed = next((item for item in state.plan if item.status == "fixed"), None)
+    return {
+        "appliance_id": appliance,
+        "issue": (_slot(state, "symptom") or _slot(state, "question") or "Troubleshooting")[:500],
+        "resolution": (fixed.instruction if fixed else "Solved with HomeHelper's help")[:1000],
+        "outcome": "resolved",
+        "error_code": _slot(state, "error_code"),
+        "performed_by": "self",
+    }
 
 
 ACTION_ARGS: dict[str, ArgBuilder] = {
     "mcp:tutorials.search_videos": _video_args,
+    GET_WARRANTY: _appliance_args,
+    LIST_REPAIRS: _history_args,
     "mcp:user_profile.add_repair_record": _repair_record_args,
 }
+
+
+def warranty_active(outcomes: list[ToolOutcome]) -> bool:
+    """G-WARR-01 applies when this turn's warranty check says the warranty is active."""
+    return any(
+        o.ok and o.tool == "user_profile.get_warranty_status" and o.data.get("status") == "active"
+        for o in outcomes
+        if isinstance(o.data, dict)
+    )
+
+
+def _words(text: str | None) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) >= MIN_SHARED_WORD}
+
+
+def similar_repairs(outcomes: list[ToolOutcome], state: AgentState) -> list[dict[str, Any]]:
+    """Earlier repairs of the same kind: the same error code, or a shared word in the issue."""
+    code = (_slot(state, "error_code") or "").upper()
+    symptom = _words(_slot(state, "symptom"))
+    found = []
+    for outcome in outcomes:
+        if not (outcome.ok and outcome.tool == "user_profile.list_repair_history"):
+            continue
+        for record in outcome.data if isinstance(outcome.data, list) else []:
+            same_code = bool(code) and (record.get("error_code") or "").upper() == code
+            if same_code or symptom & _words(record.get("issue")):
+                found.append(record)
+    return found
 
 
 def as_tool_call(outcome: ToolOutcome, source: str) -> ToolCall:

@@ -3,8 +3,10 @@
 from typing import Any
 
 from homehelper.agent.deps import AgentDeps
+from homehelper.agent.nodes.act import PlanDraft, PlanDraftItem
 from homehelper.agent.protocol import ToolCall
 from homehelper.agent.runtime import JourneyAgent
+from homehelper.agent.state import NLUResult, SlotUpdate
 from homehelper.agent.tools import McpToolbox
 from homehelper.agent.turn import AgentReply
 from homehelper.channels.events import InboundMessage, StepCard, StructuredAction, VideoCard
@@ -212,5 +214,111 @@ async def test_resolved_without_a_profile_appliance_skips_the_repair_record() ->
     assert snapshot.tool_calls == []
     assert any(
         d["kind"] == "tool" and "skipped mcp:user_profile.add_repair_record" in d["reason"]
+        for d in snapshot.decision_log
+    )
+
+
+WASHER_REPORT = NLUResult(
+    intent="report_problem",
+    slot_updates=[
+        SlotUpdate(name="appliance_category", value="washing_machine"),
+        SlotUpdate(name="symptom", value="won't drain"),
+        SlotUpdate(name="error_code", value="OE"),
+    ],
+    search_query_en="washer won't drain OE error",
+)
+
+
+async def test_profile_prefills_checks_warranty_and_recalls_a_similar_repair() -> None:
+    retriever = FakeRetriever()
+    llm = FakeLLMClient(
+        {
+            "nlu": [WASHER_REPORT],
+            "planner": [PLAN],
+            "responder": [
+                reply("Last time the drain filter fixed this; let's start there.", "c1"),
+                AgentReply(message="Great, glad it works!"),
+            ],
+            "supervisor": [PASS],
+        }
+    )
+    agent = JourneyAgent(AgentDeps.default(llm, retriever, tools=McpToolbox(servers())))
+    await _send(agent, "My washer won't drain and shows OE")
+
+    (query,) = retriever.queries
+    assert (query.brand, query.model_number) == ("LG", "WM4000HWA")  # from the profile
+    snapshot = await agent.snapshot("conv-1")
+    assert [(c.name, c.source, c.ok) for c in snapshot.tool_calls] == [
+        ("user_profile.get_warranty_status", "action", True),
+        ("user_profile.list_repair_history", "action", True),
+    ]
+    assert any("linked apl_alex_washer" in d["reason"] for d in snapshot.decision_log)
+    prompt = str(llm.calls_for("responder")[0].messages[0].content)
+    assert "repair history (in the tool results) has an earlier problem" in prompt
+
+    await _send(agent, result="fixed")
+    record = (await agent.snapshot("conv-1")).tool_calls[-1]
+    assert (record.name, record.ok) == ("user_profile.add_repair_record", True)
+    assert record.arguments["appliance_id"] == "apl_alex_washer"
+    assert record.arguments["resolution"] == "Clean the filter."
+
+
+async def test_an_active_warranty_flags_disassembly_steps() -> None:
+    dryer = NLUResult(
+        intent="report_problem",
+        slot_updates=[
+            SlotUpdate(name="appliance_category", value="dryer"),
+            SlotUpdate(name="symptom", value="not heating"),
+        ],
+        search_query_en="dryer not heating",
+    )
+    plan = PlanDraft(
+        items=[
+            PlanDraftItem(instruction="Clean the lint filter.", citation_ids=["c1"]),
+            PlanDraftItem(
+                instruction="Remove the back panel and test the thermal fuse.",
+                citation_ids=["c2"],
+                requires_disassembly=True,
+                risk_level="medium",
+            ),
+        ]
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [dryer],
+            "planner": [plan],
+            "responder": [reply("Let's start with the lint filter.", "c1")],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    await _send(agent, "My Samsung dryer isn't heating")
+    graph = await agent.state("conv-1")
+    assert graph is not None and graph.agent is not None
+    flagged = [i.instruction for i in graph.agent.plan if i.warranty_warning]
+    assert flagged == ["Remove the back panel and test the thermal fuse."]
+
+
+async def test_guests_get_no_profile_and_no_user_tools() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [WASHER_REPORT],
+            "planner": [PLAN],
+            "responder": [reply("Let's start with the drain filter.", "c1")],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    message = InboundMessage(
+        conversation_id="conv-1", text="My washer won't drain", user_id="guest_abc"
+    )
+    [event async for event in agent.handle(message)]
+    graph = await agent.state("conv-1")
+    assert graph is not None and graph.agent is not None
+    assert graph.agent.profile is None and graph.agent.appliance_id is None
+    snapshot = await agent.snapshot("conv-1")
+    assert snapshot.tool_calls == []
+    assert any(
+        "skipped mcp:user_profile.get_warranty_status: no signed-in user" in d["reason"]
         for d in snapshot.decision_log
     )
