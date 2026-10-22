@@ -41,6 +41,7 @@ make migrate            # alembic upgrade head (needs `make up`)
 make seed-mock          # reset the MCP mock tables to data/mock/ (needs `make migrate`)
 uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalone (MCP Inspector)
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
+uv run evals run --suite tools --agent stub --simulator scripted --no-judge   # tool-scenario pipeline (M5-08)
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
 uv run evals run --suite smoke --models models.yaml   # per-task overrides, e.g. `nlu: opencode_go/openai/glm-5.3`
 uv run evals run --suite multi_issue --agent stub --simulator scripted --no-judge   # two interleaved problems (ADR-007), no LLM cost
@@ -65,14 +66,14 @@ uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   #
 - LiteLLM would `load_dotenv()` on import; `llm/litellm_client.py` sets `LITELLM_MODE=PRODUCTION` first so secrets only flow through `Settings`. Tests clear all Settings env vars (autouse fixture in `apps/api/tests/conftest.py`).
 - LlamaIndex gotchas: `PGVectorStore` HYBRID mode just concatenates dense + full-text results (we fuse with our own RRF in `knowledge/retriever.py`); stored `doc_id` comes from the node's SOURCE relationship (`ingestion/pipeline.py:to_node`); filter values are interpolated into SQL, so `knowledge/backends.py` whitelists them.
 - `llama-cloud` 2.x is the LlamaParse SDK (`llama-cloud-services` is deprecated). The Cohere key is a production (pay-as-you-go) key.
-- MCP: `mcp` is pinned `<2` (FastMCP; `langchain-mcp-adapters` needs it, ADR-006). Mounted servers only answer once the app lifespan has run (`async with app.router.lifespan_context(app)` in tests). Open the in-memory MCP client (`mcp.shared.memory`) inside the test, not in an async fixture: pytest-asyncio tears fixtures down in another task, which anyio rejects.
+- MCP: `mcp` is pinned `<2` (FastMCP 1.x, ADR-006). The agent calls the servers through `homehelper.agent.tools.McpToolbox` (in-memory sessions, ADR-008), not `langchain-mcp-adapters`. Mounted servers only answer once the app lifespan has run (`async with app.router.lifespan_context(app)` in tests). Open the in-memory MCP client (`mcp.shared.memory`) inside the test, not in an async fixture: pytest-asyncio tears fixtures down in another task, which anyio rejects.
 - ruff must not touch Markdown: `*.md` is excluded in `pyproject.toml` because ruff formats Python code blocks inside it.
 
 ## Shared contracts — import these, don't redefine them
 
 | Contract | Module |
 |---|---|
-| `LLMClient` protocol, `Message`, `LLMError`, `LLMUsage` | `homehelper.llm` (`types.py`) |
+| `LLMClient` protocol (`structured`, `text`, `tool_turn`), `Message`, `ToolSpec`, `ToolTurn`, `LLMError`, `LLMUsage` | `homehelper.llm` (`types.py`) |
 | `LiteLLMClient` (fallbacks, structured output + one corrective retry, cost) / `FakeLLMClient` (scripted) | `homehelper.llm`; build with `build_llm_client(settings)` |
 | Task → model mapping | `apps/api/src/homehelper/llm/models.yaml` (`ModelRegistry.load(overrides=...)`) |
 | `CategoryId`, `ChunkMetadata`, `RetrievedChunk`, `Citation`, `RetrievalQuery`, `RetrievalResult`, `WebFinding` | `homehelper.knowledge.schemas` |
@@ -82,6 +83,7 @@ uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   #
 | Per-turn LLM cost: `with track_usage() as tally:` collects every call in scope (contextvar, follows tasks) | `homehelper.llm` (`usage.py`) |
 | Agent injection: `create_app(settings, agent=...)` → `app.state.agent`; defaults to the scripted `StubAgent` | `homehelper.main`, `homehelper.agent.stub` |
 | MCP tool registry: read/write, LLM-callable (`LLM_CALLABLE_TOOLS`, `WRITE_TOOLS`) | `homehelper.mcp_servers.registry` |
+| Agent MCP client: `Toolbox` protocol, `McpToolbox` (LLM whitelist + `user_id` binding, `call_action` for step actions), `ToolOutcome` | `homehelper.agent.tools` |
 | MCP servers: `build_mcp_servers(settings, engine=..., overrides=McpOverrides(...))`, mounted at `/mcp/<server>/` | `homehelper.mcp_servers.factory`; records in `homehelper.mcp_servers.schemas` |
 | Web API: `ConversationService` (turn → `messages` rows), `WebChannelAdapter` (SSE), `TurnGuards` (rate limits, spend cap, conversation lock) | `homehelper.conversations.service`, `homehelper.channels.web`, `homehelper.ratelimit` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
