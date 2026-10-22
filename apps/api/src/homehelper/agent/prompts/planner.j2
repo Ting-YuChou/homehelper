@@ -3,7 +3,8 @@ Purpose: `plan.build` (M3-07). Turns retrieved manual excerpts into an ordered t
 plan; code then post-processes it (power-off steps, warranty flags, removing high-risk and
 uncited items; spec §7.6).
 Inputs: category (str), brand (str|None), model_number (str|None), symptom (str),
-  error_code (str|None), excerpts (list of {id, manual, page, text}), max_items (int).
+  error_code (str|None), user_said (list[str]: the user's messages so far), excerpts (list of
+  {id, manual, page, text}), max_items (int).
 Output schema: homehelper.agent.nodes.act.PlanDraft
 #}
 Write a troubleshooting plan for a home appliance problem, using only the manual excerpts below.
@@ -14,6 +15,11 @@ Problem: {{ symptom }}
 {% if error_code %}
 Error code: {{ error_code }}
 {% endif %}
+
+What the user has told us so far:
+{% for line in user_said %}
+- {{ line }}
+{% endfor %}
 
 <manual_excerpts>
 {% for excerpt in excerpts %}
@@ -27,7 +33,10 @@ Rules:
 - At most {{ max_items }} items, each one action a non-expert can do, written as a short
   instruction to the user ("Check that ...", "Clean ...").
 - Order them from simple to complex and from safe to anything that needs opening the
-  appliance.
+  appliance. Among steps that are about equally simple and safe, put first the one the
+  excerpts tie most directly to this exact symptom (the most likely fix), not generic checks.
+- Leave out steps the user has already done or ruled out, and setup prerequisites the user's
+  messages show are already in place.
 - Every item must be supported by the excerpts; list the supporting excerpt ids in
   `citation_ids`. Leave out anything the excerpts do not support, even if you know it.
 - If the excerpts come from a different appliance or do not address this problem, return no

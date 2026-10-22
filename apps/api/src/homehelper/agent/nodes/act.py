@@ -90,7 +90,9 @@ def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
     ]
 
 
-async def build_plan(deps: AgentDeps, state: AgentState) -> tuple[list[PlanItem], list[Decision]]:
+async def build_plan(
+    deps: AgentDeps, state: AgentState, user_said: list[str] | None = None
+) -> tuple[list[PlanItem], list[Decision]]:
     retrieval = state.last_retrieval
     if retrieval is None or not retrieval.chunks:
         return [], [
@@ -104,6 +106,7 @@ async def build_plan(deps: AgentDeps, state: AgentState) -> tuple[list[PlanItem]
         model_number=_slot(state, "model_number"),
         symptom=_slot(state, "symptom") or retrieval.query.query_en,
         error_code=_slot(state, "error_code"),
+        user_said=user_said or [],
         excerpts=_excerpts(retrieval),
         max_items=MAX_PLAN_ITEMS,
     )
@@ -160,7 +163,10 @@ async def run_action(
     elif action == "plan.build":
         emit(StatusEvent(stage="planning", label="Putting together the steps…"))
         with deps.span("plan.build") as span:
-            state.plan, decisions = await build_plan(deps, state)
+            user_said = [line.text for line in graph.transcript if line.role == "user"]
+            if graph.turn.message is not None and graph.turn.message.text:
+                user_said.append(graph.turn.message.text)
+            state.plan, decisions = await build_plan(deps, state, user_said)
             record(
                 span,
                 output={
