@@ -43,6 +43,7 @@ uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalo
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
 uv run evals run --suite smoke --models models.yaml   # per-task overrides, e.g. `nlu: opencode_go/openai/glm-5.3`
+uv run evals run --suite multi_issue --agent stub --simulator scripted --no-judge   # two interleaved problems (ADR-007), no LLM cost
 pnpm --filter web build
 pnpm --filter web test  # vitest (SSE parsing, turn reducer)
 make openapi            # regenerate apps/web/lib/api/{openapi.json,schema.d.ts}; CI fails if stale
