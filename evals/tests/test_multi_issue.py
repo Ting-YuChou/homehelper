@@ -81,6 +81,7 @@ def test_dataset_pairs_two_appliances() -> None:
     assert {case.return_via for case in cases} == {"card", "appliance", "confirm", "close"}
     closed = [case for case in cases if case.return_via == "close"]
     assert all(case.issues[0].expected_outcomes == ["abandoned"] for case in closed)
+    assert len({case.persona for case in cases}) > 1  # each keeps its first scenario's persona
 
 
 def test_only_multi_issue_cases_list_issues() -> None:

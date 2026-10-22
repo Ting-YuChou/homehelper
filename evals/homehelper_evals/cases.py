@@ -234,13 +234,12 @@ def multi_issue_case(
     """A case that interleaves the frozen scenarios listed in `item["issues"]` (variant ids)."""
     ids = item["issues"]
     assert isinstance(ids, list)
+    scenarios = [
+        scenario_case(variants[vid], root_causes[vid], manuals=manuals, seed=seed) for vid in ids
+    ]
     specs = [
-        IssueSpec.model_validate(
-            scenario_case(variants[vid], root_causes[vid], manuals=manuals, seed=seed).model_dump(
-                include=set(ISSUE_FIELDS)
-            )
-        )
-        for vid in ids
+        IssueSpec.model_validate(scenario.model_dump(include=set(ISSUE_FIELDS)))
+        for scenario in scenarios
     ]
     if item.get("return_via") == "close":  # the user closes the first problem instead
         specs[0] = specs[0].model_copy(update={"expected_outcomes": ["abandoned"]})
@@ -252,6 +251,7 @@ def multi_issue_case(
             "kind": "multi_issue",
             "max_turns": MULTI_ISSUE_MAX_TURNS,
             "split": variants[ids[0]].split,
+            "persona": scenarios[0].persona,  # one user brings up both problems
             **first,
             **extra,
             "issues": [spec.model_dump() for spec in specs],
