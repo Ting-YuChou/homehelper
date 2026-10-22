@@ -485,8 +485,10 @@ class _Run:
     def _close_paused_after_hazard(self, signals: TurnSignals) -> None:
         """DIY help has ended for that appliance: its paused issues must not come back with
         steps. A gas smell, or a hazard on an unknown appliance, ends all of them."""
-        # A card turn has no NLU, so a hazard typed with it may be about any appliance.
-        unknown = "gas_smell" in signals.escalating_hazards or signals.from_card
+        # An issues-card turn has no NLU and moves between issues, so a hazard typed with it may
+        # be about any appliance. (A step-result card is about the active one.)
+        switching_card = bool(signals.resume_issue or signals.close_issue)
+        unknown = "gas_smell" in signals.escalating_hazards or switching_card
         category = None if unknown else self.hazard_category
         for issue_id in close_paused(self.state, category, "escalated"):
             self._log(

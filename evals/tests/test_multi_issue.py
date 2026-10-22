@@ -116,7 +116,7 @@ def test_runner_returns_once_the_second_issue_is_settled() -> None:
         return turn
 
     assert back("card", done).action == StructuredAction(type="resume_issue", value="iss_1")
-    assert back("card", no_card).text == "Thanks! Now, back to my Bosch dishwasher from before."
+    assert back("card", no_card).text == "Now, back to my Bosch dishwasher from before."
     assert back("close", done).action == StructuredAction(type="close_issue", value="iss_1")
     assert back("confirm", done).text == "Yes, let's go back to the other problem."
     assert back("appliance", done).text and "Bosch dishwasher" in (

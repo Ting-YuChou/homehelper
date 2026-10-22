@@ -414,3 +414,14 @@ def test_water_still_there_with_a_stale_card_escalates(catalog: JourneyCatalog) 
     )
     result = transition(catalog, state, turn)
     assert result.state.step_id == "escalate"
+
+
+def test_a_hazard_with_a_step_result_is_about_the_active_appliance(
+    catalog: JourneyCatalog,
+) -> None:
+    turn = TurnInput(
+        text="it's smoking now", action=StructuredAction(type="step_result", value="not_fixed")
+    )
+    result = transition(catalog, two_issues(catalog), turn)
+    assert result.state.step_id == "escalate"
+    assert [p.issue_id for p in result.state.paused_issues] == ["iss_1"]  # the dishwasher

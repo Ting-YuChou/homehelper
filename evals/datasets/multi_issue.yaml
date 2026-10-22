@@ -4,7 +4,7 @@
 # problem once the agent has shown `switch_after_steps` step cards for the first, and returns to
 # the first once the second is settled, by `return_via`:
 #   card      press "Continue" on the IssuesCard (falls back to naming the appliance)
-#   appliance "Thanks! Now, back to my <appliance> from before."
+#   appliance "Now, back to my <appliance> from before."
 #   confirm   "Yes, let's go back to the other problem." (a typed confirm)
 #   close     press "Close" on the IssuesCard: the first problem must end as abandoned
 # Graded per issue (outcome of each, citations from the manual of the issue being discussed),

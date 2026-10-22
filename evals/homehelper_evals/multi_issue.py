@@ -70,7 +70,8 @@ def _return_turn(case: EvalCase, last: AgentTurn, issue_id: str) -> UserTurn:
         case "confirm":
             text = "Yes, let's go back to the other problem."
         case _:  # "appliance", or "card" when no card was offered
-            text = f"Thanks! Now, back to my {appliance} from before."
+            # Not "Thanks! ...": a goodbye-like message never resumes a paused issue.
+            text = f"Now, back to my {appliance} from before."
     return UserTurn(text=text, action=action, scripted=True, script=RETURN)
 
 
