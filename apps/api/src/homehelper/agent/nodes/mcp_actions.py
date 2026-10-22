@@ -24,7 +24,7 @@ from homehelper.agent.state import (
     UserContext,
 )
 from homehelper.agent.tools import ToolOutcome
-from homehelper.agent.turn import GraphState
+from homehelper.agent.turn import GraphState, TurnScratch
 
 GET_WARRANTY = "mcp:user_profile.get_warranty_status"
 LIST_SLOTS = "mcp:service_booking.list_slots"
@@ -33,6 +33,7 @@ OFFERED_SLOTS = 4
 LIST_REPAIRS = "mcp:user_profile.list_repair_history"
 MIN_SHARED_WORD = 4  # letters; shorter words ("the", "won't") say nothing about the problem
 BOOKING_CONFIRMED = "BOOKING"  # rule id of the code-built booking confirmation
+BOOKING_CLOSING = "Is there anything else I can help you with?"
 
 
 @dataclass(frozen=True)
@@ -180,7 +181,10 @@ def _visit_time(starts_at: str) -> str:
         start = datetime.fromisoformat(starts_at)
     except ValueError:
         return starts_at
-    return f"{start:%A, %B} {start.day} at {start:%I:%M %p}".replace(" 0", " ")
+    when = f"{start:%A, %B} {start.day} at {start:%I:%M %p}".replace(" 0", " ")
+    # The web card shows the time in the browser's zone: name the zone so the two can be compared.
+    zone = start.tzname()
+    return f"{when} ({zone})" if zone else when
 
 
 def booking_confirmation(outcomes: list[ToolOutcome], state: AgentState) -> FixedReply | None:
@@ -237,6 +241,26 @@ def as_tool_call(outcome: ToolOutcome, source: str, issue_id: str | None) -> Too
     )
 
 
+def _replayed_data(state: AgentState, done: ToolCall) -> dict[str, Any] | None:
+    """What the supervisor and responder can cite about a replayed booking: the slot it took."""
+    slot_id = done.arguments.get("slot_id")
+    slot = next((s for s in state.offered_slots if s.slot_id == slot_id), None)
+    return slot.model_dump() if slot else None
+
+
+def booking_fallback(turn: TurnScratch) -> TurnScratch | None:
+    """When the LLM fails after a booking, the confirmation alone becomes the reply: the visit is
+    booked, so the turn must not end in an error that hides it. None when nothing was booked."""
+    confirmation = next((r for r in turn.fixed_replies if r.rule_id == BOOKING_CONFIRMED), None)
+    if confirmation is None:
+        return None
+    closing = confirmation.model_copy(
+        update={"text": f"{confirmation.text} {BOOKING_CLOSING}", "replaces_response": True}
+    )
+    others = [r for r in turn.fixed_replies if r is not confirmation]
+    return turn.model_copy(update={"fixed_replies": [*others, closing], "reply": None})
+
+
 def _done_write(graph: GraphState, state: AgentState, tool: str) -> ToolCall | None:
     """This write's earlier success for the active issue. A turn that failed after the write is
     rolled back but keeps the write's record (`JourneyAgent._roll_back`), so a retry finds it."""
@@ -274,7 +298,13 @@ async def run_mcp_action(
                 reason=f"skipped {action}: already done for {state.active_issue_id}",
             )
         )
-        return ToolOutcome(tool=done.name, arguments=done.arguments, ok=True, replayed=True)
+        return ToolOutcome(
+            tool=done.name,
+            arguments=done.arguments,
+            ok=True,
+            data=_replayed_data(state, done),
+            replayed=True,
+        )
     arguments = builder(graph, state)
     if isinstance(arguments, Skip):
         state.decision_log.append(

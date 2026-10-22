@@ -41,7 +41,9 @@ your appliance still does not work, so never press "fixed" for it.
 3. Answer questions only from your situation. If you do not know something, say you are not \
 sure, or give a plausible, harmless answer that does not hint at the fix.
 4. When the latest assistant message has a step card with buttons, set step_result to the \
-button you press; a short message is optional.
+button you press; a short message is optional. The assistant reads only the button, not a \
+message sent with it: to ask or request anything else (a part, a technician, a question), \
+leave step_result empty and write the message instead.
 5. If the assistant asks you to confirm your appliance with a card, set confirm_appliance to \
 "yes" if it matches your appliance, otherwise "no".
 6. If the assistant offers booking slots and your problem is not fixed, you may pick one with \

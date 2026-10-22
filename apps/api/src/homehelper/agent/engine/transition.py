@@ -170,7 +170,12 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
         current = state.slots.get(CATEGORY_SLOT)
         new_category = _category_update(signals)
         changed = current is not None and new_category is not None and new_category != current.value
-        tool_side = signals.intent in TOOL_SIDE_INTENTS and not signals.escalating_hazards
+        # Guests have no profile: their `my_appliances` journey answers with the sign-in template.
+        tool_side = (
+            signals.intent in TOOL_SIDE_INTENTS
+            and not signals.escalating_hazards
+            and state.profile is not None
+        )
         if changed and tool_side and target is not None and target.id != active.id:
             return Route(
                 kind="side_question",
@@ -208,6 +213,10 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
             )
         if signals.intent == "out_of_scope" and not signals.escalating_hazards:
             return Route(kind="scope_side", journey=active.id, reason="off-topic during a journey")
+        if signals.intent == "book_technician" and _has_guardrail(
+            active, "user_requested_technician"
+        ):
+            return Route(kind="stay", journey=active.id, reason="technician requested")
         if target is not None and target.id != active.id:
             if signals.intent in SIDE_INTENTS:
                 return Route(
@@ -310,7 +319,11 @@ def _resumable(
 
 
 def _has_hazard_guardrail(journey: Journey) -> bool:
-    return any(guard.when == "hazard_detected" for guard in journey.guardrails)
+    return _has_guardrail(journey, "hazard_detected")
+
+
+def _has_guardrail(journey: Journey, when: str) -> bool:
+    return any(guard.when == when for guard in journey.guardrails)
 
 
 def _normalize_enum(value: str) -> str:
@@ -368,8 +381,9 @@ class _Run:
         journey = self._journey()
         if decided.kind not in ("none", "close", "decline", "ignore") and journey is not None:
             # A side question's details ("do Whirlpool filters fit?") are about the question, not
-            # the active issue: they must not change its slots or its profile appliance.
-            if decided.kind != "side_question":
+            # the active issue: they must not change its slots or its profile appliance. While
+            # the issue's details are being collected they still fill or correct them.
+            if decided.kind != "side_question" or self._step_type(journey) in COLLECT_STEP_TYPES:
                 self._apply_slot_updates(journey, signals)
                 self.decisions.extend(link_profile_appliance(self.state, journey))
             if decided.kind == "stay":

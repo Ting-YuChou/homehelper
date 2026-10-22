@@ -17,7 +17,7 @@ from homehelper.agent.engine.transition import (
 )
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
-from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue
+from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue, UserContext
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import (
     DIAGNOSE_ACTIONS,
@@ -701,10 +701,42 @@ def test_a_tool_question_about_another_appliance_stays_on_the_side(
     catalog: JourneyCatalog,
 ) -> None:
     state = start_guide(catalog)
+    state.profile = UserContext(zip_code="94110")
     warranty = say(
         "my_appliances", "is my dryer under warranty?", slots={"appliance_category": "dryer"}
     )
     result = transition(catalog, state, warranty)
     assert result.side_question
     assert (result.state.active_issue_id, result.state.step_id) == ("iss_1", "guide")
+    assert result.state.paused_issues == []
+    # A guest has no appliances to ask about: the my_appliances journey answers (sign in).
+    state.profile = None
+    guest = transition(catalog, state, warranty)
+    assert guest.state.active_journey == "my_appliances"
+
+
+def test_a_side_question_while_collecting_still_corrects_details(catalog: JourneyCatalog) -> None:
+    state = transition(
+        catalog,
+        new_state(),
+        say("report_problem", "my dishwasher", slots={"appliance_category": "dishwasher"}),
+    ).state
+    assert state.step_id == "gather"
+    parts = say("ask_parts", "it leaks, do I need a new pump?", slots={"symptom": "leaks"})
+    result = transition(catalog, state, parts)
+    assert result.state.slots["symptom"].value == "leaks"
+
+
+def test_asking_for_a_technician_first_escalates(catalog: JourneyCatalog) -> None:
+    ask = say("book_technician", "send a technician", slots={"appliance_category": "dishwasher"})
+    result = transition(catalog, new_state(), ask)
+    assert (result.state.active_journey, result.state.step_id) == ("troubleshoot", "escalate")
+
+
+def test_asking_for_a_technician_mid_how_to_escalates_there(catalog: JourneyCatalog) -> None:
+    how_to = say("ask_how_to", slots={"appliance_category": "coffee_maker", "question": "descale"})
+    state = transition(catalog, transition(catalog, new_state(), how_to).state, None).state
+    assert state.step_id == "answer"
+    result = transition(catalog, state, say("book_technician", "just send someone"))
+    assert (result.state.active_journey, result.state.step_id) == ("how_to_use", "escalate")
     assert result.state.paused_issues == []

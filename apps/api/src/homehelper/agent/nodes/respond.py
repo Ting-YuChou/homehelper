@@ -24,7 +24,7 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUMED_ISSUE,
 )
 from homehelper.agent.guardrails import HAZARD_RULES
-from homehelper.agent.nodes.mcp_actions import as_tool_call, booked, tool_user
+from homehelper.agent.nodes.mcp_actions import as_tool_call, booked, booking_fallback, tool_user
 from homehelper.agent.state import AgentState
 from homehelper.agent.tools import ToolOutcome, from_llm_name, without_user
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
@@ -379,6 +379,17 @@ async def tool_loop(
 
 
 async def respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
+    try:
+        return await _respond(graph, deps)
+    except LLMError:
+        fallback = booking_fallback(graph.turn)
+        if fallback is None:
+            raise
+        log.warning("responder_failed_after_booking")
+        return {"turn": fallback}
+
+
+async def _respond(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     turn = graph.turn
     if any(reply.replaces_response for reply in turn.fixed_replies):
         return {}

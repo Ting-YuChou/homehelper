@@ -48,6 +48,10 @@ OPENCODE_GO_PATHS = {"openai": "/openai/v1", "anthropic": "/anthropic"}
 OPENCODE_GO_USER_AGENT = "homehelper-evals/1.0"
 
 
+# Sent on the retry when a turn that must call a tool answered in text (`tool_choice` is "auto").
+TOOL_CALL_NUDGE = "Respond by calling one of the provided tools, not with plain text."
+
+
 def _schema_instruction(schema: type[BaseModel]) -> Message:
     return Message(
         role="user",
@@ -187,6 +191,7 @@ class LiteLLMClient:
                 continue
             if require_tool and not turn.tool_calls:
                 log.warning("llm_tool_call_missing", task=task, model=model)
+                messages = [*messages, Message(role="user", content=TOOL_CALL_NUDGE)]
                 continue
             return turn
         raise LLMError(f"{task}: tool call invalid after retry ({model})")

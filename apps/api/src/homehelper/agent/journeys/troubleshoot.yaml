@@ -2,7 +2,7 @@
 id: troubleshoot
 version: 1
 goal: The user confirms the problem is fixed, or is safely referred to a professional.
-entry_intents: [report_problem]
+entry_intents: [report_problem, book_technician]  # the guardrail below escalates the latter
 
 slots:
   appliance_category: { type: enum, values: categories, required: true }
