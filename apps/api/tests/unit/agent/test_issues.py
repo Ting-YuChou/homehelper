@@ -364,14 +364,36 @@ def test_water_mentioned_while_resuming_gets_the_full_warning(catalog: JourneyCa
     assert WATER_REMINDER_REPLY not in result.fixed_replies
 
 
-def test_a_hazard_on_a_card_resume_spares_the_issue_set_aside(catalog: JourneyCatalog) -> None:
+def test_a_hazard_on_a_card_resume_ends_diy_for_every_paused_issue(
+    catalog: JourneyCatalog,
+) -> None:
+    # Card turns skip the NLU, so the smoking appliance is unknown: none may resume with steps.
     turn = TurnInput(
-        text="the dishwasher is sparking",
+        text="the dryer is smoking",
         action=StructuredAction(type="resume_issue", value="iss_1"),
     )
     result = transition(catalog, two_issues(catalog), turn)
     assert (result.state.active_issue_id, result.state.step_id) == ("iss_1", "escalate")
-    assert [p.issue_id for p in result.state.paused_issues] == ["iss_2"]  # the dryer
+    assert result.state.paused_issues == []
+    assert result.state.issues[1].outcome == "escalated"
+
+
+def test_a_close_card_still_closes_on_a_hazard_turn(catalog: JourneyCatalog) -> None:
+    state = guide(catalog, two_issues(catalog), "microwave")  # dishwasher and dryer paused
+    turn = TurnInput(
+        text="sparks coming out", action=StructuredAction(type="close_issue", value="iss_1")
+    )
+    result = transition(catalog, state, turn)
+    assert result.state.step_id == "escalate"
+    assert result.state.issues[0].outcome == "abandoned"
+    assert result.state.paused_issues == []  # the hazard ended DIY help for the dryer too
+
+
+def test_saying_goodbye_does_not_resume_a_paused_issue(catalog: JourneyCatalog) -> None:
+    state = transition(catalog, two_issues(catalog), press("step_result", "fixed")).state
+    bye = transition(catalog, state, mention("dishwasher", "small_talk"))
+    assert [p.issue_id for p in bye.state.paused_issues] == ["iss_1"]
+    assert NOTICE_REMIND_PAUSED in bye.notices
 
 
 def test_a_hazard_with_a_stale_card_still_escalates(catalog: JourneyCatalog) -> None:

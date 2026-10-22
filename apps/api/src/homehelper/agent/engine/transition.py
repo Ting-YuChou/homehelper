@@ -212,7 +212,13 @@ def route(catalog: JourneyCatalog, state: AgentState, signals: TurnSignals) -> R
     if dropped is not None:
         return Route(kind="close", issue_id=dropped.issue_id, reason="the user dropped it by name")
     new_category = _category_update(signals)
-    paused = _resumable(catalog, state, signals, target, new_category) if new_category else None
+    # A goodbye that mentions a paused appliance is not going back to it (the reminder covers it).
+    farewell = signals.intent == "small_talk" and not signals.escalating_hazards
+    paused = (
+        _resumable(catalog, state, signals, target, new_category)
+        if new_category and not farewell
+        else None
+    )
     if signals.escalating_hazards:
         if paused is not None:
             return _resume(paused, f"hazard reported on the {new_category}")
@@ -359,6 +365,11 @@ class _Run:
                     # The details may be complete now; move on as a fresh turn would.
                     self._step_transitions(journey, None)
         if signals.escalating_hazards:
+            if signals.close_issue and find_paused(self.state, signals.close_issue):
+                # The hazard was routed first; the close the user pressed still applies.
+                take_paused(self.state, signals.close_issue)
+                close_issue(self.state, signals.close_issue, "abandoned")
+                self._log("route", f"closed {signals.close_issue} (abandoned): issues card")
             self._close_paused_after_hazard(signals)
         if signals.intent == "small_talk":
             step_type = self._step_type(journey)
@@ -474,7 +485,9 @@ class _Run:
     def _close_paused_after_hazard(self, signals: TurnSignals) -> None:
         """DIY help has ended for that appliance: its paused issues must not come back with
         steps. A gas smell, or a hazard on an unknown appliance, ends all of them."""
-        category = None if "gas_smell" in signals.escalating_hazards else self.hazard_category
+        # A card turn has no NLU, so a hazard typed with it may be about any appliance.
+        unknown = "gas_smell" in signals.escalating_hazards or signals.from_card
+        category = None if unknown else self.hazard_category
         for issue_id in close_paused(self.state, category, "escalated"):
             self._log(
                 "route", f"closed {issue_id} (escalated): hazard {signals.escalating_hazards[0]}"
