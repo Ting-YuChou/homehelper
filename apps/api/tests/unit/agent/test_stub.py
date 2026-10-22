@@ -42,6 +42,16 @@ async def test_walks_the_plan_until_fixed() -> None:
     )
 
 
+async def test_issue_actions_do_not_advance_the_plan() -> None:
+    agent = StubAgent()
+    await _turn(agent, "My dishwasher won't start")
+    message = InboundMessage(
+        conversation_id="c1", action=StructuredAction(type="resume_issue", value="iss_1")
+    )
+    events = [event async for event in agent.handle(message)]
+    assert [c.index for c in _cards(events)] == [1]
+
+
 async def test_hands_off_when_plan_runs_out() -> None:
     agent = StubAgent()
     await _turn(agent, "It won't drain")

@@ -15,6 +15,10 @@ export function actionLabel(action: StructuredAction): string {
       return action.value === "yes" ? "Yes, that's my appliance" : "No, that's not it";
     case "select_booking_slot":
       return "Book this time slot";
+    case "resume_issue":
+      return "Let's go back to that problem";
+    case "close_issue":
+      return "Close that problem";
   }
 }
 

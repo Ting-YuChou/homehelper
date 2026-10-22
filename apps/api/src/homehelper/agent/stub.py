@@ -91,6 +91,9 @@ class StubAgent:
             conv.started = True
             return "Let's work through this one step at a time.", [self._step(conv)]
 
+        if message.action is not None and message.action.type in ("resume_issue", "close_issue"):
+            # The scripted demo has one problem, so it never offers an issues card.
+            return "Let's keep going with this one.", [self._step(conv)]
         result = message.action.value if message.action else (message.text or "").lower()
         if "fixed" in result and "not" not in result:
             return self._end(conv, "resolved", "Great, glad it's working again!")
