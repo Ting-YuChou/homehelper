@@ -7,6 +7,7 @@ the LLM simulator's semantic match; use it to exercise the runner, not to score 
 import re
 
 from homehelper.channels.events import ApplianceConfirmCard, BookingSlotsCard
+from homehelper.knowledge.model_numbers import normalize_model
 from homehelper_evals.cases import EvalCase
 from homehelper_evals.simulator.base import SimulatorTurn
 from homehelper_evals.transcript import AgentTurn, Turn, UserTurn
@@ -87,8 +88,14 @@ class ScriptedUserSimulator:
             )
             return SimulatorTurn(step_result="fixed" if fixed else "not_fixed")
         for card in last.cards_of(ApplianceConfirmCard):
-            matches = (card.category in (None, case.category)) and (
-                card.brand is None or (case.brand or "").lower() == card.brand.lower()
+            matches = (
+                card.category in (None, case.category)
+                and (card.brand is None or (case.brand or "").lower() == card.brand.lower())
+                and (
+                    card.model_number is None
+                    or case.model_number is None
+                    or normalize_model(card.model_number) == normalize_model(case.model_number)
+                )
             )
             return SimulatorTurn(confirm_appliance="yes" if matches else "no")
         slots = [slot for card in last.cards_of(BookingSlotsCard) for slot in card.slots]

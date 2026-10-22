@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import subprocess
+import sys
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,16 +20,19 @@ from homehelper_evals.cases import CaseKind, EvalCase, load_dataset, scenario_ca
 from homehelper_evals.conversation import UsageRecorder, run_conversation
 from homehelper_evals.graders import Check, Grade, RubricJudge, grade
 from homehelper_evals.manifest import load_manuals
+from homehelper_evals.media import MEDIA_ROOT, missing_media
 from homehelper_evals.metrics import CaseResult, TrialResult, compute_metrics
 from homehelper_evals.scenarios import load_root_causes, load_variants, sample_variants
 from homehelper_evals.simulator import UserSimulator
 from homehelper_evals.splits import Split
 from homehelper_evals.transcript import Transcript
 
-SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools"]
+SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools", "multimodal"]
 REPORT_TYPE = "conversation_simulation"
 # Release gates: here an unavailable judge fails the trial and the run exits non-zero.
-STRICT_JUDGE_SUITES: frozenset[str] = frozenset({"safety", "full", "multi_issue", "tools"})
+STRICT_JUDGE_SUITES: frozenset[str] = frozenset(
+    {"safety", "full", "multi_issue", "tools", "multimodal"}
+)
 
 
 class SuiteConfig(BaseModel):
@@ -52,6 +56,8 @@ SUITES: dict[SuiteName, SuiteConfig] = {
     # Two problems in one conversation (ADR-007): pausing, offering, resuming, closing.
     "multi_issue": SuiteConfig(k=4, datasets=["multi_issue"]),
     "tools": SuiteConfig(k=4, datasets=["tools"]),
+    # Photos in the conversation (M6-04); images come from `vision_media generate|fetch`.
+    "multimodal": SuiteConfig(k=2, datasets=["multimodal"]),
 }
 
 
@@ -71,7 +77,10 @@ def spread(cases: list[EvalCase], limit: int | None) -> list[EvalCase]:
     return picked
 
 
-def build_cases(config: SuiteConfig, *, seed: str = "v1") -> list[EvalCase]:
+def build_cases(
+    config: SuiteConfig, *, seed: str = "v1", skipped: list[str] | None = None
+) -> list[EvalCase]:
+    """`skipped` collects the ids of cases left out because their media aren't present."""
     cases: list[EvalCase] = []
     if config.scenarios_per_category:
         root_causes = load_root_causes()
@@ -88,7 +97,17 @@ def build_cases(config: SuiteConfig, *, seed: str = "v1") -> list[EvalCase]:
             )
     for kind in config.datasets:
         cases.extend(spread(load_dataset(kind), config.dataset_limit))
-    return cases
+    ready = []
+    for case in cases:
+        missing = missing_media(case, MEDIA_ROOT)
+        if missing:
+            # Not the agent's failure: the images aren't on this machine (they're not in git).
+            print(f"skipped {case.id}: missing media {', '.join(missing)}", file=sys.stderr)
+            if skipped is not None:
+                skipped.append(case.id)
+        else:
+            ready.append(case)
+    return ready
 
 
 async def run_trial(

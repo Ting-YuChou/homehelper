@@ -4,7 +4,7 @@ import { readEvents } from "@/lib/api/stream";
 import type { AgentEvent } from "@/lib/api/types";
 
 import { actionLabel } from "./actions";
-import { applyEvent, finishTurn, startTurn } from "./turn";
+import { applyEvent, finishTurn, startTurn, restoresComposer } from "./turn";
 
 const step = {
   type: "step" as const,
@@ -83,5 +83,14 @@ describe("actionLabel", () => {
     expect(actionLabel({ type: "resume_issue", value: "iss_1" })).toBe(
       "Let's go back to that problem",
     );
+  });
+});
+
+describe("restoresComposer", () => {
+  it("gives back the message when it was refused before being processed", () => {
+    for (const code of ["rate_limited", "conversation_busy", "network_error", "invalid_attachment"]) {
+      expect(restoresComposer(code)).toBe(true);
+    }
+    expect(restoresComposer("agent_error")).toBe(false);
   });
 });

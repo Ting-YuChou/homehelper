@@ -18,16 +18,21 @@ _DEV_SECRET = "homehelper-local-session-secret"  # local and test only
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
+def session_secret(settings: Settings) -> str:
+    """The secret behind session cookies and media tokens (each signer uses its own salt)."""
+    secret = settings.session_secret.get_secret_value()
+    if not secret:
+        if settings.app_env not in ("local", "test"):
+            raise RuntimeError("SESSION_SECRET must be set outside local and test")
+        secret = _DEV_SECRET
+    return secret
+
+
 class SessionSigner:
     """Signs the user id into the `hh_session` cookie (spec §18.1: signed httpOnly cookie)."""
 
     def __init__(self, settings: Settings) -> None:
-        secret = settings.session_secret.get_secret_value()
-        if not secret:
-            if settings.app_env not in ("local", "test"):
-                raise RuntimeError("SESSION_SECRET must be set outside local and test")
-            secret = _DEV_SECRET
-        self._serializer = URLSafeTimedSerializer(secret, salt="hh-session")
+        self._serializer = URLSafeTimedSerializer(session_secret(settings), salt="hh-session")
         self.max_age_s = settings.session_max_age_s
         self.secure = settings.app_env not in ("local", "test")
 

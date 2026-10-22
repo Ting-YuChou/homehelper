@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
+from homehelper.agent.engine.perception import media_input
 from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
@@ -237,7 +238,8 @@ def _remember_citations(graph: GraphState, retrieval: RetrievalResult | None) ->
 async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[str, Any]:
     message = graph.turn.message
     assert message is not None
-    result = transition(deps.catalog, graph.state, TurnInput.from_message(message, graph.turn.nlu))
+    turn_input = TurnInput.from_message(message, graph.turn.nlu, media_input(graph.turn.media))
+    result = transition(deps.catalog, graph.state, turn_input)
     state = result.state
     nlu = graph.turn.nlu
     # The same rule `understand` uses to store the query.

@@ -15,6 +15,7 @@ from homehelper.agent.state import AgentState, NLUResult
 from homehelper.agent.tools import ToolOutcome
 from homehelper.channels.events import InboundMessage
 from homehelper.knowledge.schemas import CategoryId, Citation, RetrievalResult
+from homehelper.media.schemas import MediaObservation, VisionResult
 
 MAX_TRANSCRIPT_LINES = 24  # what NLU and the responder see of the conversation
 
@@ -41,6 +42,7 @@ class SupervisorVerdict(BaseModel):
 
 class TurnScratch(BaseModel):
     message: InboundMessage | None = None
+    media: list[MediaObservation] = Field(default_factory=list)  # the message's photos and videos
     nlu: NLUResult | None = None
     fixed_replies: list[FixedReply] = Field(default_factory=list)
     notices: list[str] = Field(default_factory=list)
@@ -79,4 +81,6 @@ CHECKPOINT_TYPES: list[type] = [
     Citation,
     ToolCall,
     ToolOutcome,
+    MediaObservation,
+    VisionResult,
 ]

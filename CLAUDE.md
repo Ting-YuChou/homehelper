@@ -56,6 +56,14 @@ make ingest                        # parse (cached) → chunk → embed → new 
 uv run python -m homehelper_evals.retrieval.run --calibrate   # Recall@5/MRR + τ calibration
 uv run evals run --suite smoke --agent homehelper_evals.builders:baseline   # or :journey; conversation sim against a real agent (needs the KB in Postgres)
 uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   # NLU accuracy on evals/datasets/nlu.yaml (M3-03)
+
+# Multimodal (M6) — images and clips live in data/media/ (git-ignored)
+uv run python -m homehelper_evals.vision_media generate      # synthetic nameplates/displays for vision.yaml
+uv run python -m homehelper_evals.vision_media discover "<query>"   # CC0/PDM/CC BY(-SA) candidates to review
+uv run python -m homehelper_evals.vision_media fetch          # reviewed web photos, sha256-checked
+uv run python -m homehelper_evals.vision --models evals/models/opencode-go.yaml   # photo accuracy + calibration
+uv run evals run --suite multimodal --agent homehelper_evals.builders:journey --models evals/models/opencode-go.yaml
+uv run python -m homehelper_evals.video                       # Gemini video eval (needs GEMINI_API_KEY)
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
@@ -86,6 +94,9 @@ uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml   #
 | Agent MCP client: `Toolbox` protocol, `McpToolbox` (LLM whitelist + `user_id` binding, `call_action` for step actions), `ToolOutcome` | `homehelper.agent.tools` |
 | MCP servers: `build_mcp_servers(settings, engine=..., overrides=McpOverrides(...))`, mounted at `/mcp/<server>/` | `homehelper.mcp_servers.factory`; records in `homehelper.mcp_servers.schemas` |
 | Web API: `ConversationService` (turn → `messages` rows), `WebChannelAdapter` (SSE), `TurnGuards` (rate limits, spend cap, conversation lock) | `homehelper.conversations.service`, `homehelper.channels.web`, `homehelper.ratelimit` |
+| Uploads: `MediaStore` (local / GCS, signed URLs), `build_media_store`, `MediaSigner`; checks in `validation`, `images`, `video`, `pipeline` | `homehelper.media` (`storage.py`, `signing.py`) |
+| Media for the agent: `MediaSource` protocol, `AttachmentMediaSource` / `FakeMediaSource`; `VisionResult`, `VideoResult`, `MediaObservation` | `homehelper.media.source`, `homehelper.media.fake`, `homehelper.media.schemas` |
+| Video model: `VideoAnalyzer` protocol, `GeminiVideoAnalyzer`, `build_video_analyzer` (None without `GEMINI_API_KEY`) | `homehelper.media.gemini` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.

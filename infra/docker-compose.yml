@@ -40,6 +40,7 @@ services:
       - ../apps/api:/app/apps/api
       - ../config:/app/config:ro
       - ../data/mock:/app/data/mock:ro
+      - ../data/media/uploads:/app/data/media/uploads  # uploaded photos and videos (git-ignored)
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

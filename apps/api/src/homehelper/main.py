@@ -9,7 +9,7 @@ from homehelper.agent.factory import DeferredAgent, journey_agent
 from homehelper.agent.protocol import AgentRuntime
 from homehelper.agent.stub import StubAgent
 from homehelper.api import health, meta, v1
-from homehelper.api.deps import SessionSigner
+from homehelper.api.deps import SessionSigner, session_secret
 from homehelper.channels.web import WebChannelAdapter
 from homehelper.conversations.service import ConversationService
 from homehelper.core.config import Settings, get_settings
@@ -19,6 +19,9 @@ from homehelper.core.tracing import Tracer
 from homehelper.db.engine import create_engine, create_sessionmaker
 from homehelper.db.redis import create_redis
 from homehelper.mcp_servers.factory import build_mcp_servers
+from homehelper.media.signing import MediaSigner
+from homehelper.media.source import AttachmentMediaSource
+from homehelper.media.storage import build_media_store
 from homehelper.ratelimit import TurnGuards
 from homehelper.releases.runtime import load_active_release, record_release
 
@@ -53,6 +56,9 @@ def create_app(
                             cache=app.state.redis,
                             registry=app.state.model_registry,
                             mcp=app.state.mcp,
+                            media=AttachmentMediaSource(
+                                app.state.db_sessionmaker, app.state.media_store
+                            ),
                         )
                     )
                 )
@@ -82,6 +88,9 @@ def create_app(
     app.state.mcp.mount(app.router, auth_token=settings.mcp_auth_token.get_secret_value())
     app.state.db_sessionmaker = create_sessionmaker(app.state.db_engine)
     app.state.session_signer = SessionSigner(settings)
+    # Uploads (spec §11.1): local files served through signed tokens, or a private GCS bucket.
+    app.state.media_signer = MediaSigner(session_secret(settings), ttl_s=settings.media_url_ttl_s)
+    app.state.media_store = build_media_store(settings, app.state.media_signer)
     app.state.web_channel = WebChannelAdapter()
     app.state.conversations = ConversationService(app.state.db_sessionmaker, app.state.agent)
     app.state.turn_guards = TurnGuards.from_settings(app.state.redis, settings)

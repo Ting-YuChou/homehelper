@@ -167,6 +167,151 @@
         "title": "ApplianceOut",
         "type": "object"
       },
+      "AttachmentOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime",
+          "size",
+          "width",
+          "height",
+          "duration_s",
+          "status",
+          "created_at"
+        ],
+        "title": "AttachmentOut",
+        "type": "object"
+      },
+      "AttachmentRef": {
+        "description": "An attachment as listed on its message; fetch `/v1/attachments/{id}` for a URL.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime"
+        ],
+        "title": "AttachmentRef",
+        "type": "object"
+      },
+      "AttachmentUrlOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime",
+          "url",
+          "expires_at"
+        ],
+        "title": "AttachmentUrlOut",
+        "type": "object"
+      },
       "BookingSlot": {
         "properties": {
           "slot_id": {
@@ -856,6 +1001,13 @@
               }
             ]
           },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentRef"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "cards": {
             "items": {
               "discriminator": {
@@ -1342,6 +1494,24 @@
         "title": "StructuredAction",
         "type": "object"
       },
+      "UploadErrorOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "code"
+        ],
+        "title": "UploadErrorOut",
+        "type": "object"
+      },
       "UserOut": {
         "properties": {
           "display_name": {
@@ -1813,12 +1983,33 @@
             "name": "attachment_id",
             "required": true,
             "schema": {
+              "maxLength": 64,
               "title": "Attachment Id",
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1828,14 +2019,6 @@
               }
             },
             "description": "Validation Error"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
           }
         },
         "summary": "Get Attachment",
@@ -2128,14 +2311,7 @@
             "description": "`conversation_busy`: the previous message is still being handled."
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "`invalid_attachment`: an attachment can't be sent with this message."
           },
           "429": {
             "description": "`rate_limited` (see `Retry-After`)."
@@ -2256,6 +2432,42 @@
         ]
       }
     },
+    "/v1/media/{token}": {
+      "get": {
+        "description": "Serve a locally stored upload to whoever holds an unexpired token (no session needed).",
+        "operationId": "get_media_v1_media__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Media",
+        "tags": [
+          "uploads"
+        ]
+      }
+    },
     "/v1/messages/{message_id}/feedback": {
       "post": {
         "operationId": "give_feedback_v1_messages__message_id__feedback_post",
@@ -2331,15 +2543,87 @@
     },
     "/v1/uploads": {
       "post": {
+        "description": "Upload one photo or video as the multipart field `file`.",
         "operationId": "upload_v1_uploads_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "501": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentOut"
+                }
               }
             },
             "description": "Successful Response"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Length Required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
           }
         },
         "summary": "Upload",

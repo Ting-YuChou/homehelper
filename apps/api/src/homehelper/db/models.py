@@ -102,17 +102,27 @@ class Message(Base):
 
 
 class Attachment(Base):
+    """An uploaded photo or video (spec §11.1). Owned by its uploader; bound to the conversation
+    and user message it was sent with. `analysis` caches what the vision or video model saw."""
+
     __tablename__ = "attachments"
     __table_args__ = (CheckConstraint("kind IN ('image', 'video')", name="ck_attachments_kind"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     conversation_id: Mapped[str | None] = mapped_column(
         ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), index=True
     )
     kind: Mapped[str] = mapped_column(String(16))
     storage_uri: Mapped[str] = mapped_column(Text)
     mime: Mapped[str] = mapped_column(String(100))
     size: Mapped[int] = mapped_column(BigInteger)
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    duration_s: Mapped[float | None] = mapped_column(Numeric(8, 2, asdecimal=False))
     status: Mapped[str] = mapped_column(String(16), default="uploaded")
     analysis: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created_at()

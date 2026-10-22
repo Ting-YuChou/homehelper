@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from homehelper.agent.engine.perception import MediaInput, PerceivedSlot
 from homehelper.agent.guardrails.rules import ESCALATING_HAZARDS
 from homehelper.agent.state import HazardSignal, Intent, NLUResult, SlotUpdate
 from homehelper.channels.events import InboundMessage, StructuredAction
@@ -23,10 +24,16 @@ class TurnInput(BaseModel):
     text: str | None = None
     nlu: NLUResult | None = None
     action: StructuredAction | None = None
+    media: MediaInput | None = None  # what the turn's photos and videos showed (spec §11)
 
     @classmethod
-    def from_message(cls, message: InboundMessage, nlu: NLUResult | None = None) -> "TurnInput":
-        return cls(text=message.text, nlu=nlu, action=message.action)
+    def from_message(
+        cls,
+        message: InboundMessage,
+        nlu: NLUResult | None = None,
+        media: MediaInput | None = None,
+    ) -> "TurnInput":
+        return cls(text=message.text, nlu=nlu, action=message.action, media=media)
 
 
 class TurnSignals(BaseModel):
@@ -43,6 +50,7 @@ class TurnSignals(BaseModel):
     close_issue: str | None = None
     rejected_action: str | None = None  # why a structured action was ignored
     from_card: bool = False  # set by a card button rather than by what the user wrote
+    perceived: list[PerceivedSlot] = Field(default_factory=list)  # from photos and videos
 
     @property
     def escalating_hazards(self) -> list[HazardSignal]:
@@ -51,6 +59,13 @@ class TurnSignals(BaseModel):
 
 def signals_from_input(turn: TurnInput) -> TurnSignals:
     """Map NLU output or a card action to signals. A card action wins over NLU if both are set."""
+    signals = _from_words_or_card(turn)
+    if turn.media is not None and turn.media.slot_updates:
+        signals = signals.model_copy(update={"perceived": list(turn.media.slot_updates)})
+    return signals
+
+
+def _from_words_or_card(turn: TurnInput) -> TurnSignals:
     if turn.action is not None:
         return _from_action(turn.action)
     nlu = turn.nlu

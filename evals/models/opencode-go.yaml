@@ -5,6 +5,7 @@
 nlu: opencode_go/anthropic/claude-haiku-5-5
 supervisor: opencode_go/anthropic/claude-haiku-5-5
 extract: opencode_go/anthropic/claude-haiku-5-5
+vision: opencode_go/anthropic/claude-haiku-5-5
 user_simulator: opencode_go/anthropic/claude-haiku-5-5
 # Some of Go's DeepSeek upstreams reject JSON-schema mode, so ask for plain JSON mode with the
 # schema in the prompt (still Pydantic-validated, one corrective retry).

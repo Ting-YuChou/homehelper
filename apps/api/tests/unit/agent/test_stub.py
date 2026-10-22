@@ -104,3 +104,11 @@ def test_journey_runtime_setting_installs_a_deferred_agent() -> None:
     app = create_app(make_settings(agent_runtime="journey"))
     assert isinstance(app.state.agent, DeferredAgent)
     assert app.state.conversations is not None
+
+
+async def test_acknowledges_photos_it_cannot_look_at() -> None:
+    agent = StubAgent()
+    message = InboundMessage(conversation_id="c1", attachments=["att_1"])
+    events = [event async for event in agent.handle(message)]
+    text = "".join(getattr(e, "text", "") for e in events)
+    assert "photo" in text.lower()

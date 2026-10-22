@@ -8,12 +8,11 @@ state-driven ones (e.g. `required_slots_filled`) keep chaining through steps.
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
+from homehelper.agent.engine.perception import LOW_CONFIDENCE
 from homehelper.agent.engine.schema import Journey
 from homehelper.agent.engine.signals import TurnSignals
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.state import AgentState
-
-LOW_CONFIDENCE = 0.8  # slots below this need user confirmation unless already confirmed
 
 
 @dataclass(frozen=True)
@@ -113,7 +112,12 @@ def no_unconfirmed_low_confidence_slots(ctx: PredicateContext) -> bool:
 
 @predicate("user_confirmed")
 def user_confirmed(ctx: PredicateContext) -> bool:
-    return ctx.signals is not None and ctx.signals.confirmed is True
+    """A yes that settled everything; details that arrived with it are asked about next."""
+    return (
+        ctx.signals is not None
+        and ctx.signals.confirmed is True
+        and not unconfirmed_low_confidence(ctx.state)
+    )
 
 
 @predicate("user_denied")

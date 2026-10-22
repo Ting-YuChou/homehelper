@@ -112,7 +112,8 @@ def _summary(report: dict) -> str:
         f"out-of-scope {pct(m['out_of_scope_pass_rate'])} | "
         f"multi-issue {pct(m['multi_issue_pass_rate'])} "
         f"(issue outcomes {pct(m['issue_outcome_accuracy'])}) | "
-        f"tools {pct(m['tool_scenario_pass_rate'])}",
+        f"tools {pct(m['tool_scenario_pass_rate'])} | "
+        f"multimodal {pct(m.get('multimodal_pass_rate'))}",
         "pass^k "
         + " | ".join(
             f"{kind} " + " ".join(f"{k}:{pct(v)}" for k, v in values.items())
@@ -153,7 +154,17 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     if args.per_category is not None:
         config = config.model_copy(update={"scenarios_per_category": args.per_category})
     k = args.k or config.k
-    cases = build_cases(config, seed=args.seed)[: args.limit]
+    skipped: list[str] = []
+    cases = build_cases(config, seed=args.seed, skipped=skipped)[: args.limit]
+    if skipped and args.suite in STRICT_JUDGE_SUITES and args.limit is None:
+        # A release gate must not pass on whichever cases happened to be runnable here. With
+        # --limit it is a partial run anyway, so the skips are only reported.
+        print(
+            f"{len(skipped)} cases have missing media; generate or fetch them first "
+            "(python -m homehelper_evals.vision_media)",
+            file=sys.stderr,
+        )
+        return 5
     try:
         overrides = load_model_overrides(args.models) if args.models else {}
         registry = ModelRegistry.load(overrides=overrides)

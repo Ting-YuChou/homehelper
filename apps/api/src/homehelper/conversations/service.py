@@ -114,7 +114,9 @@ class ConversationService:
         progress = _Progress(started=time.perf_counter())
         with track_usage() as tally:
             try:
-                await self._persist(_user_message(inbound, trace_id))
+                await self._persist(
+                    _user_message(inbound, trace_id), attachments=inbound.attachments
+                )
                 await self._stream(inbound, trace_id, queue, progress, tally)
             except Exception:
                 log.exception("turn_failed", conversation_id=inbound.conversation_id)
@@ -173,9 +175,11 @@ class ConversationService:
                 first_text=inbound.text,
             )
 
-    async def _persist(self, message: Message) -> None:
+    async def _persist(self, message: Message, *, attachments: list[str] | None = None) -> None:
         async with self._sessionmaker.begin() as session:
             await repository.add_message(session, message)
+            # The API claimed these for the conversation before the turn started.
+            await repository.bind_attachments(session, attachments or [], message.id)
 
 
 def _user_message(inbound: InboundMessage, trace_id: str | None) -> Message:

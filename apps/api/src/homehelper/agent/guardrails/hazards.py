@@ -122,7 +122,7 @@ _HV_CATEGORY = re.compile(_OPEN_CASING + "|" + r"\b" + _DISMANTLE + r"\b", _FLAG
 
 class HazardHit(BaseModel):
     signal: HazardSignal
-    source: Literal["keywords", "nlu", "both"]
+    source: Literal["keywords", "nlu", "media", "both"]
 
 
 # The user says the water is *still* reaching electricity after the G-SAFE-05 warning ("still
@@ -183,10 +183,12 @@ def detect_hazards(
     nlu_signals: list[HazardSignal] | None = None,
     *,
     category: str | None = None,
+    media_signals: list[HazardSignal] | None = None,
 ) -> list[HazardHit]:
-    """Union of both layers; either one triggers."""
+    """Union of both layers, plus what a photo or video showed; any one triggers."""
     by_keywords = set(keyword_hazards(text, category=category))
     by_nlu = set(nlu_signals or [])
+    by_media = set(media_signals or [])
     hits: list[HazardHit] = []
     for hazard in _ALL_HAZARDS:
         if hazard in by_keywords and hazard in by_nlu:
@@ -195,4 +197,6 @@ def detect_hazards(
             hits.append(HazardHit(signal=hazard, source="keywords"))
         elif hazard in by_nlu:
             hits.append(HazardHit(signal=hazard, source="nlu"))
+        elif hazard in by_media:
+            hits.append(HazardHit(signal=hazard, source="media"))
     return hits

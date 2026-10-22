@@ -31,6 +31,7 @@ class UserTurn(BaseModel):
     action: StructuredAction | None = None
     scripted: bool = False
     script: Literal["switch", "return"] | None = None  # multi-issue turns sent by the runner
+    attachments: list[str] = Field(default_factory=list)  # media paths sent with it (M6-04)
 
 
 class AgentTurn(BaseModel):

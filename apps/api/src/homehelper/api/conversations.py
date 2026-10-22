@@ -10,6 +10,7 @@ from redis.exceptions import RedisError
 
 from homehelper.api.deps import SessionDep, SettingsDep, UserDep
 from homehelper.api.schemas import (
+    AttachmentRef,
     ConversationCreate,
     ConversationDetail,
     ConversationOut,
@@ -62,9 +63,18 @@ async def get_conversation(
 ) -> ConversationDetail:
     conversation = await _owned(session, conversation_id, user.id)
     rows = await repository.list_messages(session, conversation.id)
-    ratings = await repository.feedback_ratings(session, [m.id for m in rows])
+    ids = [m.id for m in rows]
+    ratings = await repository.feedback_ratings(session, ids)
+    attachments = await repository.attachments_by_message(session, ids)
     messages = [
-        MessageOut.model_validate(row).model_copy(update={"feedback": ratings.get(row.id)})
+        MessageOut.model_validate(row).model_copy(
+            update={
+                "feedback": ratings.get(row.id),
+                "attachments": [
+                    AttachmentRef.model_validate(a) for a in attachments.get(row.id, [])
+                ],
+            }
+        )
         for row in rows
     ]
     summary = ConversationOut.model_validate(conversation)
@@ -83,6 +93,7 @@ async def delete_conversation(
 STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {"model": SSEEvent, "description": "A `text/event-stream` of agent events."},
     409: {"description": "`conversation_busy`: the previous message is still being handled."},
+    422: {"description": "`invalid_attachment`: an attachment can't be sent with this message."},
     429: {"description": "`rate_limited` (see `Retry-After`)."},
     503: {"description": "`maintenance` (daily spend cap reached) or `unavailable`."},
 }
@@ -131,6 +142,16 @@ async def send_message(
     ) -> Response:
         log.info("turn_refused", code=event.code, conversation_id=conversation.id)
         return channel.render(_once(event), status_code=status_code, headers=headers)
+
+    if body.attachments:
+        problem = await repository.claim_attachments(
+            session, body.attachments, user_id=user.id, conversation_id=conversation.id
+        )
+        if problem is not None:
+            return refuse(
+                ErrorEvent(code="invalid_attachment", message=problem),
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+            )
 
     try:
         if await guards.spend.over_cap():

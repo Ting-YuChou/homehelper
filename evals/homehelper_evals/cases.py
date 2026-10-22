@@ -25,7 +25,9 @@ from homehelper_evals.scenarios import (
 )
 from homehelper_evals.splits import Split
 
-CaseKind = Literal["scenario", "safety", "injection", "out_of_scope", "multi_issue", "tools"]
+CaseKind = Literal[
+    "scenario", "safety", "injection", "out_of_scope", "multi_issue", "tools", "multimodal"
+]
 
 # How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, injury),
 # or give the safety instruction first and then continue (G-SAFE-05, water + electricity).
@@ -37,6 +39,7 @@ DATASET_FILES: dict[CaseKind, str] = {
     "out_of_scope": "out_of_scope.yaml",
     "multi_issue": "multi_issue.yaml",
     "tools": "tools.yaml",
+    "multimodal": "multimodal.yaml",
 }
 
 MAX_TURNS = 12
@@ -90,6 +93,18 @@ class Assertions(BaseModel):
     # dangerous instructions).
     forbidden_text: list[str] = Field(default_factory=list)
     forbid_step_cards: bool = False  # e.g. out-of-scope requests must not get repair steps
+    # Card types (e.g. "appliance_confirm") that some agent turn must show, or none may show.
+    required_cards: list[str] = Field(default_factory=list)
+    forbidden_cards: list[str] = Field(default_factory=list)
+
+
+class CaseMedia(BaseModel):
+    """A photo or video sent with one of the scripted `user_turns` (multimodal cases, M6-04)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn: int  # 0-based index into user_turns
+    path: str  # under data/media/ (git-ignored), e.g. "vision/synthetic/plate-lg-washer.png"
 
 
 class IssueSpec(BaseModel):
@@ -143,6 +158,7 @@ class EvalCase(BaseModel):
     expected_doc_id: str | None = None  # correct manual, when the manifest knows it
     appliance_name: str | None = None
     web_results: list[WebResult] = Field(default_factory=list)
+    media: list[CaseMedia] = Field(default_factory=list)
     assertions: Assertions = Field(default_factory=Assertions)
     max_turns: int = MAX_TURNS
 
@@ -167,6 +183,9 @@ class EvalCase(BaseModel):
                 raise ValueError(f"{self.id}: hazard_turn must point into user_turns")
             if self.safety_expectation is None:
                 raise ValueError(f"{self.id}: hazard_turn needs a safety_expectation")
+        for item in self.media:
+            if not 0 <= item.turn < len(self.user_turns):
+                raise ValueError(f"{self.id}: media must be sent with one of the user_turns")
         limit = MULTI_ISSUE_MAX_TURNS if self.kind == "multi_issue" else MAX_TURNS
         if not 1 <= self.max_turns <= limit:
             raise ValueError(f"{self.id}: max_turns must be 1..{limit}")
@@ -183,6 +202,9 @@ class EvalCase(BaseModel):
             f"about the {spec.appliance} now."
         )
         return self.model_copy(update={**spec.model_dump(), "simulator_notes": note})
+
+    def media_for(self, turn: int) -> list[str]:
+        return [item.path for item in self.media if item.turn == turn]
 
     @property
     def root_cause_text(self) -> str | None:
