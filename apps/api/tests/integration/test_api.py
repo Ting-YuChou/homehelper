@@ -142,10 +142,15 @@ async def test_manual_metadata_and_pdf(api: httpx.AsyncClient) -> None:
     assert (await api.get("/v1/manuals/missing-pdf/file")).status_code == 404
 
 
-async def test_my_appliances_is_empty_until_the_profile_server_lands(
-    api: httpx.AsyncClient,
-) -> None:
+async def test_my_appliances_come_from_the_profile_server(api: httpx.AsyncClient) -> None:
     await _login(api, "demo_alex")
+    response = await api.get("/v1/me/appliances")
+    assert response.status_code == 200
+    # Real mode reads the Postgres mock tables, which may or may not be seeded here.
+    for appliance in response.json():
+        assert appliance["appliance_id"].startswith("apl_alex_")
+        assert appliance["warranty"]["status"] in ("active", "expired", "unknown")
+    await _login(api)  # a guest has no profile
     assert (await api.get("/v1/me/appliances")).json() == []
 
 

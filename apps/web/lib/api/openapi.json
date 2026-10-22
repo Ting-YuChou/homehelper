@@ -105,6 +105,7 @@
         "type": "object"
       },
       "ApplianceOut": {
+        "description": "A registered appliance with its warranty and latest repairs (newest first).",
         "properties": {
           "appliance_id": {
             "title": "Appliance Id",
@@ -118,6 +119,10 @@
             "$ref": "#/components/schemas/CategoryId"
           },
           "model_number": {
+            "title": "Model Number",
+            "type": "string"
+          },
+          "nickname": {
             "anyOf": [
               {
                 "type": "string"
@@ -126,7 +131,7 @@
                 "type": "null"
               }
             ],
-            "title": "Model Number"
+            "title": "Nickname"
           },
           "purchase_date": {
             "anyOf": [
@@ -140,23 +145,24 @@
             ],
             "title": "Purchase Date"
           },
-          "warranty_until": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Warranty Until"
+          "recent_repairs": {
+            "items": {
+              "$ref": "#/components/schemas/RepairOut"
+            },
+            "title": "Recent Repairs",
+            "type": "array"
+          },
+          "warranty": {
+            "$ref": "#/components/schemas/WarrantyOut"
           }
         },
         "required": [
           "appliance_id",
           "category",
-          "brand"
+          "brand",
+          "model_number",
+          "warranty",
+          "recent_repairs"
         ],
         "title": "ApplianceOut",
         "type": "object"
@@ -1005,6 +1011,66 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RepairOut": {
+        "description": "One `user_profile.list_repair_history` record.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "issue": {
+            "title": "Issue",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "resolved",
+              "unresolved",
+              "technician_booked"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "performed_by": {
+            "enum": [
+              "self",
+              "technician"
+            ],
+            "title": "Performed By",
+            "type": "string"
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "resolution": {
+            "title": "Resolution",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "date",
+          "issue",
+          "resolution",
+          "outcome",
+          "performed_by"
+        ],
+        "title": "RepairOut",
+        "type": "object"
+      },
       "SSEEvent": {
         "description": "One `data:` payload of the message stream; the SSE `event:` name equals its `type`.",
         "discriminator": {
@@ -1311,6 +1377,51 @@
         ],
         "title": "VideoCard",
         "type": "object"
+      },
+      "WarrantyOut": {
+        "description": "`user_profile.get_warranty_status`, as of today.",
+        "properties": {
+          "days_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Remaining"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WarrantyState"
+          },
+          "warranty_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warranty Until"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "WarrantyOut",
+        "type": "object"
+      },
+      "WarrantyState": {
+        "enum": [
+          "active",
+          "expired",
+          "unknown"
+        ],
+        "title": "WarrantyState",
+        "type": "string"
       }
     }
   },
@@ -2059,6 +2170,7 @@
     },
     "/v1/me/appliances": {
       "get": {
+        "description": "Guests have no profile, so they get an empty list, as does a demo user the data platform\ndoes not know (e.g. one removed from `data/mock/` after they signed in).",
         "operationId": "my_appliances_v1_me_appliances_get",
         "responses": {
           "200": {

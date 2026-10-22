@@ -812,7 +812,7 @@ Agent Runtime 只認得 `InboundMessage` 和 `AgentEvent`，完全不知道 HTTP
 | POST | `/v1/uploads` | 上傳附件 |
 | GET | `/v1/attachments/{id}` | 取得 signed URL |
 | POST | `/v1/messages/{id}/feedback` | 👍/👎 + 原因 |
-| GET | `/v1/me/appliances` | 我的家電（透過 MCP） |
+| GET | `/v1/me/appliances` | 我的家電，含保固狀態與最近維修紀錄（透過 MCP `user_profile`） |
 | GET | `/v1/manuals/{doc_id}` | 手冊 metadata 與 PDF URL（供 citation 使用；開啟時加 `#page=N`） |
 | GET | `/v1/manuals/{doc_id}/file` | 本機：從 `data/manuals/pdfs/<manifest file>` 提供 PDF（inline）。正式環境改回 signed URL，是否公開見 Q10 |
 | GET | `/v1/admin/conversations` | 審查列表（篩選：outcome、feedback、release） |
@@ -824,7 +824,8 @@ Agent Runtime 只認得 `InboundMessage` 和 `AgentEvent`，完全不知道 HTTP
 M4 實作說明：
 - Cookie `hh_session`：itsdangerous 簽章的 user id，httpOnly、`SameSite=Lax`、7 天；`SESSION_SECRET` 在 local／test 以外必填。所有 `/v1` 寫入請求若帶 `Origin` 而不在 `CORS_ORIGINS` 內就回 403。
 - 匿名使用也走 demo-login（建立 `guest_*` 使用者），所以每個對話都有 owner。
-- 尚未實作的路由先回 501，讓 OpenAPI 與前端型別完整：`/v1/uploads`、`/v1/attachments/{id}`（M6）、`/v1/admin/*`（M7，需要 `X-Admin-Token`）。`/v1/me/appliances` 在 `user_profile` MCP（M5）接上前回空陣列。
+- 尚未實作的路由先回 501，讓 OpenAPI 與前端型別完整：`/v1/uploads`、`/v1/attachments/{id}`（M6）、`/v1/admin/*`（M7，需要 `X-Admin-Token`）。
+- M5-09：`/v1/me/appliances` 在 process 內以 in-memory MCP client（`McpServers.client()`／`call()`，`mcp_servers/client.py`，走真正的 MCP 協定與 schema 驗證，不經 HTTP）依序呼叫 `user_profile` 的 `list_appliances`、`get_warranty_status`、`list_repair_history(limit=3)`。每台家電回傳 `warranty`（`status`：active／expired／unknown、`warranty_until`、`days_remaining`）與 `recent_repairs`（新到舊，最多 3 筆）。訪客（`is_demo = false`）不呼叫 MCP、直接回空陣列；MCP 不認得的 demo 使用者也回空陣列。工具錯誤一律包成 `McpToolError`。
 - 合約：`make openapi` 產生 `apps/web/lib/api/openapi.json` 與 `schema.d.ts`（`openapi-typescript`）；CI 的 `contract` job 重新產生並比對 diff。
 
 ### 13.3 SSE 事件
@@ -904,7 +905,7 @@ M4 實作：瀏覽器直接呼叫 API（`NEXT_PUBLIC_API_URL`，`credentials: "i
 |---|---|
 | `/` | 作品集首頁：產品介紹、架構圖、評估成績、「開始 demo」 |
 | `/chat`、`/chat/[id]` | 聊天主畫面：左側對話列表、中間對話、右側（桌面版）顯示目前的家電與步驟進度 |
-| `/appliances` | 我的家電、保固、維修紀錄 |
+| `/appliances` | 我的家電、保固、維修紀錄（每台家電一張卡片：品牌／型號、保固徽章、最近 3 筆維修；聊天側欄有連結） |
 | `/admin/review` | 簡化版 Experience Manager：對話列表、逐則標註、匯出為回歸測試 |
 | `/admin/evals` | 評估報告：各版本的 resolution rate、pass^k、安全通過率、成本與延遲趨勢 |
 
@@ -1312,3 +1313,4 @@ GitHub 到 GCP 的驗證使用 Workload Identity Federation，不存放長期金
 | v0.8.1 | LLM 層新增 `opencode_go` provider，只供評估實驗以覆寫使用，不進預設（§9.1）；`evals run --models` 與 `AgentContext.registry`（§16.4） |
 | v0.9 | M5 Track E：MCP SDK 固定 1.x（ADR-006）、`MCP_MODE`、stateless 掛載於 `/mcp/<server>/` 與 `MCP_AUTH_TOKEN`、工具 registry 標記寫入工具（含 `cancel`）、工具簽名加上 `user_id`、`web_search` 回傳原始結果且不給 LLM、mock 資料內容與時段產生方式、`make seed-mock`（§12） |
 | v0.10 | M4 Track D：conversation service 的回合流程與成本歸屬（§13.1）；新增 demo-users／me／logout／manuals file 路由、匿名訪客、Origin 檢查、OpenAPI 合約檢查（§13.2）；拒絕時的 error 事件與 HTTP 狀態（§13.3）；app 資料表細節（§14.1）；sliding window、花費上限與對話鎖的實作（§14.2）；前端架構（§15.1）；Q7 預設 USD 5、新增 Q11（§20） |
+| v0.10.1 | M5-09：`/v1/me/appliances` 經 in-memory MCP client 讀 `user_profile`，回應加上 `warranty` 與 `recent_repairs`（§13.2）；`/appliances` 頁面（§15.2） |
