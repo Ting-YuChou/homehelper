@@ -10,6 +10,7 @@ from typing import Any
 
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, presented_item, slot_values
+from homehelper.agent.guardrails import HAZARD_RULES
 from homehelper.agent.state import AgentState
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
 from homehelper.knowledge.schemas import RetrievedChunk
@@ -153,6 +154,9 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
     turn = graph.turn
     journey = deps.journey(graph.state)
     prefix = " ".join(r.text for r in turn.fixed_replies if not r.replaces_response) or None
+    power_off_first = any(
+        r.rule_id == HAZARD_RULES["water_near_electric"] for r in turn.fixed_replies
+    )
     web = turn.retrieval.web_findings if turn.retrieval and plan.cite else []
     prompt = prompts.render(
         "respond",
@@ -173,6 +177,7 @@ def respond_messages(graph: GraphState, deps: AgentDeps, plan: ResponsePlan) -> 
         web_block=format_for_responder(web) if web else "",
         notices=turn.notices,
         prefix=prefix,
+        power_off_first=power_off_first,
         feedback=turn.verdict.reasons if turn.verdict and turn.verdict.action == "revise" else [],
         transcript=graph.transcript[-MAX_TRANSCRIPT_LINES:],
         user_text=user_text(graph),

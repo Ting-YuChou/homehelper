@@ -37,9 +37,12 @@ Fields:
   - my_appliances: asks about their registered appliances, warranty or repair history.
   - book_technician: asks for a technician, a repair visit or professional help.
   - confirm / deny: answers yes or no to a question the assistant asked.
-  - small_talk: greetings, thanks, chit-chat.
-  - out_of_scope: anything unrelated to home appliances (coding, homework, cars, phones
-    and computers, medical or legal advice, ...).
+  - small_talk: greetings, thanks and pleasantries about this conversation.
+  - out_of_scope: anything unrelated to home appliances: chit-chat or questions about other
+    topics (movies, coding, homework, cars, phones and computers, medical or legal advice,
+    ...). Also problems with appliances HomeHelper does not cover, i.e. anything that is not
+    one of {{ categories | join(", ") }} (for example furnaces, boilers, air conditioners,
+    water heaters).
   - other: none of the above.
 - slot_updates: only details the user stated in THIS message. Allowed names:
   - appliance_category: one of {{ categories | join(", ") }}. Map synonyms (fridge ->
@@ -53,7 +56,8 @@ Fields:
 - hazard_signals: every safety hazard the user reports now, even in passing: gas_smell,
   smoke_or_burning (smoke, burning smell, scorch marks, melting), sparks (sparks, arcing,
   electric shocks), water_near_electric (water or leaks near outlets, cords or wiring),
-  refrigerant (refrigerant or sealed-system leaks, hissing coolant), high_voltage_internal
+  refrigerant (refrigerant or sealed-system leaks, hissing coolant, or wanting to work on the
+  sealed system: cutting or brazing lines, replacing the compressor, recharging), high_voltage_internal
   (wanting to open high-voltage parts such as a microwave's magnetron or capacitor), injury.
   Report a hazard only when the user says it is happening, not when they say it is absent.
 - search_query_en: for report_problem or ask_how_to, a concise English search query for the
