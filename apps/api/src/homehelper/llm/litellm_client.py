@@ -14,6 +14,7 @@ from typing import Any
 os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
 
 import litellm
+from litellm.cost_calculator import get_response_cost_from_hidden_params
 from pydantic import BaseModel, ValidationError
 
 from homehelper.core.logging import get_logger
@@ -235,6 +236,11 @@ class LiteLLMClient:
             litellm_model, connection = self._route(model)
             if config.reasoning_effort is not None:
                 connection["reasoning_effort"] = config.reasoning_effort
+            if "tools" in request and provider_of(model) == "openai":
+                # gpt-5.4+ with tools and reasoning is sent through LiteLLM's Responses bridge,
+                # which imports the MCP gateway (mcp>=2) before honouring `_skip_mcp_handler`.
+                # Only an explicit "none" keeps the call on chat completions.
+                connection["reasoning_effort"] = "none"
             started = time.perf_counter()
             with self._generation(task, model, payload) as generation:
                 try:
@@ -278,7 +284,14 @@ class LiteLLMClient:
     def _usage(task: str, model: str, response: Any, latency_ms: float) -> LLMUsage:
         tokens = getattr(response, "usage", None)
         try:
-            cost = float(litellm.completion_cost(completion_response=response, model=model))
+            # A provider-reported cost first: LiteLLM has no OpenRouter prices, and
+            # `completion_cost` ignores the cost OpenRouter returns.
+            reported = get_response_cost_from_hidden_params(getattr(response, "_hidden_params", {}))
+            cost = float(
+                reported
+                if reported is not None
+                else litellm.completion_cost(completion_response=response, model=model)
+            )
         except Exception:
             cost = 0.0  # unknown pricing must never fail the call
         return LLMUsage(

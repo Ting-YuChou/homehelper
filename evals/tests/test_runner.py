@@ -28,7 +28,12 @@ from homehelper_evals.testing import make_case
 
 
 def settings() -> Settings:
-    keys = {"anthropic_api_key": "", "openai_api_key": "", "opencode_go_api_key": ""}
+    keys = {
+        "anthropic_api_key": "",
+        "openai_api_key": "",
+        "opencode_go_api_key": "",
+        "openrouter_api_key": "",
+    }
     return Settings(_env_file=None, langfuse_public_key="", **keys)  # type: ignore[call-arg]
 
 

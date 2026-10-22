@@ -1,38 +1,41 @@
 # Task → model mapping (docs/SPEC.md §9.1). A release manifest may override `model`/`fallbacks` per task.
 # Model ids use LiteLLM's "<provider>/<model>" form. Fallbacks whose provider has no API key are skipped.
+# Claude tasks fall back to the same model on OpenRouter first (another account, same behavior; its ids
+# use dots), then to OpenAI. OpenAI tool turns always run with reasoning_effort=none (litellm_client.py),
+# whatever a task sets here.
 # `opencode_go/<openai|anthropic>/<model>` (OpenCode Go subscription) is for eval-experiment
 # overrides only; never use it as a default here.
 tasks:
   nlu:
     model: anthropic/claude-haiku-5-5
-    fallbacks: [openai/gpt-5.4-mini]
+    fallbacks: [openrouter/anthropic/claude-haiku-5.5, openai/gpt-5.4-mini]
     timeout_s: 20
     max_tokens: 1024
   planner:
     model: anthropic/claude-sonnet-5-5
-    fallbacks: [openai/gpt-5.5]
+    fallbacks: [openrouter/anthropic/claude-sonnet-5.5, openai/gpt-5.5]
     timeout_s: 45
     max_tokens: 4096
   responder:
     model: anthropic/claude-sonnet-5-5
-    fallbacks: [openai/gpt-5.5]
+    fallbacks: [openrouter/anthropic/claude-sonnet-5.5, openai/gpt-5.5]
     timeout_s: 45
     max_tokens: 2048
   supervisor:
     model: anthropic/claude-haiku-5-5
-    fallbacks: [openai/gpt-5.4-mini]
+    fallbacks: [openrouter/anthropic/claude-haiku-5.5, openai/gpt-5.4-mini]
     timeout_s: 20
     max_tokens: 1024
   extract:
     # Tool-less structured extraction (manual metadata, untrusted web content).
     model: anthropic/claude-haiku-5-5
-    fallbacks: [openai/gpt-5.4-mini]
+    fallbacks: [openrouter/anthropic/claude-haiku-5.5, openai/gpt-5.4-mini]
     timeout_s: 30
     max_tokens: 2048
   vision:
     # Photos → VisionResult (spec §11.2); one call per message with all its photos.
     model: anthropic/claude-haiku-5-5
-    fallbacks: [openai/gpt-5.4-mini]
+    fallbacks: [openrouter/anthropic/claude-haiku-5.5, openai/gpt-5.4-mini]
     timeout_s: 45
     max_tokens: 1024
   video:
@@ -43,12 +46,12 @@ tasks:
     max_tokens: 1024
   user_simulator:
     model: anthropic/claude-haiku-5-5
-    fallbacks: []
+    fallbacks: [openrouter/anthropic/claude-haiku-5.5]
     timeout_s: 30
     max_tokens: 1024
   judge:
     model: anthropic/claude-sonnet-5-5
-    fallbacks: []
+    fallbacks: [openrouter/anthropic/claude-sonnet-5.5]
     timeout_s: 60
     max_tokens: 2048
 

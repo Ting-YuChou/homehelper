@@ -186,6 +186,93 @@ def test_settings_expose_opencode_go_key_only_when_set() -> None:
     assert settings.provider_api_keys()["opencode_go"] == "go-key"
 
 
+def test_settings_expose_openrouter_key_only_when_set() -> None:
+    assert "openrouter" not in make_settings().provider_api_keys()
+    settings = make_settings(openrouter_api_key="or-key")
+    assert settings.provider_api_keys()["openrouter"] == "or-key"
+
+
+def test_claude_tasks_fall_back_to_the_same_model_on_openrouter_first() -> None:
+    """Same model through another account before switching models (e.g. Anthropic out of
+    credit). OpenRouter spells versions with dots: claude-sonnet-5-5 -> claude-sonnet-5.5."""
+    claude_tasks = 0
+    for task, config in ModelRegistry.load().tasks.items():
+        provider, _, name = config.model.partition("/")
+        if provider != "anthropic":
+            continue
+        claude_tasks += 1
+        family, _, version = name.rpartition("-")
+        major = family.rpartition("-")[2]
+        dotted = f"{family.rpartition('-')[0]}-{major}.{version}"
+        assert config.fallbacks[:1] == [f"openrouter/anthropic/{dotted}"], task
+    assert claude_tasks >= 7
+
+
+async def test_openrouter_is_skipped_without_its_key() -> None:
+    completion = ScriptedCompletion({"anthropic/primary": [RuntimeError("no credit")]})
+    registry = ModelRegistry.load(
+        overrides={
+            "nlu": {
+                "model": "anthropic/primary",
+                "fallbacks": ["openrouter/anthropic/primary", "openai/backup"],
+            }
+        }
+    )
+    completion.script["openai/backup"] = ["from openai"]
+    completion.script["openrouter/anthropic/primary"] = ["from openrouter"]
+    without = LiteLLMClient(registry, {"anthropic": "a", "openai": "o"}, completion_fn=completion)
+    assert await without.text("nlu", MESSAGES) == "from openai"
+    completion.script["anthropic/primary"] = [RuntimeError("no credit")]
+    keys = {"anthropic": "a", "openrouter": "r", "openai": "o"}
+    with_key = LiteLLMClient(registry, keys, completion_fn=completion)
+    assert await with_key.text("nlu", MESSAGES) == "from openrouter"
+    assert completion.calls[-1]["api_key"] == "r"
+
+
+async def test_cost_reported_by_the_provider_is_recorded() -> None:
+    """LiteLLM has no OpenRouter prices; it keeps the cost OpenRouter reports in hidden params,
+    which `completion_cost` ignores. Without it the spend cap would see $0."""
+
+    async def completion(**kwargs: Any) -> Any:
+        response = _response("ok")
+        response._hidden_params = {
+            "additional_headers": {"llm_provider-x-litellm-response-cost": 0.0123}
+        }
+        return response
+
+    sink: list[LLMUsage] = []
+    client = LiteLLMClient(
+        ModelRegistry.load(
+            overrides={"nlu": {"model": "openrouter/anthropic/claude-haiku-5.5", "fallbacks": []}}
+        ),
+        {"openrouter": "r"},
+        completion_fn=completion,
+        usage_sink=sink.append,
+    )
+    await client.text("nlu", MESSAGES)
+    assert [u.cost_usd for u in sink] == [0.0123]
+
+
+async def test_configured_reasoning_is_kept_except_for_openai_tool_turns() -> None:
+    effort = {"structured_output": "json_object", "reasoning_effort": "high", "fallbacks": []}
+    completion = ScriptedCompletion(
+        {
+            "openai/gpt-5.5": [[("parts_catalog__search_parts", "{}")]],
+            "openai/glm-5.3": [[("parts_catalog__search_parts", "{}")]],
+        }
+    )
+    for model in ("openai/gpt-5.5", "opencode_go/openai/glm-5.3"):
+        client = LiteLLMClient(
+            ModelRegistry.load(overrides={"nlu": {"model": model, **effort}}),
+            {"openai": "o", "opencode_go": "g"},
+            completion_fn=completion,
+        )
+        await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    openai, go = completion.calls
+    assert openai["reasoning_effort"] == "none"
+    assert go["reasoning_effort"] == "high"  # Go's custom api_base never takes the bridge
+
+
 def _opencode_client(
     completion: ScriptedCompletion, model: str, sink: list[LLMUsage] | None = None
 ) -> LiteLLMClient:
@@ -294,6 +381,42 @@ async def test_tool_turn_through_litellm_does_not_load_its_mcp_bridge() -> None:
     )
     turn = await client.tool_turn("nlu", MESSAGES, [LOOKUP])
     assert [c.name for c in turn.tool_calls] == [LOOKUP.name]
+
+
+async def test_openai_tool_turns_turn_reasoning_off() -> None:
+    """gpt-5.4+ with tools and reasoning goes through LiteLLM's Responses bridge, which imports
+    its MCP gateway (mcp>=2) before looking at `_skip_mcp_handler`: every OpenAI fallback tool
+    turn failed. An explicit "none" keeps the call on chat completions."""
+    completion = ScriptedCompletion(
+        {
+            "anthropic/primary": [RuntimeError("down"), "plain"],
+            "openai/backup": [[("parts_catalog__search_parts", "{}")]],
+        }
+    )
+    client = _client(completion)
+    await client.tool_turn("nlu", MESSAGES, [LOOKUP])
+    await client.text("nlu", MESSAGES)
+    anthropic, openai, text = completion.calls
+    assert openai["reasoning_effort"] == "none"
+    assert "reasoning_effort" not in anthropic
+    assert "reasoning_effort" not in text  # only tool turns
+
+
+@pytest.mark.parametrize("model", ["gpt-5.5", "gpt-5.4-mini"])
+def test_litellm_keeps_openai_tools_on_chat_only_without_reasoning(model: str) -> None:
+    """Pins the LiteLLM routing the fix above relies on; an upgrade that changes it fails here."""
+    from litellm.main import responses_api_bridge_check
+
+    tools = [{"type": "function", "function": LOOKUP.model_dump()}]
+
+    def mode(effort: str | None) -> object:
+        info, _ = responses_api_bridge_check(
+            model=model, custom_llm_provider="openai", tools=tools, reasoning_effort=effort
+        )
+        return info.get("mode")
+
+    assert mode(None) == "responses"
+    assert mode("none") != "responses"
 
 
 async def test_tool_turn_retries_once_on_bad_arguments_then_fails() -> None:
