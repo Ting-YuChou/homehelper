@@ -124,8 +124,8 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                     f"because {_handoff_reason(state)}. {BOOKING_NOTE}"
                 )
             )
-        case _:  # end
-            if state.outcome == "resolved":
+        case _:  # end; `state.outcome` summarizes all issues, so read this step's own outcome
+            if step.outcome == "resolved":
                 return ResponsePlan(
                     task="The problem is solved. Close warmly and offer help with anything else."
                 )

@@ -10,10 +10,14 @@ from homehelper.agent.engine import (
     signals_from_input,
     transition,
 )
-from homehelper.agent.engine.transition import NOTICE_OFFER_HANDOFF, NOTICE_RESUME_PAUSED
+from homehelper.agent.engine.transition import (
+    NOTICE_OFFER_HANDOFF,
+    NOTICE_RESUME_PAUSED,
+    NOTICE_RESUMED_ISSUE,
+)
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
-from homehelper.agent.state import AgentState, PausedJourney
+from homehelper.agent.state import AgentState, PausedIssue
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import new_state, plan, press, run_turn, say, vision_slot
 
@@ -339,7 +343,7 @@ def test_unsupported_appliance_mid_journey_stays_on_step(catalog: JourneyCatalog
         state,
         say("report_problem", "my oven is also broken", slots={"appliance_category": "oven"}),
     )
-    assert result.state.paused_journey is None
+    assert not result.state.paused_issues
     assert result.state.step_id == "guide"
     assert result.state.plan == state.plan
     assert result.state.slots["appliance_category"].value == "dishwasher"
@@ -377,7 +381,7 @@ def test_hazard_in_journey_without_hazard_guardrail_switches(catalog: JourneyCat
     result = transition(custom, state, say("small_talk", "oh no, sparks!"))
     assert result.state.active_journey == "troubleshoot"
     assert result.state.step_id == "escalate"
-    assert result.state.paused_journey is not None
+    assert [p.journey for p in result.state.paused_issues] == ["chat"]
 
 
 # --- routing ------------------------------------------------------------------------------
@@ -421,11 +425,12 @@ def test_switching_appliance_pauses_and_resumes(catalog: JourneyCatalog) -> None
         state,
         say("report_problem", "Also my dryer is loud", slots={"appliance_category": "dryer"}),
     )
-    paused = switched.state.paused_journey
-    assert paused is not None
-    assert (paused.journey, paused.step_id) == ("troubleshoot", "guide")
+    [paused] = switched.state.paused_issues
+    assert (paused.issue_id, paused.journey, paused.step_id) == ("iss_1", "troubleshoot", "guide")
     assert paused.slots["appliance_category"].value == "dishwasher"
+    assert paused.summary == "dishwasher: won't drain"
     assert len(paused.plan) == 3
+    assert switched.state.active_issue_id == "iss_2"
     assert switched.state.slots["appliance_category"].value == "dryer"
     assert "symptom" not in switched.state.slots  # nothing carried across appliances
     assert switched.state.step_id == "gather"
@@ -436,32 +441,25 @@ def test_switching_appliance_pauses_and_resumes(catalog: JourneyCatalog) -> None
     done = transition(catalog, state, press("step_result", "fixed"))
     assert done.state.step_id == "resolved"
     assert NOTICE_RESUME_PAUSED in done.notices
+    assert done.state.outcome is None  # the dishwasher is still open
+    assert [(r.issue_id, r.outcome) for r in done.state.issues] == [
+        ("iss_1", None),
+        ("iss_2", "resolved"),
+    ]
 
     done.state.water_warning_given = True  # given for the dryer
     resumed = transition(catalog, done.state, say("confirm", "yes, back to the dishwasher"))
     assert not resumed.state.water_warning_given  # the dishwasher gets its own warning
     assert resumed.state.step_id == "guide"
+    assert resumed.state.active_issue_id == "iss_1"
     assert resumed.state.slots["appliance_category"].value == "dishwasher"
     assert resumed.state.plan[0].status == "presented"
-    assert resumed.state.paused_journey is None
+    assert not resumed.state.paused_issues
     assert resumed.state.outcome is None
+    assert NOTICE_RESUMED_ISSUE in resumed.notices
 
-
-def test_only_one_paused_journey_is_kept(catalog: JourneyCatalog) -> None:
-    state = start_guide(catalog)
-    state = run_turn(
-        catalog,
-        state,
-        say("report_problem", slots={"appliance_category": "dryer", "symptom": "x"}),
-        plan(2),
-    ).state
-    assert state.step_id == "guide"
-    result = transition(
-        catalog, state, say("report_problem", slots={"appliance_category": "microwave"})
-    )
-    assert result.state.paused_journey is not None
-    assert result.state.paused_journey.slots["appliance_category"].value == "dryer"
-    assert any("dropped paused journey" in d.reason for d in result.decisions)
+    fixed = transition(catalog, resumed.state, press("step_result", "fixed"))
+    assert fixed.state.outcome == "resolved"
 
 
 def test_category_change_during_gather_is_a_correction(catalog: JourneyCatalog) -> None:
@@ -473,7 +471,7 @@ def test_category_change_during_gather_is_a_correction(catalog: JourneyCatalog) 
     result = transition(
         catalog, state, say("report_problem", slots={"appliance_category": "vacuum"})
     )
-    assert result.state.paused_journey is None
+    assert not result.state.paused_issues
     assert result.state.slots["appliance_category"].value == "vacuum"
 
 
@@ -501,8 +499,12 @@ def test_how_to_use_journey_and_switch_to_troubleshoot(catalog: JourneyCatalog) 
     assert problem.state.active_journey == "troubleshoot"
     assert problem.state.slots["appliance_category"].value == "coffee_maker"  # carried
     assert problem.state.step_id == "diagnose"
-    assert problem.state.paused_journey is not None
-    assert problem.state.paused_journey.journey == "how_to_use"
+    # The how-to question was answered, so it is closed rather than kept for later.
+    assert not problem.state.paused_issues
+    assert [(r.journey, r.outcome) for r in problem.state.issues] == [
+        ("how_to_use", "resolved"),
+        ("troubleshoot", None),
+    ]
 
     thanks = transition(catalog, state, say("confirm", "thanks, that's all"))
     assert thanks.state.step_id == "done"
@@ -530,7 +532,7 @@ def test_route_is_pure_and_reports_kind(catalog: JourneyCatalog) -> None:
     signals = signals_from_input(say("report_problem", slots={"appliance_category": "dryer"}))
     decided = route(catalog, state, signals)
     assert (decided.kind, decided.journey, decided.carry_slots) == ("switch", "troubleshoot", False)
-    assert state.paused_journey is None
+    assert not state.paused_issues
 
 
 # --- inputs and edge cases ----------------------------------------------------------------
@@ -651,11 +653,13 @@ def test_transition_chain_limit_stops_cycles() -> None:
     assert "chain limit" in result.decisions[-1].reason
 
 
-def test_resume_requires_paused_journey(catalog: JourneyCatalog) -> None:
+def test_resume_requires_paused_issue(catalog: JourneyCatalog) -> None:
     state = new_state(
         active_journey="troubleshoot",
         step_id="resolved",
-        paused_journey=PausedJourney(journey="how_to_use", step_id="answer"),
+        paused_issues=[
+            PausedIssue(issue_id="iss_9", journey="how_to_use", summary="x", step_id="answer")
+        ],
     )
     result = transition(catalog, state, say("confirm", "yes"))
     assert (result.state.active_journey, result.state.step_id) == ("how_to_use", "answer")
