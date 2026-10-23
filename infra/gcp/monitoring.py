@@ -14,6 +14,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -186,20 +187,37 @@ class Client:
         self.dry_run = dry_run
         self.token = gcloud("auth", "print-access-token")
 
-    def call(self, method: str, url: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    def call(
+        self, method: str, url: str, body: dict[str, Any] | None = None, *, retries: int = 0
+    ) -> dict[str, Any]:
+        """`retries`: on a 400 or 404, try again after a pause (a new log metric takes a minute
+        or two before an alert policy may refer to it)."""
         data = json.dumps(body).encode() if body is not None else None
-        request = urllib.request.Request(url, data=data, method=method)
-        request.add_header("Authorization", f"Bearer {self.token}")
-        request.add_header("Content-Type", "application/json")
-        request.add_header("x-goog-user-project", self.project)
-        try:
-            with urllib.request.urlopen(request) as response:
-                return json.loads(response.read() or b"{}")
-        except urllib.error.HTTPError as error:
-            sys.exit(f"{method} {url}: {error.code} {error.read().decode()}")
+        for attempt in range(retries + 1):
+            request = urllib.request.Request(url, data=data, method=method)
+            request.add_header("Authorization", f"Bearer {self.token}")
+            request.add_header("Content-Type", "application/json")
+            request.add_header("x-goog-user-project", self.project)
+            try:
+                with urllib.request.urlopen(request) as response:
+                    return json.loads(response.read() or b"{}")
+            except urllib.error.HTTPError as error:
+                if attempt < retries and error.code in (400, 404):
+                    print(f"  not ready yet ({error.code}); retrying in 20 s")
+                    time.sleep(20)
+                    continue
+                sys.exit(f"{method} {url}: {error.code} {error.read().decode()}")
+        raise AssertionError("unreachable")
 
     def ensure(
-        self, kind: str, list_url: str, items_key: str, key: str, body: dict[str, Any]
+        self,
+        kind: str,
+        list_url: str,
+        items_key: str,
+        key: str,
+        body: dict[str, Any],
+        *,
+        retries: int = 0,
     ) -> str:
         """The resource's name; created when no resource with the same `key` value exists."""
         page: dict[str, Any] = {}
@@ -218,7 +236,7 @@ class Client:
         print(f"create  {kind}: {body[key]}")
         if self.dry_run:
             return f"<new {kind}>"
-        return self.call("POST", list_url, body)["name"]
+        return self.call("POST", list_url, body, retries=retries)["name"]
 
 
 def gcloud(*args: str) -> str:
@@ -278,7 +296,12 @@ def main() -> None:
         checks.append(name.rsplit("/", 1)[-1])
     for body in policies(channel, checks):
         client.ensure(
-            "alert policy", f"{monitoring}/alertPolicies", "alertPolicies", "displayName", body
+            "alert policy",
+            f"{monitoring}/alertPolicies",
+            "alertPolicies",
+            "displayName",
+            body,
+            retries=9,  # up to 3 minutes for the new log metrics to be usable
         )
 
 

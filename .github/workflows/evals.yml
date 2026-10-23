@@ -1,8 +1,9 @@
 name: Evals
 
 # Evals on pull requests that need the cloud knowledge base and real API keys (spec §16.5,
-# §18.4, M8). Secrets come from Secret Manager through Workload Identity Federation, so PRs from
-# forks and Dependabot (no OIDC token for this repo's pool) skip them.
+# §18.4, M8). Secrets come from Secret Manager through Workload Identity Federation, as the
+# `hh-evals` account: it reads the eval secrets and nothing else (no deploy rights; PR code
+# runs here). PRs from forks and Dependabot get no secrets and skip.
 #
 # - retrieval: Recall@5 / MRR on 100 dev scenarios against the served KB_VERSION, when a PR
 #   touches retrieval, ingestion, the manual manifest or the retrieval eval (about $0.20).
@@ -12,8 +13,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
+# Adding some other label must not cancel a running eval: label events get their own group, and
+# only `run-eval` does anything.
 concurrency:
-  group: evals-${{ github.ref }}
+  group: evals-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name || 'code' }}
   cancel-in-progress: true
 
 permissions:
@@ -52,7 +55,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
       - if: steps.paths.outputs.run == 'true'
         uses: google-github-actions/setup-gcloud@v3
       - if: steps.paths.outputs.run == 'true'
@@ -74,6 +77,7 @@ jobs:
   smoke:
     if: >-
       vars.GCP_WIF_PROVIDER != '' && contains(github.event.pull_request.labels.*.name, 'run-eval') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-eval') &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -82,7 +86,7 @@ jobs:
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
       - uses: google-github-actions/setup-gcloud@v3
       - run: |
           infra/gcp/ci-secrets.sh DATABASE_URL ANTHROPIC_API_KEY OPENAI_API_KEY \

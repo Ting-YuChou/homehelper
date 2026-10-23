@@ -4,6 +4,10 @@ name: Release
 # `releases/<id>.yaml` from the reports, block on any failed gate, then deploy those exact image
 # digests with the manifest and open a PR that commits it.
 #
+# - Two jobs: `gate` (evals; one release at a time) and `deploy`, which shares the `cloud-run`
+#   concurrency group with deploy.yml so the two never move traffic at once. `deploy` refuses
+#   to go on when main was deployed while the evals ran: releasing then would roll production
+#   back to older code.
 # - The commit defaults to the one the API serves now (each main deploy builds `api:<sha>` and
 #   `web:<sha>`); the evals run that commit's code against the cloud database and its KB.
 # - Every exported regression case must pass (`evals regression pull` brings them, and their
@@ -57,9 +61,14 @@ permissions:
   id-token: write # Workload Identity Federation
 
 jobs:
-  release:
+  gate:
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      served: ${{ steps.resolve.outputs.served }}
+      api_image: ${{ steps.resolve.outputs.api_image }}
+      web_image: ${{ steps.resolve.outputs.web_image }}
     env:
       # Inputs go through env vars, never straight into shell scripts.
       RELEASE_ID: ${{ inputs.release_id }}
@@ -96,13 +105,12 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v3
 
       - name: Resolve the commit and its image digests
+        id: resolve
         run: |
           set -euo pipefail
-          sha=$INPUT_SHA
-          if [[ -z "$sha" ]]; then
-            sha=$(gcloud run services describe homehelper-api --project "$GCP_PROJECT_ID" \
-              --region "$GCP_REGION" --format 'value(metadata.labels.git-sha)')
-          fi
+          served=$(infra/gcp/cloudrun.sh served-sha)
+          sha=${INPUT_SHA:-$served}
+          [[ -n "$sha" ]] || { echo "nothing is deployed yet; pass a sha"; exit 1; }
           sha=$(git rev-parse --verify "$sha^{commit}")
           registry="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/homehelper"
           digest() {
@@ -112,6 +120,9 @@ jobs:
           api="$registry/api@$(digest api)"
           web="$registry/web@$(digest web)"
           { echo "SHA=$sha"; echo "API_IMAGE=$api"; echo "WEB_IMAGE=$web"; } >>"$GITHUB_ENV"
+          {
+            echo "sha=$sha"; echo "served=$served"; echo "api_image=$api"; echo "web_image=$web"
+          } >>"$GITHUB_OUTPUT"
           echo "Releasing $sha: $api, $web"
       - run: git checkout --detach "$SHA"
 
@@ -154,7 +165,12 @@ jobs:
             --gate regression_pass_rate_min=1.0
 
       - name: Check gates
-        run: uv run homehelper release check "releases/$RELEASE_ID.yaml"
+        run: |
+          set -euo pipefail
+          uv run homehelper release check "releases/$RELEASE_ID.yaml"
+          # The deploy job passes it to Cloud Run as RELEASE_MANIFEST.
+          uv run python -c 'import json, sys, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))' \
+            "releases/$RELEASE_ID.yaml" >manifest.json
 
       # Also after a failed gate, but only with a validated release id (it is part of the paths).
       - name: Upload the manifest and eval reports
@@ -165,13 +181,49 @@ jobs:
           path: |
             releases/${{ env.RELEASE_ID }}.yaml
             evals/reports/${{ env.RELEASE_ID }}_*
+            evals/datasets/regression/
+            manifest.json
           if-no-files-found: warn
 
+  deploy:
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Shared with deploy.yml: only one workflow moves the `candidate` tag and traffic at a time.
+    concurrency:
+      group: cloud-run
+      cancel-in-progress: false
+    env:
+      RELEASE_ID: ${{ inputs.release_id }}
+      SHA: ${{ needs.gate.outputs.sha }}
+      SERVED: ${{ needs.gate.outputs.served }}
+      API_IMAGE: ${{ needs.gate.outputs.api_image }}
+      WEB_IMAGE: ${{ needs.gate.outputs.web_image }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-${{ inputs.release_id }}
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Refuse if main was deployed while the evals ran
+        run: |
+          now=$(infra/gcp/cloudrun.sh served-sha)
+          if [[ "$now" != "$SERVED" ]]; then
+            echo "The API now serves $now (it served $SERVED when the evals started)."
+            echo "Releasing $SHA would roll production back. Run the release again."
+            exit 1
+          fi
       - name: Deploy the API candidate with the manifest
         run: |
-          set -euo pipefail
-          uv run python -c 'import json, sys, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))' \
-            "releases/$RELEASE_ID.yaml" >manifest.json
           infra/gcp/cloudrun.sh deploy-api --image "$API_IMAGE" --sha "$SHA" \
             --release-id "$RELEASE_ID" --manifest manifest.json
       - name: Smoke-test the API candidate

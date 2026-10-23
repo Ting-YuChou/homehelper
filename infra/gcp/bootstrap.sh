@@ -62,7 +62,7 @@ for bucket in "${PROJECT}-media" "${PROJECT}-manuals"; do
 done
 
 echo "== Service accounts"
-for name in "$API_SA_NAME" "$WEB_SA_NAME" "$JOBS_SA_NAME" "$DEPLOYER_SA_NAME"; do
+for name in "$API_SA_NAME" "$WEB_SA_NAME" "$JOBS_SA_NAME" "$DEPLOYER_SA_NAME" "$EVALS_SA_NAME"; do
   if ! exists gcloud iam service-accounts describe "$(sa_email "$name")" "${G[@]}"; then
     run gcloud iam service-accounts create "$name" --display-name="HomeHelper $name" "${G[@]}"
   fi
@@ -71,6 +71,7 @@ API_SA=$(sa_email "$API_SA_NAME")
 WEB_SA=$(sa_email "$WEB_SA_NAME")
 JOBS_SA=$(sa_email "$JOBS_SA_NAME")
 DEPLOYER_SA=$(sa_email "$DEPLOYER_SA_NAME")
+EVALS_SA=$(sa_email "$EVALS_SA_NAME")
 
 echo "== Roles"
 # API: read and write uploads; sign GCS URLs through IAM signBlob (no key file).
@@ -97,6 +98,9 @@ run gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}-media" \
   --member "serviceAccount:$DEPLOYER_SA" --role roles/storage.objectViewer "${G[@]}"
 
 echo "== Workload Identity Federation (GitHub Actions of $REPO only)"
+# The deployer can change production, so only workflows running on main may act as it (deploy,
+# release and ingest run there). Pull-request evals run PR code: they get hh-evals, which can
+# only read the eval secrets (secrets.sh grants those).
 if ! exists gcloud iam workload-identity-pools describe "$WIF_POOL" --location global "${G[@]}"; then
   run gcloud iam workload-identity-pools create "$WIF_POOL" --location global \
     --display-name "GitHub Actions" "${G[@]}"
@@ -112,6 +116,9 @@ fi
 NUMBER=$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)' 2>/dev/null || echo PROJECT_NUMBER)
 POOL_ID="projects/$NUMBER/locations/global/workloadIdentityPools/$WIF_POOL"
 run gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" \
+  --member "principalSet://iam.googleapis.com/$POOL_ID/attribute.ref/refs/heads/main" \
+  --role roles/iam.workloadIdentityUser "${G[@]}"
+run gcloud iam service-accounts add-iam-policy-binding "$EVALS_SA" \
   --member "principalSet://iam.googleapis.com/$POOL_ID/attribute.repository/$REPO" \
   --role roles/iam.workloadIdentityUser "${G[@]}"
 
@@ -136,4 +143,5 @@ Done. Next:
      gh variable set GCP_REGION --body "$REGION"
      gh variable set GCP_WIF_PROVIDER --body "$POOL_ID/providers/$WIF_PROVIDER"
      gh variable set GCP_DEPLOYER_SA --body "$DEPLOYER_SA"
+     gh variable set GCP_EVALS_SA --body "$EVALS_SA"
 OUT

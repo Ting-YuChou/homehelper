@@ -60,6 +60,13 @@ deployment exposed gaps that it did not settle:
      the manifest and opens a PR that commits `releases/<id>.yaml`.
    - The next deploy of main replaces the release. The project owner chose this over gating
      every deploy behind a paid eval run.
+   - **Only one workflow at a time moves traffic.** Deploy and release share the `cloud-run`
+     concurrency group, and promotion targets the revision the `candidate` tag points at, not
+     the newest one.
+   - **A release never rolls production back.** It refuses to deploy when main was deployed
+     while its evals ran.
+   - **"The commit production runs" comes from the live API's `/v1/meta`,** not from a service
+     label: a label changes when a deploy starts, even if its smoke test then fails.
 4. **The proxy vouches for the visitor's IP.**
    - Cloud Run appends the connecting address to `X-Forwarded-For`, so its last entry is the
      one a visitor can't forge. The proxy sends that address in `X-HH-Client-IP`, together
@@ -86,6 +93,11 @@ deployment exposed gaps that it did not settle:
      `infra/gcp/monitoring.py` sets up the alerts.
    - Every script accepts `--dry-run`. Secrets live only in Secret Manager; GitHub holds
      non-secret variables, and workflows read secrets through WIF.
+   - Two identities act through WIF:
+     - `gh-deployer` can change production. Only workflows running on `main` may use it:
+       deploy, release and ingest.
+     - Pull-request evals run PR code, so they use `hh-evals`, which can only read the eval
+       secrets.
 9. **Jobs and evals.**
    - `migrate` runs `homehelper db upgrade`, since the image has no `alembic.ini`.
    - `ingest` mounts the manuals bucket's `pdfs/` and `parsed/` where the pipeline reads them.

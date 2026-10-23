@@ -8,6 +8,7 @@
 #   cloudrun.sh deploy-web --image <img> --sha <sha>
 #   cloudrun.sh promote    <api|web>                      send 100% of traffic to the candidate
 #   cloudrun.sh url        <api|web> [--candidate]
+#   cloudrun.sh served-sha                                the commit the live API runs
 #
 # A deploy creates a revision with no traffic under the `candidate` tag (the first deploy of a
 # service has nothing to protect and goes live directly); `promote` moves traffic once the
@@ -101,14 +102,15 @@ cmd_jobs() {
   run gcloud run jobs deploy hh-seed-mock "${common[@]}" $secrets \
     --command homehelper --args mcp,seed --task-timeout 600s
   # The manuals bucket holds the PDFs and the LlamaParse cache, mounted where ingest reads them
-  # (Settings.data_dir is /app/data; the manual manifest ships in the image).
+  # (Settings.data_dir is /app/data; the manual manifest ships in the image). FUSE mounts are
+  # root-owned unless told otherwise; the image runs as uid 10001 and writes new parse results.
   # shellcheck disable=SC2086
   run gcloud run jobs deploy hh-ingest "${common[@]}" $secrets \
     --command homehelper --args ingest --task-timeout 3600s --memory 2Gi --cpu 2 \
     --execution-environment gen2 \
-    --add-volume "name=pdfs,type=cloud-storage,bucket=${PROJECT}-manuals,readonly=true,mount-options=only-dir=pdfs" \
+    --add-volume "name=pdfs,type=cloud-storage,bucket=${PROJECT}-manuals,readonly=true,mount-options=only-dir=pdfs;uid=10001;gid=10001" \
     --add-volume-mount volume=pdfs,mount-path=/app/data/manuals/pdfs \
-    --add-volume "name=parsed,type=cloud-storage,bucket=${PROJECT}-manuals,mount-options=only-dir=parsed" \
+    --add-volume "name=parsed,type=cloud-storage,bucket=${PROJECT}-manuals,mount-options=only-dir=parsed;uid=10001;gid=10001" \
     --add-volume-mount volume=parsed,mount-path=/app/data/parsed
 }
 
@@ -175,15 +177,27 @@ cmd_deploy_web() {
 
 cmd_promote() {
   [[ $# -eq 1 ]] || die "usage: cloudrun.sh promote <api|web>"
-  # The newest revision is the candidate the workflow just deployed and smoke-tested.
-  run gcloud run services update-traffic "$(service_name "$1")" --to-latest "${G[@]}"
+  # The revision the `candidate` tag points at: the one this workflow deployed and smoke-tested,
+  # not whatever revision happens to be newest.
+  local service revision
+  service=$(service_name "$1")
+  revision=$(gcloud run services describe "$service" "${G[@]}" --format json |
+    python3 -c 'import json,sys; t=json.load(sys.stdin)["status"]["traffic"]; print(next(x["revisionName"] for x in t if x.get("tag")=="'"$TAG"'"))')
+  run gcloud run services update-traffic "$service" --to-revisions "$revision=100" "${G[@]}"
 }
 
 cmd_url() {
   url_of "$@"
 }
 
-[[ $# -gt 0 ]] || die "usage: cloudrun.sh <jobs|run-job|deploy-api|deploy-web|promote|url> ..."
+# The commit the API's traffic is served by, as the API reports it (empty when not deployed).
+# Not the service label: that changes when a deploy starts, before its smoke test passes.
+cmd_served_sha() {
+  curl -sf --retry 3 --retry-all-errors "$(url_of api)/v1/meta" |
+    python3 -c 'import json,sys; print(json.load(sys.stdin).get("git_sha", ""))' 2>/dev/null || true
+}
+
+[[ $# -gt 0 ]] || die "usage: cloudrun.sh <jobs|run-job|deploy-api|deploy-web|promote|url|served-sha> ..."
 command=$1
 shift
 ARGS=()
@@ -198,5 +212,6 @@ case "$command" in
   deploy-web) cmd_deploy_web "$@" ;;
   promote) cmd_promote "$@" ;;
   url) cmd_url "$@" ;;
+  served-sha) cmd_served_sha ;;
   *) die "unknown command: $command" ;;
 esac

@@ -74,6 +74,8 @@ gcloud storage rsync -r data/parsed gs://<PROJECT_ID>-manuals/parsed
 - The parse cache lets the cloud ingest skip LlamaParse. Only embeddings cost money, about
   $0.20.
 - Run the `gh variable set ...` lines that `bootstrap.sh` printed.
+- Run **Deploy**, **Ingest** and **Release** from the `main` branch. Only workflows on `main`
+  may use the deploy account.
 - In the repository settings, enable **Settings → Actions → General → Workflow permissions →
   Allow GitHub Actions to create and approve pull requests**. This is for `release.yml`.
 
@@ -90,6 +92,9 @@ gcloud storage rsync -r data/parsed gs://<PROJECT_ID>-manuals/parsed
    python3 infra/gcp/monitoring.py --project <PROJECT_ID> --email <you@example.com>
    ```
 
+   - The first run waits up to 3 minutes for the new log metrics to become usable.
+   - If it still stops, run it again; nothing is created twice.
+
 6. Check that it works:
    - Open the web URL, sign in as a demo user and run a troubleshooting chat.
    - Open `/admin` and sign in with the `ADMIN_TOKEN` from `.env.cloud`.
@@ -104,6 +109,8 @@ gcloud storage rsync -r data/parsed gs://<PROJECT_ID>-manuals/parsed
   - When the gates pass, it deploys and opens a PR with the manifest. Merge that PR; it
     doesn't redeploy.
   - The next push to main replaces the release.
+  - If main was deployed while the evals ran, the release stops before deploying, so that it
+    can't roll production back. Run it again.
 - **New manuals:** add the PDFs to `data/manuals/pdfs/` and to the manifest, then upload them:
   `gcloud storage rsync -r data/manuals/pdfs gs://<PROJECT_ID>-manuals/pdfs`.
   - Then run **Ingest**, set `KB_VERSION`, and run **Deploy**.

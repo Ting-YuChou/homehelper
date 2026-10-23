@@ -14,6 +14,7 @@ API_SA_NAME=hh-api
 WEB_SA_NAME=hh-web
 JOBS_SA_NAME=hh-jobs
 DEPLOYER_SA_NAME=gh-deployer
+EVALS_SA_NAME=hh-evals
 WIF_POOL=github
 WIF_PROVIDER=github-actions
 

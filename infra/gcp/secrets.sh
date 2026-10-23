@@ -38,8 +38,11 @@ JOBS_KEYS="DATABASE_URL OPENAI_API_KEY LLAMA_CLOUD_API_KEY"
 DEPLOYER_KEYS="DATABASE_URL ANTHROPIC_API_KEY OPENAI_API_KEY OPENROUTER_API_KEY GEMINI_API_KEY
   COHERE_API_KEY OPENCODE_GO_API_KEY LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_BASE_URL
   LANGFUSE_PROJECT_ID"
+# Pull-request evals (evals.yml): retrieval and the smoke suite.
+EVALS_KEYS="DATABASE_URL ANTHROPIC_API_KEY OPENAI_API_KEY OPENROUTER_API_KEY COHERE_API_KEY
+  LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_BASE_URL LANGFUSE_PROJECT_ID"
 # shellcheck disable=SC2086  # the lists are split on purpose
-ALL_KEYS=$(printf '%s\n' $API_KEYS $WEB_KEYS $JOBS_KEYS $DEPLOYER_KEYS | sort -u)
+ALL_KEYS=$(printf '%s\n' $API_KEYS $WEB_KEYS $JOBS_KEYS $DEPLOYER_KEYS $EVALS_KEYS | sort -u)
 
 # The value of KEY in the env file (no shell evaluation; one pair of surrounding quotes removed).
 value_of() {
@@ -93,7 +96,7 @@ for key in $ALL_KEYS; do
     echo "unchanged $key"
   fi
   for pair in "$API_SA_NAME:$API_KEYS" "$WEB_SA_NAME:$WEB_KEYS" "$JOBS_SA_NAME:$JOBS_KEYS" \
-    "$DEPLOYER_SA_NAME:$DEPLOYER_KEYS"; do
+    "$DEPLOYER_SA_NAME:$DEPLOYER_KEYS" "$EVALS_SA_NAME:$EVALS_KEYS"; do
     if contains "${pair#*:}" "$key"; then
       echo "+ grant ${pair%%:*} read access to $key"
       [[ "$DRY_RUN" == 1 ]] || gcloud secrets add-iam-policy-binding "$key" \

@@ -16,8 +16,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Shared with release.yml's deploy job: only one workflow moves the `candidate` tag and traffic.
 concurrency:
-  group: deploy
+  group: cloud-run
   cancel-in-progress: false
 
 permissions:
@@ -57,8 +58,7 @@ jobs:
         id: changes
         run: |
           set -euo pipefail
-          deployed=$(gcloud run services describe homehelper-api --project "$GCP_PROJECT_ID" \
-            --region "$GCP_REGION" --format 'value(metadata.labels.git-sha)' 2>/dev/null || true)
+          deployed=$(infra/gcp/cloudrun.sh served-sha)
           echo "deployed=${deployed:-none}"
           if [[ -z "$deployed" ]] || ! git cat-file -e "$deployed^{commit}" 2>/dev/null; then
             echo "deploy=true" >>"$GITHUB_OUTPUT"; echo "seed=true" >>"$GITHUB_OUTPUT"; exit 0

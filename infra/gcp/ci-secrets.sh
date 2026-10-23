@@ -11,7 +11,10 @@ for name in "$@"; do
     continue
   fi
   [[ -n "$value" ]] || continue
-  echo "::add-mask::$value"
+  # A mask covers one line; mask every line of a multi-line value.
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then echo "::add-mask::$line"; fi
+  done <<<"$value"
   delimiter="EOF_$(openssl rand -hex 8)"
   printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "$value" "$delimiter" >>"$GITHUB_ENV"
   echo "loaded $name"
