@@ -77,7 +77,7 @@ async def upload(request: Request, user: UserDep, session: SessionDep) -> Any:
     if not length.isdigit():
         return _refuse("length_required", "Uploads need a Content-Length.", 411)
     if int(length) > MAX_VIDEO_BYTES + FORM_OVERHEAD:
-        return _refuse("too_large", "Videos can be up to 100 MB.", 413)
+        return _refuse("too_large", f"Videos can be up to {MAX_VIDEO_BYTES // 2**20} MB.", 413)
     guards: TurnGuards = request.app.state.turn_guards
     decision = await guards.upload_limiter.hit(f"rl:upload:user:{user.id}")
     if not decision.allowed:

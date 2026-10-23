@@ -112,6 +112,8 @@ class ConversationService:
         on_finish: TurnHook | None,
     ) -> None:
         progress = _Progress(started=time.perf_counter())
+        failed = False
+        outcome: str | None = None
         with track_usage() as tally:
             try:
                 await self._persist(
@@ -119,15 +121,27 @@ class ConversationService:
                 )
                 await self._stream(inbound, trace_id, queue, progress, tally)
             except Exception:
+                failed = True
                 log.exception("turn_failed", conversation_id=inbound.conversation_id)
                 await queue.put(AGENT_ERROR)
             finally:
                 # Even a failed turn records its outcome and what it spent (the spend cap must
                 # see it), before the stream ends so the client may send its next message.
                 try:
-                    await self._finish(inbound, progress, tally.cost_usd - progress.attributed)
+                    outcome = await self._finish(
+                        inbound, progress, tally.cost_usd - progress.attributed
+                    )
                 except Exception:
                     log.exception("turn_finish_failed", conversation_id=inbound.conversation_id)
+                # One line per turn: Cloud Logging metrics for latency and spend alerts (M8-03).
+                log.info(
+                    "turn.completed",
+                    conversation_id=inbound.conversation_id,
+                    duration_ms=round((time.perf_counter() - progress.started) * 1000),
+                    cost_usd=tally.cost_usd,
+                    outcome=outcome,
+                    failed=failed,
+                )
                 if on_finish is not None:
                     try:
                         await on_finish(tally.cost_usd)
@@ -161,7 +175,8 @@ class ConversationService:
 
     async def _finish(
         self, inbound: InboundMessage, progress: _Progress, unattributed_cost: float
-    ) -> None:
+    ) -> str | None:
+        """Store the turn's outcome (returned) and any cost not yet on a message."""
         snapshot = await self._agent.snapshot(inbound.conversation_id)
         async with self._sessionmaker.begin() as session:
             if progress.last_id is not None and unattributed_cost > 0:
@@ -174,6 +189,7 @@ class ConversationService:
                 active_journey=snapshot.journey,
                 first_text=inbound.text,
             )
+        return snapshot.outcome
 
     async def _persist(self, message: Message, *, attachments: list[str] | None = None) -> None:
         async with self._sessionmaker.begin() as session:

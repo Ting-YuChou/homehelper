@@ -5,7 +5,7 @@ from llama_index.core.vector_stores.utils import node_to_metadata_dict
 from homehelper.ingestion.chunking import Chunk
 from homehelper.ingestion.pipeline import manifest_hash, referenced_versions, to_node
 from homehelper.knowledge.schemas import CategoryId, ChunkMetadata
-from homehelper.knowledge.store import open_store, sync_url, table_for
+from homehelper.knowledge.store import open_store, table_for
 
 
 def test_manifest_hash_changes_with_manifest_and_embedding_model(tmp_path: Path) -> None:
@@ -50,7 +50,6 @@ def test_to_node_keeps_id_text_embedding_and_json_metadata() -> None:
 
 def test_store_naming_and_urls() -> None:
     assert table_for("kb_20261021_02") == "data_kb_20261021_02"
-    assert sync_url("postgresql+asyncpg://u:p@h:5432/d") == "postgresql+psycopg2://u:p@h:5432/d"
     try:
         open_store("postgresql+asyncpg://u:p@h/d", "kb; drop table x", 1536)
     except ValueError as exc:

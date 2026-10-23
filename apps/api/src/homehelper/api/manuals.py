@@ -1,7 +1,8 @@
 """Manual PDFs for citations (spec §10.5, §13.2).
 
-Locally the PDF is served from `data/manuals/pdfs/<manifest file>`. Whether the public demo serves
-PDFs at all is spec Q10 (deferred to M8); production would return a GCS signed URL instead.
+Locally the PDF is served from `data/manuals/pdfs/<manifest file>`. The public demo serves no
+PDFs (spec Q10, ADR-011): the API image has none, so a manual's `url` is null and citations show
+the manual's name and page only.
 """
 
 from functools import lru_cache
@@ -27,6 +28,12 @@ def manual_entries(manuals_dir: Path) -> dict[str, ManualEntry]:
     return _manifest(path, path.stat().st_mtime) if path.exists() else {}
 
 
+def _pdf(manuals_dir: Path, entry: ManualEntry) -> Path | None:
+    pdfs = (manuals_dir / "pdfs").resolve()
+    path = (pdfs / entry.file).resolve()
+    return path if path.is_relative_to(pdfs) and path.is_file() else None
+
+
 def _entry(manuals_dir: Path, doc_id: str) -> ManualEntry:
     entry = manual_entries(manuals_dir).get(doc_id)
     if entry is None:
@@ -39,13 +46,15 @@ async def get_manual(
     doc_id: str, request: Request, user: UserDep, settings: SettingsDep
 ) -> ManualOut:
     entry = _entry(settings.manuals_dir, doc_id)
+    # Relative: browsers reach the API through the web app's `/v1` proxy (ADR-011).
+    url = request.app.url_path_for("get_manual_file", doc_id=entry.doc_id)
     return ManualOut(
         doc_id=entry.doc_id,
         title=entry.title,
         brand=entry.brand,
         category=entry.category,
         pages=entry.pages,
-        url=str(request.url_for("get_manual_file", doc_id=entry.doc_id)),
+        url=str(url) if _pdf(settings.manuals_dir, entry) else None,
     )
 
 
@@ -56,9 +65,8 @@ async def get_manual(
 )
 async def get_manual_file(doc_id: str, user: UserDep, settings: SettingsDep) -> FileResponse:
     entry = _entry(settings.manuals_dir, doc_id)
-    pdfs = (settings.manuals_dir / "pdfs").resolve()
-    path = (pdfs / entry.file).resolve()
-    if not path.is_relative_to(pdfs) or not path.is_file():
+    path = _pdf(settings.manuals_dir, entry)
+    if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Manual file not available")
     # inline: browsers open it in their PDF viewer, where `#page=N` jumps to the cited page.
     return FileResponse(

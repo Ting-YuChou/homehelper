@@ -1,4 +1,6 @@
-"""JSON logging via structlog. Every line carries the request's `trace_id` (bound in middleware)."""
+"""JSON logging via structlog. Every line carries the request's `trace_id` (bound in middleware)
+and the release; stdlib loggers (uvicorn, sqlalchemy, ...) are rendered the same way, so Cloud
+Logging reads `severity` from every line."""
 
 import logging
 import re
@@ -26,31 +28,59 @@ def _redact_pii(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
     return event_dict
 
 
+# Cloud Logging's severity names, for the method names that differ from them.
+_SEVERITY = {"exception": "ERROR", "warn": "WARNING", "msg": "INFO", "fatal": "CRITICAL"}
+# uvicorn installs its own handlers (and stops propagation); ours replace them.
+_UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+
 def _add_severity(_: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     # Cloud Logging reads `severity` from JSON payloads.
-    event_dict["severity"] = method_name.upper()
+    event_dict["severity"] = _SEVERITY.get(method_name, method_name.upper())
     return event_dict
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: str = "INFO", *, release_id: str | None = None) -> None:
     numeric_level = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
-    processors: list[Any] = [
+
+    def add_release(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+        if release_id is not None:
+            event_dict.setdefault("release", release_id)
+        return event_dict
+
+    shared: list[Any] = [
         structlog.contextvars.merge_contextvars,
         _add_severity,
+        add_release,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
+    ]
+    tail: list[Any] = [
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         _redact_pii,
         structlog.processors.JSONRenderer(),
     ]
     structlog.configure(
-        processors=processors,
+        processors=[*shared, *tail],
         wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
         logger_factory=structlog.PrintLoggerFactory(sys.stdout),
-        cache_logger_on_first_use=True,
+        # Not cached: a logger keeps the configuration it was first used with, and this runs
+        # again whenever an app or CLI starts (and in tests).
+        cache_logger_on_first_use=False,
     )
-    # Route stdlib loggers (uvicorn, sqlalchemy, ...) through the same level.
-    logging.basicConfig(format="%(message)s", stream=sys.stdout, level=numeric_level, force=True)
+    # Stdlib records: the message (with its %-args) becomes `event`, plus the logger name.
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=[*shared, structlog.stdlib.add_logger_name],
+            processors=[structlog.stdlib.ProcessorFormatter.remove_processors_meta, *tail],
+        )
+    )
+    logging.basicConfig(handlers=[handler], level=numeric_level, force=True)
+    for name in _UVICORN_LOGGERS:
+        logger = logging.getLogger(name)
+        logger.handlers.clear()
+        logger.propagate = True
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:

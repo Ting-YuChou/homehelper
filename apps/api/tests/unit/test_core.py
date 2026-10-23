@@ -1,6 +1,9 @@
+import json
+import logging
+
 import pytest
 
-from homehelper.core.logging import redact_pii
+from homehelper.core.logging import configure_logging, get_logger, redact_pii
 from homehelper.core.tracing import Tracer, coerce_trace_id
 from tests.conftest import make_settings
 
@@ -33,3 +36,32 @@ def test_tracer_is_noop_without_keys() -> None:
         assert span is None
     tracer.flush()
     tracer.shutdown()
+
+
+def _lines(capsys: pytest.CaptureFixture[str]) -> list[dict[str, object]]:
+    return [json.loads(line) for line in capsys.readouterr().out.splitlines() if line]
+
+
+def test_log_lines_carry_cloud_logging_severity_and_release(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configure_logging("INFO", release_id="main-abc1234")
+    log = get_logger("test")
+    log.warning("careful")
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        log.exception("failed")
+    lines = _lines(capsys)
+    assert [line["severity"] for line in lines] == ["WARNING", "ERROR"]  # not "EXCEPTION"
+    assert all(line["release"] == "main-abc1234" for line in lines)
+
+
+def test_stdlib_and_uvicorn_logs_are_json_too(capsys: pytest.CaptureFixture[str]) -> None:
+    logging.getLogger("uvicorn.error").addHandler(logging.StreamHandler())  # as uvicorn does
+    configure_logging("INFO", release_id="dev")
+    logging.getLogger("uvicorn.error").error("worker crashed for %s", "a@b.example")
+    [line] = _lines(capsys)
+    assert line["severity"] == "ERROR"
+    assert line["event"] == "worker crashed for [email]"
+    assert line["logger"] == "uvicorn.error" and line["release"] == "dev"

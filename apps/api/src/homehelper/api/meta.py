@@ -9,6 +9,7 @@ router = APIRouter(prefix="/v1", tags=["meta"])
 class MetaResponse(BaseModel):
     version: str
     release_id: str
+    git_sha: str  # empty when running from source
     environment: str
 
 
@@ -16,5 +17,8 @@ class MetaResponse(BaseModel):
 async def meta(request: Request) -> MetaResponse:
     settings = request.app.state.settings
     return MetaResponse(
-        version=__version__, release_id=settings.release_id, environment=settings.app_env
+        version=__version__,
+        release_id=settings.release_id,
+        git_sha=settings.git_sha,
+        environment=settings.app_env,
     )

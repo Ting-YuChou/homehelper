@@ -85,3 +85,10 @@ def test_size_limits(kind: str, size: int, ok: bool) -> None:
     with pytest.raises(UploadRejected) as raised:
         check_size(kind, size)  # type: ignore[arg-type]
     assert raised.value.status_code in (413, 422)
+
+
+def test_a_whole_video_upload_fits_in_one_cloud_run_request() -> None:
+    """Cloud Run refuses HTTP/1 requests over 32 MiB, multipart wrapper included (ADR-011)."""
+    from homehelper.api.uploads import FORM_OVERHEAD
+
+    assert MAX_VIDEO_BYTES + FORM_OVERHEAD <= 32 * 2**20

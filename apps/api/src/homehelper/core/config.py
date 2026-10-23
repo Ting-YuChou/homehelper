@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     app_env: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
     release_id: str = "dev"
+    # The release manifest as JSON (Cloud Run, set by release.yml); else `releases/<id>.yaml`.
+    release_manifest: str = ""
+    # The commit the image was built from (Dockerfile ARG); empty when running from source.
+    git_sha: str = ""
     # The agent behind the web API: the scripted demo stub, or the journey agent (spec §7), which
     # needs the knowledge base in Postgres and LLM keys.
     agent_runtime: Literal["stub", "journey"] = "stub"
@@ -49,6 +53,8 @@ class Settings(BaseSettings):
     admin_token: SecretStr = SecretStr("")
     admin_session_max_age_s: int = 8 * 3600
     admin_login_rate_limit_per_hour: int = 10
+    # Shared with the web app's `/v1` proxy, which sends it with the visitor's IP (ADR-011).
+    proxy_secret: SecretStr = SecretStr("")
     # Browser origins allowed to call the API (CORS) and to send write requests (Origin check).
     cors_origins: list[str] = ["http://localhost:3000"]
     # Turn guards (spec §18.1): messages per IP and per user, and the daily LLM spend cap in USD

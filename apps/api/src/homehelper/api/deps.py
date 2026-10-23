@@ -1,4 +1,5 @@
-"""Request dependencies: DB session, the signed session cookie, admin token, Origin check."""
+"""Request dependencies: DB session, the signed session cookie, admin token, Origin check,
+and the caller's IP."""
 
 import hashlib
 import hmac
@@ -19,6 +20,8 @@ SESSION_COOKIE = "hh_session"
 ADMIN_COOKIE = "hh_admin"
 _DEV_SECRET = "homehelper-local-session-secret"  # local and test only
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+CLIENT_IP_HEADER = "x-hh-client-ip"
+PROXY_SECRET_HEADER = "x-hh-proxy-secret"
 
 
 def session_secret(settings: Settings) -> str:
@@ -29,6 +32,26 @@ def session_secret(settings: Settings) -> str:
             raise RuntimeError("SESSION_SECRET must be set outside local and test")
         secret = _DEV_SECRET
     return secret
+
+
+def client_ip(request: Request, settings: Settings) -> str:
+    """The caller's IP for rate limits (ADR-011).
+
+    The web app's `/v1` proxy forwards the visitor's IP in `X-HH-Client-IP`, believed only
+    with the shared proxy secret. Otherwise, on Cloud Run, the last `X-Forwarded-For` entry is
+    the address Cloud Run itself appended (earlier entries are whatever the caller sent).
+    Locally there is no front end, so the socket peer is used.
+    """
+    peer = request.client.host if request.client else "unknown"
+    if settings.app_env in ("local", "test"):
+        return peer
+    secret = settings.proxy_secret.get_secret_value()
+    vouched = request.headers.get(CLIENT_IP_HEADER)
+    sent = request.headers.get(PROXY_SECRET_HEADER, "")
+    if secret and vouched and hmac.compare_digest(sent.encode(), secret.encode()):
+        return vouched.strip()
+    forwarded = request.headers.get("x-forwarded-for", "")
+    return forwarded.rsplit(",", 1)[-1].strip() or peer
 
 
 class SessionSigner:
@@ -151,8 +174,8 @@ async def require_admin(
 async def admin_attempt_allowed(request: Request) -> None:
     """Count an admin token attempt from this address; 429 once over the limit."""
     guards = request.app.state.turn_guards
-    client_ip = request.client.host if request.client else "unknown"
-    decision = await guards.admin_login_limiter.hit(f"rl:admin-login:{client_ip}")
+    ip = client_ip(request, request.app.state.settings)
+    decision = await guards.admin_login_limiter.hit(f"rl:admin-login:{ip}")
     if not decision.allowed:
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,

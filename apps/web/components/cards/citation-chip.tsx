@@ -6,7 +6,8 @@ import { BookOpen } from "lucide-react";
 import { manualQuery } from "@/lib/api/queries";
 import type { Citation } from "@/lib/api/types";
 
-/** Manual name + page; opens the PDF at that page in a new tab (spec §15.3). */
+/** Manual name + page; opens the PDF at that page in a new tab when the PDF is served
+ * (spec §15.3). The public demo serves none (spec Q10), so there the chip is plain text. */
 export function CitationChip({ citation }: { citation: Citation }) {
   const manual = useQuery(manualQuery(citation.doc_id));
   const title = manual.data?.title ?? citation.doc_id;
@@ -20,9 +21,9 @@ export function CitationChip({ citation }: { citation: Citation }) {
       <span className="shrink-0 font-medium text-foreground">p. {citation.page}</span>
     </>
   );
-  if (!manual.data) {
+  if (!manual.data?.url) {
     return (
-      <span className={className} title={label}>
+      <span className={className} title={citation.section ? `${label} · ${citation.section}` : label}>
         {content}
       </span>
     );

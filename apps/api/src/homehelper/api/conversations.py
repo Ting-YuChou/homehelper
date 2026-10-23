@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Path, Request, Response, status
 from pydantic import RootModel
 from redis.exceptions import RedisError
 
-from homehelper.api.deps import SessionDep, SettingsDep, UserDep
+from homehelper.api.deps import SessionDep, SettingsDep, UserDep, client_ip
 from homehelper.api.schemas import (
     AttachmentRef,
     ConversationCreate,
@@ -156,9 +156,9 @@ async def send_message(
     try:
         if await guards.spend.over_cap():
             return refuse(MAINTENANCE, status.HTTP_503_SERVICE_UNAVAILABLE)
-        client_ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request, request.app.state.settings)
         for limiter, key in (
-            (guards.ip_limiter, f"rl:ip:{client_ip}"),
+            (guards.ip_limiter, f"rl:ip:{ip}"),
             (guards.user_limiter, f"rl:user:{user.id}"),
         ):
             decision = await limiter.hit(key)

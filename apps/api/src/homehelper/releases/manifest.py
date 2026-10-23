@@ -2,9 +2,11 @@
 
 A manifest pins what was evaluated: the code (`git_sha`), the KB snapshot, the per-task model
 overrides and the eval reports, plus the gates those reports must clear. It is never baked into
-the image; the API loads the one named by `RELEASE_ID` at startup.
+the image; the API loads the one named by `RELEASE_ID` at startup, from `RELEASE_MANIFEST` or
+from this directory (`releases.runtime`).
 """
 
+import re
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -13,7 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 # `releases.id` is a String(64); dots and dashes as in `r2026.11.01-1`.
 ReleaseId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")]
-GitSha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{7,40}$")]
+GIT_SHA_PATTERN = re.compile(r"[0-9a-f]{7,40}")
+GitSha = Annotated[str, StringConstraints(pattern=rf"^{GIT_SHA_PATTERN.pattern}$")]
 # Same format as `knowledge.store.KB_VERSION` and `ingestion.pipeline.referenced_versions`.
 KbVersion = Annotated[str, StringConstraints(pattern=r"^kb_\d{8}_\d{2}$")]
 Rate = Annotated[float, Field(ge=0.0, le=1.0)]
@@ -53,7 +56,7 @@ class Gates(_Strict):
 class ReleaseManifest(_Strict):
     id: ReleaseId
     git_sha: GitSha  # covers code, journeys and prompts
-    image: str | None = None  # the evaluated image digest; set once images are built (M8)
+    image: str | None = None  # the evaluated image digest (`release.yml` sets it)
     kb_version: KbVersion | None = None
     # task -> model id (that model alone, no fallbacks) or a partial TaskConfig. Same format
     # as `evals run --models`, which also accepts a manifest.
