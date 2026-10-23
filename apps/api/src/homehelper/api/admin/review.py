@@ -47,7 +47,10 @@ def _parse_cursor(cursor: str) -> tuple[datetime, str]:
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
         stamp, conversation_id = json.loads(raw)
-        return datetime.fromisoformat(stamp), str(conversation_id)
+        updated_at = datetime.fromisoformat(stamp)
+        if updated_at.tzinfo is None:  # compared with a timestamptz column
+            raise ValueError("cursor time has no time zone")
+        return updated_at, str(conversation_id)
     except (binascii.Error, ValueError, TypeError) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Invalid cursor") from exc
 

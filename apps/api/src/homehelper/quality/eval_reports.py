@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,7 +78,8 @@ async def upsert_eval_report(session: AsyncSession, summary: EvalReportSummary) 
     values = summary.model_dump(mode="json")
     values["created_at"] = summary.created_at
     stmt = insert(EvalReportRow).values(**values)
-    update = {k: stmt.excluded[k] for k in values if k != "id"}
+    update: dict[str, Any] = {k: stmt.excluded[k] for k in values if k != "id"}
+    update["imported_at"] = func.now()  # onupdate doesn't apply to an upsert
     await session.execute(stmt.on_conflict_do_update(index_elements=["id"], set_=update))
 
 

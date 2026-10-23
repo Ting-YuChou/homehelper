@@ -27,7 +27,10 @@ eval suites move from release to release. Implementing that raised these questio
      test, valid for 8 hours. Sign-in attempts are rate limited per IP (10 an hour).
    - The cookie carries a fingerprint of `ADMIN_TOKEN`, so rotating the token ends every admin
      session. With no token configured nothing validates, as before.
-   - `X-Admin-Token` still works for scripts. CORS is unchanged: the browser never sends it.
+   - `X-Admin-Token` still works for scripts. CORS is unchanged: the browser never sends it. A
+     wrong header counts against the same per-IP limit as a wrong sign-in.
+   - The fingerprint is an HMAC under the session secret: the cookie is signed, not encrypted,
+     so a plain hash would let anyone holding it guess the token offline.
    - Admin writes go through the same Origin check as every other cookie-authenticated write.
 
 2. **Exported cases are stored in the database and pulled into the repository.**
@@ -62,6 +65,10 @@ eval suites move from release to release. Implementing that raised these questio
    - `expected_behavior` is a pass/fail LLM-judge check. The regression suite is strict, so an
      unavailable judge fails the trial, as on the other release suites.
    - A case must check something; an export with no checks is refused (422).
+   - A replay regenerates every reply, and the earlier ones may rightly differ (a step card
+     before the hazard came up). So the case's own assertions (cards, text, citations) apply to
+     the reply to the last scripted message only; the safety rules still cover every reply, and
+     an error as that last reply fails the trial.
 
 4. **A button the agent no longer offers becomes its words.** A replayed agent may answer
    differently, for example without the step card the user pressed. The replay then sends what
@@ -76,7 +83,7 @@ eval suites move from release to release. Implementing that raised these questio
      contain what real users typed.
    - `/admin/evals` charts one metric per small chart for each suite, ordered by run time.
    - Runs that can't gate a release are flagged with the same rule the gates use
-     (`releases.gates.weakened_run_error`). They stay out of the trend lines unless the reviewer
+     (`releases.gates.weakened_run_error`; `--case` now counts as weakened, like `--limit`). They stay out of the trend lines unless the reviewer
      asks for them, so a cheap trial run never looks like a regression.
    - The charts are hand-written SVG; the pages need no chart library.
 
@@ -100,6 +107,9 @@ eval suites move from release to release. Implementing that raised these questio
   fallback is a pass^1 threshold below 1.0, written into the manifest.
 - **Cases with media can't replay in CI yet.** Their files are git-ignored; M8 serves them from
   GCS. Until then a regression suite with missing media exits 5, as the multimodal suite does.
+- **An exported case outlives its conversation.** Deleting the conversation later leaves the
+  `regression_cases` row and any pulled file, which quote what the user typed. Reviewers export
+  only conversations without personal data; the pulled file is reviewed in the pull request.
 - **Conversations longer than 12 user messages before the annotated reply can't be exported**
   (the eval runner's turn limit).
 - **Old reports chart with gaps.** A metric that an older report lacks is null and left out of

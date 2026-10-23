@@ -76,6 +76,17 @@ async def test_admin_login_is_rate_limited(api: httpx.AsyncClient) -> None:
     assert statuses[10] == 429
 
 
+async def test_wrong_admin_headers_are_rate_limited(api: httpx.AsyncClient) -> None:
+    statuses = [
+        (await api.get("/v1/admin/conversations", headers={"X-Admin-Token": "guess"})).status_code
+        for _ in range(11)
+    ]
+    assert statuses[:10] == [401] * 10 and statuses[10] == 429
+    # A non-ASCII guess is limited like any other (and never a 500).
+    non_ascii = await api.get("/v1/admin/session", headers={b"X-Admin-Token": "é".encode()})
+    assert non_ascii.status_code == 429
+
+
 async def test_admin_writes_from_foreign_origins_are_refused(api: httpx.AsyncClient) -> None:
     response = await api.post(
         "/v1/admin/session", json={"token": ADMIN}, headers={"Origin": "https://evil.example"}

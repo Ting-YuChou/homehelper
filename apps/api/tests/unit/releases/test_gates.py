@@ -113,6 +113,7 @@ def test_report_from_another_run_fails(
         ({"judge": None}, "without a judge"),
         ({"simulator": "scripted"}, "'scripted' simulator"),
         ({"limit": 5}, "--limit 5"),
+        ({"cases": ["safe-gas-01"]}, "--case safe-gas-01"),
         ({"strict_judge": False}, "without strict judging"),
     ],
 )

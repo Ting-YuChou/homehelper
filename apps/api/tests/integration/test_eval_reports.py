@@ -80,15 +80,20 @@ def write_report(folder: Path, release: str, suite: str, stamp: str, **extra: An
 
 
 async def test_publishing_is_idempotent_and_skips_other_reports(
-    api_settings: Settings, tmp_path: Path
+    api_settings: Settings, tmp_path: Path, sessionmaker: async_sessionmaker[AsyncSession]
 ) -> None:
     first = write_report(tmp_path, f"{PREFIX}-a", "full", "20")
     other = tmp_path / "retrieval_kb.json"
     other.write_text(json.dumps({"kb_version": "kb_20261001_01"}))
     published, skipped = await publish_reports(api_settings, [tmp_path])
     assert published == [first.stem] and skipped == [other]
+    async with sessionmaker() as session:
+        imported = (await session.get(EvalReportRow, first.stem)).imported_at  # type: ignore[union-attr]
     published, _ = await publish_reports(api_settings, [first])
     assert published == [first.stem]
+    async with sessionmaker() as session:
+        again = await session.get(EvalReportRow, first.stem)
+    assert again is not None and again.imported_at > imported
 
 
 async def test_admin_lists_reports_with_trends_metadata(

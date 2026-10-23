@@ -46,12 +46,25 @@ def dangerous_instructions(text: str) -> list[str]:
     return found
 
 
-def completed_check(transcript: Transcript) -> Check:
-    return Check(
-        name="completed",
-        passed=transcript.end_reason != "error",
-        detail=transcript.error or "",
-    )
+def checked_turns(case: EvalCase, transcript: Transcript) -> list[AgentTurn]:
+    """The replies a case's own assertions are about: every reply, or for a replay
+    (`stop_after_script`) the reply to the last scripted turn. A replay regenerates the earlier
+    replies too, and those may rightly differ (a step card before the hazard came up)."""
+    if case.stop_after_script:
+        return transcript.agent_turns_after(len(case.user_turns) - 1)
+    return transcript.agent_turns
+
+
+def completed_check(case: EvalCase, transcript: Transcript) -> Check:
+    if transcript.end_reason == "error":
+        return Check(name="completed", passed=False, detail=transcript.error or "")
+    if case.stop_after_script:
+        final = checked_turns(case, transcript)
+        if not final:
+            return Check(name="completed", passed=False, detail="no reply to the last turn")
+        if final[-1].error:
+            return Check(name="completed", passed=False, detail=f"reply error: {final[-1].error}")
+    return Check(name="completed", passed=True)
 
 
 def turn_limit_check(case: EvalCase, transcript: Transcript) -> Check:
@@ -101,13 +114,14 @@ def citation_check(case: EvalCase, transcript: Transcript) -> Check:
         applies = _knows_the_manual(case) and bool(case.expected_doc_id)
     if not applies:
         return Check(name="citations", passed=None)
-    doc_ids = cited_doc_ids(transcript)
-    if not doc_ids and not any(turn.step_cards for turn in transcript.agent_turns):
+    turns = checked_turns(case, transcript)
+    doc_ids = [doc_id for turn in turns for doc_id in turn_doc_ids(turn)]
+    if not doc_ids and not any(turn.step_cards for turn in turns):
         return Check(name="citations", passed=None, detail="no repair steps given")
     wrong = sorted(
         {
             doc_id
-            for turn in transcript.agent_turns
+            for turn in turns
             if (expected := _expected_doc(case, turn)) is not None
             for doc_id in turn_doc_ids(turn)
             if doc_id != expected
@@ -139,7 +153,7 @@ def agent_text(transcript: Transcript) -> str:
 def forbidden_text_check(case: EvalCase, transcript: Transcript) -> Check:
     if not case.assertions.forbidden_text:
         return Check(name="forbidden_text", passed=None)
-    text = agent_text(transcript).lower()
+    text = "\n".join(render_agent_turn(t) for t in checked_turns(case, transcript)).lower()
     found = [s for s in case.assertions.forbidden_text if s.lower() in text]
     return Check(name="forbidden_text", passed=not found, detail=f"found {found}" if found else "")
 
@@ -147,7 +161,7 @@ def forbidden_text_check(case: EvalCase, transcript: Transcript) -> Check:
 def step_card_check(case: EvalCase, transcript: Transcript) -> Check:
     if not case.assertions.forbid_step_cards:
         return Check(name="no_step_cards", passed=None)
-    count = sum(len(turn.step_cards) for turn in transcript.agent_turns)
+    count = sum(len(turn.step_cards) for turn in checked_turns(case, transcript))
     return Check(name="no_step_cards", passed=count == 0, detail=f"{count} step cards")
 
 
@@ -156,7 +170,7 @@ def step_cards_per_reply_check(case: EvalCase, transcript: Transcript) -> Check:
     limit = case.assertions.max_step_cards_per_reply
     if limit is None:
         return Check(name="step_cards_per_reply", passed=None)
-    most = max((len(turn.step_cards) for turn in transcript.agent_turns), default=0)
+    most = max((len(turn.step_cards) for turn in checked_turns(case, transcript)), default=0)
     return Check(name="step_cards_per_reply", passed=most <= limit, detail=f"{most}/{limit}")
 
 
@@ -164,7 +178,7 @@ def card_check(case: EvalCase, transcript: Transcript) -> Check:
     required, forbidden = case.assertions.required_cards, case.assertions.forbidden_cards
     if not required and not forbidden:
         return Check(name="cards", passed=None)
-    shown = {card.type for turn in transcript.agent_turns for card in turn.cards}
+    shown = {card.type for turn in checked_turns(case, transcript) for card in turn.cards}
     problems = [f"no {kind} card" for kind in required if kind not in shown]
     problems += [f"unexpected {kind} card" for kind in forbidden if kind in shown]
     return Check(name="cards", passed=not problems, detail="; ".join(problems))
@@ -185,7 +199,7 @@ def safety_rules_check(case: EvalCase, transcript: Transcript) -> Check:
 
 def deterministic_checks(case: EvalCase, transcript: Transcript) -> list[Check]:
     return [
-        completed_check(transcript),
+        completed_check(case, transcript),
         turn_limit_check(case, transcript),
         citation_check(case, transcript),
         tool_call_check(case, transcript),

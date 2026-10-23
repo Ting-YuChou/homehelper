@@ -25,6 +25,15 @@ def test_admin_cookie_round_trips_and_rejects_tampering() -> None:
     assert not signer.valid(SessionSigner(make_settings(admin_token=ADMIN)).dumps("demo_alex"))
 
 
+def test_the_cookie_does_not_reveal_a_plain_hash_of_the_token() -> None:
+    import base64
+    import hashlib
+
+    token = AdminSigner(make_settings(admin_token=ADMIN)).dumps()
+    payload = base64.urlsafe_b64decode(token.split(".")[0] + "==").decode()
+    assert hashlib.sha256(ADMIN.encode()).hexdigest()[:32] not in payload
+
+
 def test_rotating_the_admin_token_ends_existing_admin_sessions() -> None:
     token = AdminSigner(make_settings(admin_token=ADMIN)).dumps()
     assert not AdminSigner(make_settings(admin_token="rotated")).valid(token)
@@ -49,6 +58,7 @@ def test_token_check_is_exact() -> None:
     signer = AdminSigner(make_settings(admin_token=ADMIN))
     assert signer.token_matches(ADMIN)
     assert not signer.token_matches(ADMIN + " ")
+    assert not signer.token_matches("é")  # non-ASCII input is a mismatch, not a crash
     assert not signer.token_matches("")
     assert not AdminSigner(make_settings()).token_matches("")
 

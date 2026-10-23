@@ -62,6 +62,8 @@ def weakened_run_error(report: Report) -> str | None:
         return f"was run with the {simulator!r} simulator, not the LLM one"
     if config.get("limit") is not None:
         return f"was run with --limit {config.get('limit')}"
+    if cases := config.get("cases"):
+        return f"was run with --case {', '.join(map(str, cases))}"
     if config.get("strict_judge") is not True:
         return "was run without strict judging"
     return None

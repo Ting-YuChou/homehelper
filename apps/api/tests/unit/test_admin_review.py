@@ -12,7 +12,10 @@ def test_cursor_round_trips() -> None:
     assert _parse_cursor(_cursor(stamp, "conv_1")) == (stamp, "conv_1")
 
 
-@pytest.mark.parametrize("cursor", ["junk", "", "W10", "eyJhIjogMX0"])
+NAIVE = "WyIyMDI2LTEwLTIyVDA5OjMwOjAxIiwgImNvbnZfMSJd"  # ["2026-10-22T09:30:01", "conv_1"]
+
+
+@pytest.mark.parametrize("cursor", ["junk", "", "W10", "eyJhIjogMX0", NAIVE])
 def test_malformed_cursors_are_rejected(cursor: str) -> None:
     with pytest.raises(HTTPException) as raised:
         _parse_cursor(cursor)

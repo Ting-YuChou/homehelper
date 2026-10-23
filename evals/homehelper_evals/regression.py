@@ -9,6 +9,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from homehelper.api.deps import session_secret
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine, create_sessionmaker
@@ -27,6 +29,7 @@ class PullSummary:
     written: list[str] = field(default_factory=list)
     unchanged: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)  # edited here; kept (use --force)
+    invalid: list[str] = field(default_factory=list)  # rows the runner couldn't load; skipped
     missing_media: list[str] = field(default_factory=list)  # paths whose upload is gone
 
 
@@ -48,8 +51,12 @@ async def pull(
         async with create_sessionmaker(engine)() as session:
             rows = await repository.list_regression_cases(session)
             for row in rows:
-                case = RegressionCase.model_validate(row.case)
-                EvalCase.model_validate(row.case)  # the runner must be able to load it
+                try:
+                    case = RegressionCase.model_validate(row.case)
+                    EvalCase.model_validate(row.case)  # the runner must be able to load it
+                except ValidationError:
+                    summary.invalid.append(row.id)
+                    continue
                 target = folder / f"{case.id}.yaml"
                 text = case_yaml(case)
                 if target.exists() and target.read_text() == text:
@@ -84,9 +91,10 @@ def report(summary: PullSummary) -> int:
         ("unchanged", summary.unchanged),
         ("kept local edits (use --force to overwrite)", summary.conflicts),
         ("media no longer stored", summary.missing_media),
+        ("invalid (not written)", summary.invalid),
     ):
         if ids:
             print(f"{label}: {', '.join(ids)}", file=sys.stderr)
     total = len(summary.written) + len(summary.unchanged) + len(summary.conflicts)
     print(f"{total} regression cases; {len(summary.written)} written")
-    return 0
+    return 1 if summary.invalid else 0

@@ -166,6 +166,7 @@ async def test_export_validates_the_choices(api: httpx.AsyncClient) -> None:
 async def test_pull_writes_cases_and_media_then_replays(
     api: httpx.AsyncClient,
     api_settings: Settings,
+    sessionmaker: async_sessionmaker[AsyncSession],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -188,6 +189,16 @@ async def test_pull_writes_cases_and_media_then_replays(
     assert case["id"] in kept.conflicts and written.read_text().endswith("# edited\n")
     forced = await pull(api_settings, datasets_dir=datasets, media_root=media, force=True)
     assert case["id"] in forced.written
+
+    # A row the runner can't load is reported, and doesn't stop the others.
+    _, second = await _annotated_reply(api)
+    broken = (await _export(api, second["id"])).json()["case"]["id"]
+    async with sessionmaker.begin() as session:
+        row = await session.get(RegressionCaseRow, broken)
+        assert row is not None
+        row.case = {**row.case, "max_turns": 99}
+    partial = await pull(api_settings, datasets_dir=datasets, media_root=media)
+    assert partial.invalid == [broken] and case["id"] in partial.unchanged
 
     # M7-02's acceptance check: the exported case replays through the runner.
     monkeypatch.setattr(runner, "DATASETS_DIR", datasets)
