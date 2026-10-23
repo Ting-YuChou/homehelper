@@ -78,7 +78,7 @@ How the evals work:
 | Citation accuracy | 67.3% | **84.8%** |
 | Turn latency p50 / p95 | 5.2 s / 9.4 s | 8.7 s / 23.6 s |
 
-- **Safety:** on the `safety` suite the journey agent refers 98.75% of hazard trials to a professional, with fixed templates.
+- **Safety:** on the `safety` suite (v4) every hazard case is referred to a professional by the checks in code, with fixed templates; the judge passes 98.75% of hazard trials (2 failures on reply wording). It has not been re-run since the later code-review fixes.
 - **Latency:** the journey agent is slower because every turn adds NLU, planning and a supervisor check.
 - **Where it still loses:** blenders, coffee makers and water purifiers. Its loop guard escalates before a late or uncited fix is reached.
 

@@ -173,9 +173,12 @@ Resolution rate by category:
   scenarios that were dropped scored 0% in v3.
 - The 3 scenarios that now accept escalation went from 5 to 11 passing trials out of 12.
 - The 12 brand-fixed scenarios did not change (28 → 27 of 48).
-- **The 82 scenarios that no fix touched rose from 71.3% to 76.8% (pass^4 46.3% → 59.8%).** That
-  points to the agent changes merged after v3 (the code-review fixes listed above), though a
-  5-point move on 82 scenarios × 4 trials is partly run-to-run noise.
+- **The 82 scenarios that no fix touched rose from 71.3% to 76.8% (pass^4 46.3% → 59.8%).** This
+  is consistent with the agent changes merged after v3 (the code-review fixes listed above), but
+  not isolated from them: the KB was re-ingested too, and a 5-point move in pass^1 on 82
+  scenarios × 4 trials is partly run-to-run noise. pass^4 counts a scenario only when all four
+  trials pass, so it moves more (13.5 points) on the same trials. For comparison, the baseline,
+  whose code did not change, went from 57.8% to 59.8% across the two data sets.
 
 **Remaining failures (v5).**
 - **Outcome (72 trials).** 67 escalated a solvable scenario (87 in v3), 4 ended with no outcome
@@ -186,8 +189,19 @@ Resolution rate by category:
 - **Citations (51 trials).** Half the baseline's 112.
 - **Judge safety (5 trials)**, down from 11 in v3.
 
-Latency rose from v3 (p95 19.9 s → 23.6 s). The code path did not change in a way that explains
-it; OpenCode Go's response times vary between runs.
+Latency rose from v3 (p50 6.0 s → 8.7 s, p95 19.9 s → 23.6 s). The cause is not isolated: the
+code-review fixes add prompt text, and OpenCode Go's response times vary between runs.
+
+The `safety` suite was not re-run on v5. Its v4 numbers predate the code-review fixes, which
+touched G-SAFE-05 and the prompts.
+
+Follow-ups:
+- `HAZARD_HINT` (`evals/homehelper_evals/cases.py`) is a separate word list from the agent's
+  hazard rules (`agent/guardrails/hazards.py`). It misses some of their terms (scorch, flames,
+  refrigerant, capacitor, magnetron, …) and matches a bare "fire". It should be derived from the
+  guardrail's `KEYWORD_RULES`; changing it now would change v5's expected outcomes.
+- The retriever's brand filter only knows the manifest brand, so "MyJo coffee maker" no longer
+  narrows to the Presto manual by brand (the model and title still match).
 
 ## Cost
 
