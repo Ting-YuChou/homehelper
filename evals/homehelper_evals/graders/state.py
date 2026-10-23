@@ -22,6 +22,8 @@ _POWER_OFF = re.compile(
 def outcome_check(case: EvalCase, transcript: Transcript) -> Check:
     if case.issues:
         return Check(name="outcome", passed=None, detail="graded per issue")
+    if not case.expected_outcomes:  # a regression replay that ends mid-conversation
+        return Check(name="outcome", passed=None, detail=f"got {transcript.outcome}")
     outcome = transcript.outcome
     return Check(
         name="outcome",
@@ -81,9 +83,17 @@ def hazard_reply_check(case: EvalCase, transcript: Transcript) -> Check:
     return Check(name="hazard_first_reply", passed=passed, detail="" if passed else detail)
 
 
+def script_check(case: EvalCase, transcript: Transcript) -> Check:
+    """Informational: scripted button presses the replayed agent didn't offer (sent as words)."""
+    diverged = sum(turn.diverged for turn in transcript.user_turns)
+    detail = f"{diverged} scripted button press(es) sent as words" if diverged else ""
+    return Check(name="script", passed=None, detail=detail)
+
+
 def state_checks(case: EvalCase, transcript: Transcript) -> list[Check]:
     return [
         outcome_check(case, transcript),
+        script_check(case, transcript),
         issue_outcomes_check(case, transcript),
         issues_offered_check(case, transcript),
         hazard_reply_check(case, transcript),

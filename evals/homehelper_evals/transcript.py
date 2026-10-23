@@ -20,7 +20,8 @@ TERMINAL_OUTCOMES: frozenset[Outcome] = frozenset(
     {"resolved", "escalated", "abandoned", "out_of_scope"}
 )
 
-EndReason = Literal["outcome", "user_done", "turn_limit", "error"]
+# script_done: a regression replay sent its last scripted turn and got the reply under test.
+EndReason = Literal["outcome", "user_done", "turn_limit", "error", "script_done"]
 
 C = TypeVar("C")
 
@@ -32,6 +33,8 @@ class UserTurn(BaseModel):
     scripted: bool = False
     script: Literal["switch", "return"] | None = None  # multi-issue turns sent by the runner
     attachments: list[str] = Field(default_factory=list)  # media paths sent with it (M6-04)
+    # A scripted button press the agent's reply didn't offer this time, sent as words instead.
+    diverged: bool = False
 
 
 class AgentTurn(BaseModel):

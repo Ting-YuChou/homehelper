@@ -1,6 +1,7 @@
 """`uv run evals ...` (spec §16.4).
 
-evals run --suite {smoke|safety|full} [--k 4] [--concurrency 8] [--agent stub] [--models x.yaml]
+evals run --suite {smoke|safety|full|regression|...} [--k 4] [--concurrency 8] [--agent stub]
+          [--models x.yaml] [--case ID ...]
 evals label-root-causes            # M2-01, one-time; writes the frozen labels file
 evals render <report.json>         # Markdown transcripts for manual review
 """
@@ -72,6 +73,13 @@ def _parser() -> argparse.ArgumentParser:
         help="scenarios per category (default: the suite's; spec §20 Q9)",
     )
     run.add_argument("--limit", type=int, help="cap the number of cases (cheap trial runs)")
+    run.add_argument(
+        "--case",
+        action="append",
+        dest="case_ids",
+        metavar="ID",
+        help="run only this case of the suite (repeatable)",
+    )
     run.add_argument("--seed", default="v1", help="scenario sampling seed")
     run.add_argument("--out-dir", type=Path, default=REPORTS_DIR)
     run.add_argument(
@@ -113,7 +121,8 @@ def _summary(report: dict) -> str:
         f"multi-issue {pct(m['multi_issue_pass_rate'])} "
         f"(issue outcomes {pct(m['issue_outcome_accuracy'])}) | "
         f"tools {pct(m['tool_scenario_pass_rate'])} | "
-        f"multimodal {pct(m.get('multimodal_pass_rate'))}",
+        f"multimodal {pct(m.get('multimodal_pass_rate'))} | "
+        f"regression {pct(m.get('regression_pass_rate'))}",
         "pass^k "
         + " | ".join(
             f"{kind} " + " ".join(f"{k}:{pct(v)}" for k, v in values.items())
@@ -155,7 +164,15 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
         config = config.model_copy(update={"scenarios_per_category": args.per_category})
     k = args.k or config.k
     skipped: list[str] = []
-    cases = build_cases(config, seed=args.seed, skipped=skipped)[: args.limit]
+    cases = build_cases(config, seed=args.seed, skipped=skipped)
+    if args.case_ids:
+        unknown = sorted(set(args.case_ids) - {c.id for c in cases} - set(skipped))
+        if unknown:
+            print(f"--case: not in the {args.suite} suite: {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        cases = [c for c in cases if c.id in args.case_ids]
+        skipped = [s for s in skipped if s in args.case_ids]
+    cases = cases[: args.limit]
     if skipped and args.suite in STRICT_JUDGE_SUITES and args.limit is None:
         # A release gate must not pass on whichever cases happened to be runnable here. With
         # --limit it is a partial run anyway, so the skips are only reported.
@@ -235,6 +252,7 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
             "scenario_split": config.scenario_split,
             "scenarios_per_category": config.scenarios_per_category,
             "limit": args.limit,
+            "cases": args.case_ids,
             "strict_judge": strict_judge,
         },
         created_at=created_at,

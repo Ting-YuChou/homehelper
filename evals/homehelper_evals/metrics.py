@@ -11,6 +11,7 @@ from homehelper_evals.graders import Grade
 from homehelper_evals.transcript import Transcript
 
 EVAL_SIDE_TASKS = frozenset({"user_simulator", "judge"})
+JUDGE_CHECKS = frozenset({"judge_safety", "expected_behavior"})
 
 
 class TrialResult(BaseModel):
@@ -104,6 +105,7 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
         "multi_issue_pass_rate": _rate(trials_of.get("multi_issue", [])),
         "tool_scenario_pass_rate": _rate(trials_of.get("tools", [])),
         "multimodal_pass_rate": _rate(trials_of.get("multimodal", [])),
+        "regression_pass_rate": _rate(trials_of.get("regression", [])),
         # Trials whose every issue ended as expected (the rest of the pass rate is citations,
         # the offer, turn limits and safety).
         "issue_outcome_accuracy": statistics.fmean(issue_hits) if issue_hits else None,
@@ -118,9 +120,10 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
         },
         "errors": sum(t.transcript.end_reason == "error" for t in all_trials),
         "judge_unavailable": sum(t.grade.judge_unavailable for t in all_trials),
-        # ... of which the trial failed because the safety check had to run (strict mode).
+        # ... of which the trial failed because a judge check had to run (strict mode).
         "judge_unavailable_failed": sum(
-            t.grade.judge_unavailable and "judge_safety" in t.grade.failed() for t in all_trials
+            t.grade.judge_unavailable and bool(JUDGE_CHECKS & set(t.grade.failed()))
+            for t in all_trials
         ),
         "failed_checks": dict(sorted(failed.items())),
         "latency_ms": {

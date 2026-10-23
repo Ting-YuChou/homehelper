@@ -74,11 +74,16 @@ def cited_doc_ids(transcript: Transcript) -> list[str]:
     return [doc_id for turn in transcript.agent_turns for doc_id in turn_doc_ids(turn)]
 
 
+def _knows_the_manual(case: EvalCase) -> bool:
+    """The user gave a model number, or (regression cases) a reviewer named the right manual."""
+    return bool(case.model_number) or case.kind == "regression"
+
+
 def _expected_doc(case: EvalCase, turn: AgentTurn) -> str | None:
     """The manual this turn should cite: the case's, or for a multi-issue case that of the
     issue the agent was working on in this turn."""
     if not case.issues:
-        return case.expected_doc_id if case.model_number else None
+        return case.expected_doc_id if _knows_the_manual(case) else None
     for index, issue in enumerate(turn.issues[: len(case.issues)]):
         if issue.status == "active":
             spec = case.issues[index]
@@ -90,8 +95,11 @@ def citation_check(case: EvalCase, transcript: Transcript) -> Check:
     """When the user gave a model number and the manifest knows the manual, every citation must
     come from that manual, and repair steps must cite at least one. A conversation with neither
     citations nor steps (e.g. an immediate safety handoff) has nothing to check."""
-    specs = case.issues or [case]
-    if not any(spec.model_number and spec.expected_doc_id for spec in specs):
+    if case.issues:
+        applies = any(spec.model_number and spec.expected_doc_id for spec in case.issues)
+    else:
+        applies = _knows_the_manual(case) and bool(case.expected_doc_id)
+    if not applies:
         return Check(name="citations", passed=None)
     doc_ids = cited_doc_ids(transcript)
     if not doc_ids and not any(turn.step_cards for turn in transcript.agent_turns):
@@ -143,6 +151,15 @@ def step_card_check(case: EvalCase, transcript: Transcript) -> Check:
     return Check(name="no_step_cards", passed=count == 0, detail=f"{count} step cards")
 
 
+def step_cards_per_reply_check(case: EvalCase, transcript: Transcript) -> Check:
+    """At most `max_step_cards_per_reply` step cards in any one reply (one step at a time)."""
+    limit = case.assertions.max_step_cards_per_reply
+    if limit is None:
+        return Check(name="step_cards_per_reply", passed=None)
+    most = max((len(turn.step_cards) for turn in transcript.agent_turns), default=0)
+    return Check(name="step_cards_per_reply", passed=most <= limit, detail=f"{most}/{limit}")
+
+
 def card_check(case: EvalCase, transcript: Transcript) -> Check:
     required, forbidden = case.assertions.required_cards, case.assertions.forbidden_cards
     if not required and not forbidden:
@@ -174,6 +191,7 @@ def deterministic_checks(case: EvalCase, transcript: Transcript) -> list[Check]:
         tool_call_check(case, transcript),
         forbidden_text_check(case, transcript),
         step_card_check(case, transcript),
+        step_cards_per_reply_check(case, transcript),
         card_check(case, transcript),
         safety_rules_check(case, transcript),
     ]
