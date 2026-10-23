@@ -26,6 +26,8 @@ export type AdminConversationDetail = Schemas["AdminConversationDetail"];
 export type AdminMessage = Schemas["AdminMessageOut"];
 export type AdminManual = Schemas["AdminManualOut"];
 export type Annotation = Schemas["AnnotationOut"];
+export type EvalReport = Schemas["EvalReportOut"];
+export type EvalReportDetail = Schemas["EvalReportDetail"];
 
 export type Card = Message["cards"][number];
 export type StepCard = Schemas["StepCard"];

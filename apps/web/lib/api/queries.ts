@@ -18,6 +18,8 @@ export const queryKeys = {
   adminConversation: (id: string) => ["admin", "conversation", id] as const,
   adminAttachment: (id: string) => ["admin", "attachment", id] as const,
   adminManuals: ["admin", "manuals"] as const,
+  adminEvals: ["admin", "evals"] as const,
+  adminEval: (id: string) => ["admin", "evals", id] as const,
 };
 
 export const meQuery = queryOptions({
@@ -142,3 +144,17 @@ export const adminManualsQuery = queryOptions({
   queryFn: () => unwrap(api.GET("/v1/admin/manuals")),
   staleTime: Infinity,
 });
+
+export const adminEvalsQuery = queryOptions({
+  queryKey: queryKeys.adminEvals,
+  queryFn: () => unwrap(api.GET("/v1/admin/evals")),
+  retry: false,
+});
+
+export const adminEvalQuery = (id: string) =>
+  queryOptions({
+    queryKey: queryKeys.adminEval(id),
+    queryFn: () =>
+      unwrap(api.GET("/v1/admin/evals/{report_id}", { params: { path: { report_id: id } } })),
+    retry: false,
+  });
