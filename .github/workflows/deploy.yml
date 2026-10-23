@@ -147,6 +147,8 @@ jobs:
           meta=$(curl -sf "$url/v1/meta")
           echo "$meta"
           [[ "$(jq -r .git_sha <<<"$meta")" == "$SHA" ]] || { echo "candidate runs another commit"; exit 1; }
+          [[ "$(jq -r .access_code_required <<<"$meta")" == true ]] ||
+            { echo "no DEMO_ACCESS_CODE: anyone could chat on your LLM keys (run infra/gcp/secrets.sh)"; exit 1; }
       - name: Send API traffic to the candidate
         if: steps.kb.outputs.ready == 'true'
         run: infra/gcp/cloudrun.sh promote api

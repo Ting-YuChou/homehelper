@@ -36,6 +36,9 @@ def test_access_code_check() -> None:
     assert not signer.access_code_matches("tulip-43")
     assert not signer.access_code_matches("")
     assert not signer.access_code_matches(None)
+    assert SessionSigner(make_settings(demo_access_code="tulip-42\n")).access_code_matches(
+        "tulip-42"
+    )
     open_signer = SessionSigner(make_settings())
     assert not open_signer.access_code_required
     assert open_signer.access_code_matches(None)

@@ -63,7 +63,7 @@ class SessionSigner:
 
     def __init__(self, settings: Settings) -> None:
         secret = session_secret(settings)
-        self._code = settings.demo_access_code.get_secret_value()
+        self._code = settings.demo_access_code.get_secret_value().strip()
         salt = "hh-session"
         if self._code:
             digest = hmac.new(secret.encode(), self._code.encode(), hashlib.sha256).hexdigest()

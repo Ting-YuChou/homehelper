@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, api, unwrap } from "@/lib/api/client";
+import { api, unwrap } from "@/lib/api/client";
 import { demoUsersQuery, metaQuery, queryKeys } from "@/lib/api/queries";
-import { loginMessage } from "@/lib/auth/login";
+import { isWrongCode, loginMessage } from "@/lib/auth/login";
 import { safeNext } from "@/lib/safe-next";
 
 export function DemoLogin() {
@@ -37,13 +37,13 @@ export function DemoLogin() {
       router.replace(safeNext(next, window.location.origin));
     },
     onError: (error) => {
-      if (!(codeRequired && error instanceof ApiError && error.status === 403)) {
-        toast.error(loginMessage(error instanceof ApiError ? error.status : 0, codeRequired));
-      }
+      if (!isWrongCode(error)) toast.error(loginMessage(error));
     },
   });
-  const wrongCode = codeRequired && login.error instanceof ApiError && login.error.status === 403;
-  const disabled = login.isPending || meta.isPending || (codeRequired && !code.trim());
+  const wrongCode = isWrongCode(login.error);
+  // Without /v1/meta it isn't known whether a code is needed, so nobody can sign in yet.
+  const disabled =
+    login.isPending || !meta.isSuccess || (codeRequired && !code.trim());
 
   return (
     <div className="flex flex-col gap-3">
@@ -61,7 +61,7 @@ export function DemoLogin() {
           />
           {wrongCode ? (
             <p id="access-code-error" role="alert" className="text-sm text-destructive">
-              {loginMessage(403, true)}
+              {loginMessage(login.error)}
             </p>
           ) : (
             <p id="access-code-hint" className="text-sm text-muted-foreground">
@@ -92,6 +92,9 @@ export function DemoLogin() {
           <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
         </button>
       ))}
+      {meta.isError && (
+        <p className="text-sm text-destructive">Can&apos;t reach the HomeHelper API right now.</p>
+      )}
       {users.isError && (
         <p className="text-sm text-destructive">Couldn&apos;t load demo users.</p>
       )}

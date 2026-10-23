@@ -48,6 +48,7 @@ async def test_signing_in_needs_the_access_code_when_one_is_set(
         for body in ({"user_id": "demo_alex"}, {"user_id": None, "access_code": "wrong"}):
             refused = await api.post("/v1/auth/demo-login", json=body)
             assert refused.status_code == 403
+            assert refused.json()["detail"] == "Wrong access code"
             assert "set-cookie" not in refused.headers
         ok = await api.post(
             "/v1/auth/demo-login", json={"user_id": "demo_alex", "access_code": "tulip-42"}
