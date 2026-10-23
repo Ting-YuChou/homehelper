@@ -1,6 +1,6 @@
 # home_helper_dataset.jsonl review (2026-10-21)
 
-Ten reviewers, one per category, each read every variant and spot-checked it against the parsed manual. Not yet acted on.
+Ten reviewers, one per category, each read every variant and spot-checked it against the parsed manual. Partly acted on (2026-10-23): non-answer root causes are skipped, escalation is accepted for overheat, arcing and injury scenarios, and simulated users name the manifest brand (see `docs/reports/m3-agent.md`, the v5 re-run). The per-variant fixes below are still open.
 
 
 ---
