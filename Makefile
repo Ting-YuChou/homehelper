@@ -36,7 +36,7 @@ fmt:
 	uv run ruff format .
 
 migrate: ## Apply DB migrations (needs `make up`)
-	uv run alembic -c apps/api/alembic.ini upgrade head
+	uv run homehelper db upgrade
 
 seed-mock: ## Reset the MCP mock tables to data/mock/ (needs `make migrate`)
 	uv run homehelper mcp seed

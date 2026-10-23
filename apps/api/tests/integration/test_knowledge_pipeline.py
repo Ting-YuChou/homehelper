@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from llama_index.core.embeddings import MockEmbedding
-from sqlalchemy import delete, text
+from sqlalchemy import delete, insert, text
 
 from homehelper.db.engine import create_engine
-from homehelper.db.models import KBVersion
+from homehelper.db.models import KBVersion, Release
 from homehelper.ingestion.manifest import ManualEntry, save_manifest
 from homehelper.ingestion.parse import ParsedManual, ParsedPage, cache_path
-from homehelper.ingestion.pipeline import ingest
+from homehelper.ingestion.pipeline import ingest, released_versions
 from homehelper.knowledge.backends import PgSearchBackend
 from homehelper.knowledge.retriever import KnowledgeRetriever
 from homehelper.knowledge.schemas import CategoryId, RetrievalQuery
@@ -97,4 +97,24 @@ async def test_ingest_then_retrieve_against_postgres(tmp_path: Path) -> None:
         async with engine.begin() as conn:
             await conn.execute(text(f'DROP TABLE IF EXISTS "{table_for(result.kb_version)}"'))
             await conn.execute(delete(KBVersion).where(KBVersion.version == result.kb_version))
+        await engine.dispose()
+
+
+async def test_retention_keeps_versions_that_releases_in_the_database_pin() -> None:
+    """In the cloud there is no `releases/` checkout: the `releases` table says what is in use
+    (a release.yml release, or a build deployed from main with KB_VERSION)."""
+    await asyncio.to_thread(command.upgrade, alembic_config(), "head")
+    engine = create_engine(DATABASE_URL)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                insert(Release).values(
+                    id="r-retention-test", git_sha="abc1234", kb_version="kb_20200101_01"
+                )
+            )
+            await conn.execute(insert(Release).values(id="r-retention-none", git_sha="abc1234"))
+        assert {"kb_20200101_01"} <= await released_versions(engine)
+    finally:
+        async with engine.begin() as conn:
+            await conn.execute(delete(Release).where(Release.id.startswith("r-retention-")))
         await engine.dispose()

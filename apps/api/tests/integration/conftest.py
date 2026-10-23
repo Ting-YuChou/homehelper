@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine, create_sessionmaker
+from homehelper.db.migrate import alembic_config as packaged_alembic_config
 from homehelper.db.redis import create_redis
 from homehelper.main import create_app
 from tests.conftest import make_settings
@@ -42,9 +43,8 @@ def redis_test_url() -> str:
 
 
 def alembic_config() -> Config:
-    config = Config(str(ALEMBIC_INI))
-    config.attributes["database_url"] = DATABASE_URL
-    return config
+    # The packaged migrations, as `homehelper db upgrade` (the Cloud Run migrate job) runs them.
+    return packaged_alembic_config(DATABASE_URL)
 
 
 @pytest.fixture(scope="session")
