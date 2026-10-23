@@ -9,6 +9,8 @@ import re
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.vector_stores.postgres.base import PGType
 
+from homehelper.db.urls import asyncpg_url, psycopg2_url
+
 KB_VERSION = re.compile(r"^kb_\d{8}_\d{2}$")
 
 HNSW = {
@@ -30,19 +32,15 @@ def table_for(kb_version: str) -> str:
     return f"data_{kb_version}"
 
 
-def sync_url(database_url: str) -> str:
-    """LlamaIndex creates tables over a sync connection: derive a psycopg2 URL from ours."""
-    return re.sub(r"^postgresql\+asyncpg://", "postgresql+psycopg2://", database_url)
-
-
 def open_store(
     database_url: str, kb_version: str, embed_dim: int, *, create: bool = False
 ) -> PGVectorStore:
     if not KB_VERSION.fullmatch(kb_version):
         raise ValueError(f"invalid kb_version: {kb_version!r}")
     return PGVectorStore.from_params(
-        connection_string=sync_url(database_url),
-        async_connection_string=database_url,
+        # LlamaIndex creates tables over a sync connection.
+        connection_string=psycopg2_url(database_url),
+        async_connection_string=asyncpg_url(database_url),
         table_name=kb_version,
         embed_dim=embed_dim,
         hybrid_search=True,

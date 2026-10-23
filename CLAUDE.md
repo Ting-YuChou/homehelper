@@ -37,7 +37,7 @@ make test-integration   # + integration tests against the running stack (RUN_INT
 make test-agent-cov     # journey engine + guardrail tests with the >= 90% coverage gate
 make lint               # ruff check/format --check, pyright, eslint, tsc
 make fmt
-make migrate            # alembic upgrade head (needs `make up`)
+make migrate            # `homehelper db upgrade`: alembic to head from the packaged migrations (needs `make up`)
 make seed-mock          # reset the MCP mock tables to data/mock/ (needs `make migrate`)
 uv run homehelper mcp serve user_profile --mode mock   # one MCP server standalone (MCP Inspector)
 uv run evals run --suite smoke --simulator scripted --no-judge   # eval pipeline, no LLM cost
@@ -70,11 +70,18 @@ uv run evals regression pull          # exported cases -> evals/datasets/regress
 uv run evals run --suite regression --agent homehelper_evals.builders:journey   # replay them; --case ID for one
 uv run evals run --suite safety --record   # also store the report summary for /admin/evals
 uv run evals publish evals/reports         # store earlier reports for /admin/evals
+
+# Cloud (M8, docs/deploy.md, ADR-011) — region us-west1; every script takes --dry-run
+pnpm --filter web e2e                      # Playwright against E2E_BASE_URL (default localhost:3000)
+infra/gcp/bootstrap.sh --project <id>      # one-time GCP setup; prints the GitHub variables
+infra/gcp/secrets.sh --project <id>        # .env.cloud -> Secret Manager (never prints values)
+infra/gcp/cloudrun.sh url web              # shared deploy steps for deploy.yml / release.yml
+python3 infra/gcp/monitoring.py --project <id> --email <addr>   # uptime, 5xx, latency, spend alerts
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
 - Tests build the app with `create_app(make_settings(...))` from `apps/api/tests/conftest.py`; settings never read `.env` in tests.
-- Integration tests that need the app tables use the fixtures in `apps/api/tests/integration/conftest.py` (`migrated`, `api`, `redis` on Redis db 15, flushed per test). The web app calls the API directly (`NEXT_PUBLIC_API_URL`); the API's `CORS_ORIGINS` must list the web origin.
+- Integration tests that need the app tables use the fixtures in `apps/api/tests/integration/conftest.py` (`migrated`, `api`, `redis` on Redis db 15, flushed per test). The browser calls `/v1` on the web app, which proxies it to the API (`app/v1/[...path]/route.ts`, server-side `API_URL`, ADR-011); the API's `CORS_ORIGINS` must list the web origin, since the Origin check sees the browser's origin.
 - Integration tests are marked `@pytest.mark.integration` and skipped unless `RUN_INTEGRATION=1` (CI sets it, with Postgres/Redis service containers).
 - `apps/web` uses Next.js 16, which differs from older versions: read `apps/web/AGENTS.md` and the docs in `apps/web/node_modules/next/dist/docs/` before writing web code. `pnpm typecheck` runs `next typegen` first (needed for `LayoutProps` and similar types).
 - LiteLLM would `load_dotenv()` on import; `llm/litellm_client.py` sets `LITELLM_MODE=PRODUCTION` first so secrets only flow through `Settings`. Tests clear all Settings env vars (autouse fixture in `apps/api/tests/conftest.py`).
@@ -106,6 +113,9 @@ uv run evals publish evals/reports         # store earlier reports for /admin/ev
 | Video model: `VideoAnalyzer` protocol, `GeminiVideoAnalyzer`, `build_video_analyzer` (None without `GEMINI_API_KEY`) | `homehelper.media.gemini` |
 | Quality loop (spec §17.2, ADR-010): `IssueType`, admin-wide review queries, `RegressionCase` (export contract; `EvalCase` loads it), `build_case`/`suggest` (annotation → case), `eval_reports` (report summaries for `/admin/evals`) | `homehelper.quality` (`schemas`, `repository`, `regression`, `export`, `eval_reports`) |
 | Admin auth: `require_admin` accepts `X-Admin-Token` or the `hh_admin` cookie (`AdminSigner`; `POST /v1/admin/session` exchanges the token) | `homehelper.api.deps`, `homehelper.api.admin` |
+| Caller IP for rate limits: `client_ip(request, settings)` (trusts the web proxy's `X-HH-Client-IP` only with `PROXY_SECRET`) | `homehelper.api.deps` |
+| Per-driver `DATABASE_URL` (asyncpg / psycopg / psycopg2; Neon's `sslmode`) — never pass the raw URL to a driver | `homehelper.db.urls` |
+| Release at startup: `RELEASE_MANIFEST` (JSON) or `releases/<id>.yaml`; without one, production needs `KB_VERSION` (a main build, recorded with `GIT_SHA`) | `homehelper.releases.runtime` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.

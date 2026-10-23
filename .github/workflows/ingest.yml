@@ -1,0 +1,60 @@
+name: Ingest
+
+# Build a new knowledge-base snapshot in the cloud (spec §10.2, §18.4, M8-02): run the `hh-ingest`
+# Cloud Run job (PDFs and the LlamaParse cache come from the manuals bucket, so only new manuals
+# cost a parse), then a retrieval eval of the new kb_version. Serving it is a separate, deliberate
+# step: set the KB_VERSION variable this prints, and re-run Deploy.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  UV_LINK_MODE: copy
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Run the ingest job
+        run: infra/gcp/cloudrun.sh run-job ingest
+      - run: infra/gcp/ci-secrets.sh DATABASE_URL OPENAI_API_KEY COHERE_API_KEY
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.19"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Retrieval eval of the new snapshot
+        run: |
+          set -euo pipefail
+          # Without KB_VERSION the eval reads the newest ready snapshot: the one just built.
+          uv run python -m homehelper_evals.retrieval.run --split dev --rerank --limit 100 \
+            --rerank-per-min 300 | tee retrieval.txt
+          kb=$(grep '^report:' retrieval.txt | grep -oE 'kb_[0-9]{8}_[0-9]{2}' | head -n 1)
+          {
+            echo "### New knowledge base: $kb"
+            echo '```'; cat retrieval.txt; echo '```'
+            echo "To serve it: \`gh variable set KB_VERSION --body $kb\`, then re-run **Deploy**."
+          } >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: retrieval-report
+          path: evals/reports/retrieval_*.json
+          if-no-files-found: warn

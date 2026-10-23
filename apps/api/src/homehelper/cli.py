@@ -8,6 +8,7 @@ import typer
 from homehelper.core.config import get_settings
 from homehelper.core.logging import configure_logging
 from homehelper.db.engine import create_engine
+from homehelper.db.migrate import app as db_app
 from homehelper.ingestion import manifest as manifest_lib
 from homehelper.ingestion import pipeline
 from homehelper.ingestion.parse import ManualParser
@@ -18,6 +19,7 @@ from homehelper.releases.cli import app as release_app
 app = typer.Typer(no_args_is_help=True, help="HomeHelper maintenance commands.")
 manifest_app = typer.Typer(no_args_is_help=True, help="Manual manifest (M1-01).")
 app.add_typer(manifest_app, name="manifest")
+app.add_typer(db_app, name="db")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(release_app, name="release")
 

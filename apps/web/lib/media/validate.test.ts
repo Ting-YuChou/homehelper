@@ -32,14 +32,14 @@ describe("checkFiles", () => {
       [
         file("doc.pdf", "application/pdf"),
         file("big.jpg", "image/jpeg", 11 * 1024 * 1024),
-        file("long.mp4", "video/mp4", 101 * 1024 * 1024),
+        file("long.mp4", "video/mp4", 31 * 1024 * 1024),
       ],
     );
     expect(result.accepted).toEqual([]);
     expect(result.errors).toEqual([
       "doc.pdf: send a photo (JPEG, PNG, WebP, HEIC) or a video (MP4, MOV, WebM).",
       "big.jpg: photos can be up to 10 MB.",
-      "long.mp4: videos can be up to 100 MB.",
+      "long.mp4: videos can be up to 30 MB.",
     ]);
   });
 

@@ -6,7 +6,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, TypeAdapter
 
-from homehelper.api.deps import SESSION_COOKIE, SessionDep, SessionSigner, SettingsDep, UserDep
+from homehelper.api.deps import (
+    SESSION_COOKIE,
+    SessionDep,
+    SessionSigner,
+    SettingsDep,
+    UserDep,
+    client_ip,
+)
 from homehelper.api.schemas import DemoLoginRequest, DemoUserOut, UserOut
 from homehelper.conversations import repository
 from homehelper.ratelimit import TurnGuards
@@ -58,8 +65,8 @@ async def demo_login(
 ) -> UserOut:
     signer: SessionSigner = request.app.state.session_signer
     guards: TurnGuards = request.app.state.turn_guards
-    client_ip = request.client.host if request.client else "unknown"
-    decision = await guards.login_limiter.hit(f"rl:login:{client_ip}")
+    ip = client_ip(request, request.app.state.settings)
+    decision = await guards.login_limiter.hit(f"rl:login:{ip}")
     if not decision.allowed:
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,

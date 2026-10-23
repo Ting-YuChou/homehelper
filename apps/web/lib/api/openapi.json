@@ -1997,8 +1997,15 @@
             "type": "string"
           },
           "url": {
-            "title": "Url",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           }
         },
         "required": [
@@ -2215,6 +2222,10 @@
             "title": "Environment",
             "type": "string"
           },
+          "git_sha": {
+            "title": "Git Sha",
+            "type": "string"
+          },
           "release_id": {
             "title": "Release Id",
             "type": "string"
@@ -2227,6 +2238,7 @@
         "required": [
           "version",
           "release_id",
+          "git_sha",
           "environment"
         ],
         "title": "MetaResponse",

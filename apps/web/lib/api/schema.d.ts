@@ -1154,7 +1154,7 @@ export interface components {
             /** Title */
             title: string;
             /** Url */
-            url: string;
+            url: string | null;
         };
         /** MessageCompletedEvent */
         MessageCompletedEvent: {
@@ -1214,6 +1214,8 @@ export interface components {
         MetaResponse: {
             /** Environment */
             environment: string;
+            /** Git Sha */
+            git_sha: string;
             /** Release Id */
             release_id: string;
             /** Version */

@@ -35,7 +35,7 @@ describe("uploadFile", () => {
   });
 
   it.each([
-    [413, "too_large", "Videos can be up to 100 MB."],
+    [413, "too_large", "Videos can be up to 30 MB."],
     [415, "unsupported_type", "Send a photo or a video."],
     [422, "too_long", "Videos can be up to 60 seconds long."],
     [429, "rate_limited", "You've uploaded a lot of files."],

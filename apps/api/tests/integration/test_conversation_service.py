@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from homehelper.agent.protocol import AgentSnapshot
 from homehelper.agent.stub import StubAgent
@@ -141,14 +142,23 @@ async def test_llm_cost_is_stored_on_the_message_and_reported(
     async def on_finish(cost_usd: float) -> None:
         reported.append(cost_usd)
 
-    await _turn(
-        service, InboundMessage(conversation_id=conversation.id, text="Hi"), on_finish=on_finish
-    )
+    with capture_logs() as logs:
+        await _turn(
+            service,
+            InboundMessage(conversation_id=conversation.id, text="Hi"),
+            on_finish=on_finish,
+        )
 
     async with sessionmaker() as session:
         _, assistant = await repository.list_messages(session, conversation.id)
     assert assistant.cost_usd == pytest.approx(0.0123)
     assert reported == [pytest.approx(0.0123)]
+    # The log line behind the cloud latency and spend alerts (M8-03).
+    [turn] = [entry for entry in logs if entry["event"] == "turn.completed"]
+    assert turn["conversation_id"] == conversation.id
+    assert turn["cost_usd"] == pytest.approx(0.0123)
+    assert turn["duration_ms"] >= 0 and turn["failed"] is False
+    assert "outcome" in turn
 
 
 async def test_turn_finishes_when_the_client_disconnects(
@@ -176,10 +186,15 @@ async def test_agent_failure_becomes_an_error_event(
     async def on_finish(cost_usd: float) -> None:
         finished.append(cost_usd)
 
-    events = await _turn(
-        service, InboundMessage(conversation_id=conversation.id, text="Hi"), on_finish=on_finish
-    )
+    with capture_logs() as logs:
+        events = await _turn(
+            service,
+            InboundMessage(conversation_id=conversation.id, text="Hi"),
+            on_finish=on_finish,
+        )
 
+    [turn] = [entry for entry in logs if entry["event"] == "turn.completed"]
+    assert turn["failed"] is True and turn["cost_usd"] == pytest.approx(0.01)
     assert len(events) == 1
     assert isinstance(events[0], ErrorEvent) and events[0].code == "agent_error"
     assert finished == [pytest.approx(0.01)]  # the spend cap sees failed turns too

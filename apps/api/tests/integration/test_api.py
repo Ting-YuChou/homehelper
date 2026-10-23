@@ -130,7 +130,8 @@ async def test_manual_metadata_and_pdf(api: httpx.AsyncClient) -> None:
     await _login(api)
     manual = (await api.get("/v1/manuals/bosch-shx68t55")).json()
     assert manual["title"] == "Bosch 800 Series Dishwasher"
-    assert manual["url"] == "http://test/v1/manuals/bosch-shx68t55/file"
+    # Relative: the browser reaches the API through the web app's /v1 proxy (ADR-011).
+    assert manual["url"] == "/v1/manuals/bosch-shx68t55/file"
 
     pdf = await api.get("/v1/manuals/bosch-shx68t55/file")
     assert pdf.status_code == 200
@@ -140,6 +141,9 @@ async def test_manual_metadata_and_pdf(api: httpx.AsyncClient) -> None:
 
     assert (await api.get("/v1/manuals/unknown")).status_code == 404
     assert (await api.get("/v1/manuals/missing-pdf/file")).status_code == 404
+    # Without its PDF (production keeps PDFs out of the API, spec Q10) a manual has no link.
+    missing = (await api.get("/v1/manuals/missing-pdf")).json()
+    assert missing["url"] is None and missing["title"]
 
 
 async def test_my_appliances_come_from_the_profile_server(api: httpx.AsyncClient) -> None:

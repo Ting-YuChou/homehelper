@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from homehelper.core.config import Settings
 from homehelper.core.logging import get_logger
-from homehelper.db.models import KBVersion
+from homehelper.db.models import KBVersion, Release
 from homehelper.ingestion.chunking import Chunk, ManualChunker
 from homehelper.ingestion.manifest import ManualEntry, load_manifest
 from homehelper.ingestion.parse import ManualParser, ParsedManual
@@ -77,6 +77,13 @@ def referenced_versions(releases_dir: Path) -> set[str]:
     return found
 
 
+async def released_versions(engine: AsyncEngine) -> set[str]:
+    """kb_versions pinned by a row in `releases` (what the cloud runs; it has no checkout)."""
+    async with engine.connect() as conn:
+        rows = await conn.execute(select(Release.kb_version).where(Release.kb_version.isnot(None)))
+        return {version for (version,) in rows if version}
+
+
 async def enforce_retention(engine: AsyncEngine, releases_dir: Path) -> list[str]:
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as session:
@@ -87,7 +94,11 @@ async def enforce_retention(engine: AsyncEngine, releases_dir: Path) -> list[str
                 .order_by(KBVersion.version.desc())
             )
         )
-    keep = set(ready[:KEEP_VERSIONS]) | referenced_versions(releases_dir)
+    keep = (
+        set(ready[:KEEP_VERSIONS])
+        | referenced_versions(releases_dir)
+        | await released_versions(engine)
+    )
     dropped = [v for v in ready if v not in keep]
     async with engine.begin() as conn:
         for version in dropped:

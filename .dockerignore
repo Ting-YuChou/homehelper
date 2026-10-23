@@ -10,6 +10,7 @@
 **/.ruff_cache
 data
 !data/mock
+!data/manuals/manifest.yaml
 legacy
 docs
 evals/reports

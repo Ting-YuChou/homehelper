@@ -35,7 +35,7 @@ def create_app(
     agent: AgentRuntime | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, release_id=settings.release_id)
     # The release manifest for RELEASE_ID, if any (spec §17.3): its kb_version and model overrides.
     release = load_active_release(settings)
     settings = release.settings

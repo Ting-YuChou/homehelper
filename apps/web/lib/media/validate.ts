@@ -4,7 +4,8 @@ export type MediaKind = "image" | "video";
 
 export const MAX_ATTACHMENTS = 4;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+// Cloud Run caps a request at 32 MiB, so the API takes videos up to 30 MB.
+export const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 export const ACCEPT =
   "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm";
 
@@ -38,7 +39,7 @@ export function checkFiles(
     } else if (kind === "image" && file.size > MAX_IMAGE_BYTES) {
       errors.push(`${file.name}: photos can be up to 10 MB.`);
     } else if (kind === "video" && file.size > MAX_VIDEO_BYTES) {
-      errors.push(`${file.name}: videos can be up to 100 MB.`);
+      errors.push(`${file.name}: videos can be up to 30 MB.`);
     } else if (kind === "video" && videos >= 1) {
       errors.push(`${file.name}: one video per message.`);
     } else if (count >= MAX_ATTACHMENTS) {

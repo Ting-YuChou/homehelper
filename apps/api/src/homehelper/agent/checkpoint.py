@@ -1,7 +1,6 @@
 """Postgres checkpointer for the journey agent (spec §14.1): LangGraph's own tables, kept apart
 from the application tables in the `langgraph` schema and created by `setup()`, not Alembic."""
 
-import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,20 +9,16 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from homehelper.agent.graph import checkpoint_serde
+from homehelper.db.urls import psycopg_conninfo
 
 SCHEMA = "langgraph"
-
-
-def conninfo(database_url: str) -> str:
-    """psycopg conninfo from our SQLAlchemy URL (`postgresql+asyncpg://...`)."""
-    return re.sub(r"^postgresql\+\w+://", "postgresql://", database_url)
 
 
 @asynccontextmanager
 async def postgres_checkpointer(
     database_url: str, *, max_size: int = 10
 ) -> AsyncIterator[AsyncPostgresSaver]:
-    url = conninfo(database_url)
+    url = psycopg_conninfo(database_url)
     async with AsyncConnectionPool(
         url,
         max_size=max_size,

@@ -73,7 +73,7 @@ class LocalMediaStore:
     @staticmethod
     def _copy(source: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)  # streams; a 100 MB video never sits in memory
+        shutil.copyfile(source, target)  # streams; a whole video never sits in memory
 
     async def read(self, uri: str) -> bytes:
         return await asyncio.to_thread(self.path(uri).read_bytes)

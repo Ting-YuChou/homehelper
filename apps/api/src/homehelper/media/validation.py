@@ -10,7 +10,8 @@ MediaKind = Literal["image", "video"]
 IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic"}
 VIDEO_TYPES = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-MAX_VIDEO_BYTES = 100 * 1024 * 1024
+# Cloud Run caps an HTTP/1 request at 32 MiB, multipart wrapper included (ADR-011).
+MAX_VIDEO_BYTES = 30 * 1024 * 1024
 MAX_VIDEO_SECONDS = 60
 SNIFF_BYTES = 512  # enough for every signature above (filetype reads at most 262 bytes)
 

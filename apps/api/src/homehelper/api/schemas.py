@@ -143,7 +143,8 @@ class ManualOut(BaseModel):
     brand: str
     category: CategoryId
     pages: int
-    url: str  # where the PDF is served; append `#page=N` to open a cited page
+    # Where the PDF is served (append `#page=N` for a cited page); null when it isn't (spec Q10).
+    url: str | None
 
 
 class AnnotationFields(BaseModel):

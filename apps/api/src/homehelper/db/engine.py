@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from homehelper.db.urls import asyncpg_url
+
 
 def create_engine(database_url: str) -> AsyncEngine:
     # Connections are opened lazily on first use.
-    return create_async_engine(database_url, pool_pre_ping=True)
+    return create_async_engine(asyncpg_url(database_url), pool_pre_ping=True)
 
 
 def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

@@ -13,9 +13,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY apps/api apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package homehelper --no-editable
-# Read at startup (Settings.data_dir / web_whitelist_path are relative to /app): MCP mock data.
+# Read at startup (Settings.data_dir / web_whitelist_path are relative to /app): MCP mock data
+# and the manual manifest (retrieval filters, citation titles). PDFs never ship in the image.
 COPY config config
 COPY data/mock data/mock
+COPY data/manuals/manifest.yaml data/manuals/manifest.yaml
 
 # Local development: editable install + dev tools; source is bind-mounted by docker compose.
 FROM builder AS dev
@@ -31,9 +33,12 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/config /app/config
 COPY --from=builder --chown=app:app /app/data/mock /app/data/mock
+COPY --from=builder --chown=app:app /app/data/manuals /app/data/manuals
 # Local uploads only (MEDIA_BACKEND=local); Cloud Run uses a GCS bucket.
 RUN mkdir -p /app/data/media/uploads && chown -R app:app /app/data/media
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080
+# The commit this image was built from (deploy.yml passes it): /v1/meta and the releases row.
+ARG GIT_SHA=""
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080 GIT_SHA=${GIT_SHA}
 USER app
 EXPOSE 8080
 CMD ["sh", "-c", "exec uvicorn homehelper.main:create_app --factory --host 0.0.0.0 --port ${PORT} --no-access-log"]
