@@ -86,13 +86,16 @@ class JourneyAgent:
                     stream_mode="custom",
                 ):
                     await queue.put(cast(AgentEvent, event))
-        except Exception as exc:
+        except Exception:
             log.exception("agent_turn_failed", conversation_id=message.conversation_id)
             if before is not None:  # the turn ran: undo what it saved
                 await self._roll_back(message.conversation_id, before)
             await queue.put(
+                # The turn was rolled back, so sending the message again is safe. The exception
+                # is in the log, not shown to the user.
                 ErrorEvent(
-                    code="agent_error", message=f"The assistant failed: {type(exc).__name__}"
+                    code="agent_error",
+                    message="Something went wrong on our side. Please send your message again.",
                 )
             )
         finally:

@@ -49,4 +49,6 @@ def open_store(
         hnsw_kwargs=HNSW,
         indexed_metadata_keys=INDEXED_METADATA,
         perform_setup=create,
+        # A pooled connection may have been closed by the server (Neon suspends idle computes).
+        create_engine_kwargs={"pool_pre_ping": True},
     )

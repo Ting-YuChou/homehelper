@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from homehelper.agent.checkpoint import postgres_checkpointer
+from homehelper.agent.checkpoint import APPLICATION_NAME, postgres_checkpointer
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.runtime import JourneyAgent
 from homehelper.agent.turn import AgentReply
@@ -59,3 +59,21 @@ async def test_conversation_state_survives_a_restart() -> None:
         found = await conn.execute(text("SELECT to_regclass('langgraph.checkpoints')"))
         assert found.scalar() == "langgraph.checkpoints"
     await engine.dispose()
+
+
+async def test_a_connection_closed_by_the_server_is_replaced() -> None:
+    """Neon closes every connection when an idle compute suspends; the next turn must not fail."""
+    config = {"configurable": {"thread_id": f"it-{uuid.uuid4().hex[:8]}"}}
+    async with postgres_checkpointer(DATABASE_URL) as saver:
+        engine = create_async_engine(DATABASE_URL)
+        async with engine.connect() as admin:
+            killed = await admin.execute(
+                text(
+                    "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity"
+                    " WHERE application_name = :name"
+                ),
+                {"name": APPLICATION_NAME},
+            )
+            assert killed.scalar()
+        await engine.dispose()
+        assert await saver.aget_tuple(config) is None  # type: ignore[arg-type]
