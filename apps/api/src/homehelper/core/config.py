@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Web API (spec §13.2, §18.1). An empty session secret is only allowed locally and in tests.
     session_secret: SecretStr = SecretStr("")
     session_max_age_s: int = 7 * 24 * 3600
+    # When set, signing in (demo user or guest) needs this code, so only people it was given to
+    # can start LLM turns; changing it ends every session (ADR-011). Empty: anyone can sign in.
+    demo_access_code: SecretStr = SecretStr("")
     # `/v1/admin` (spec §17.2): the token, or the signed `hh_admin` cookie it is exchanged for.
     admin_token: SecretStr = SecretStr("")
     admin_session_max_age_s: int = 8 * 3600

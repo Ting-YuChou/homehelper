@@ -163,13 +163,17 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: Load the demo access code for the smoke test
+        if: steps.kb.outputs.ready == 'true'
+        run: infra/gcp/ci-secrets.sh DEMO_ACCESS_CODE
       - name: Smoke-test the web candidate (Playwright; the real agent costs about $0.05)
         if: steps.kb.outputs.ready == 'true'
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile --filter web...
           pnpm --filter web exec playwright install --with-deps chromium
-          E2E_BASE_URL=$(infra/gcp/cloudrun.sh url web --candidate) pnpm --filter web e2e e2e/chat.spec.ts
+          E2E_BASE_URL=$(infra/gcp/cloudrun.sh url web --candidate) E2E_ACCESS_CODE=${DEMO_ACCESS_CODE:-} \
+            pnpm --filter web e2e e2e/chat.spec.ts
       - name: Send web traffic to the candidate
         if: steps.kb.outputs.ready == 'true'
         run: infra/gcp/cloudrun.sh promote web

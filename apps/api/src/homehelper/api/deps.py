@@ -55,12 +55,31 @@ def client_ip(request: Request, settings: Settings) -> str:
 
 
 class SessionSigner:
-    """Signs the user id into the `hh_session` cookie (spec §18.1: signed httpOnly cookie)."""
+    """Signs the user id into the `hh_session` cookie (spec §18.1: signed httpOnly cookie).
+
+    With a demo access code, the signing salt carries a keyed fingerprint of the code, so
+    changing the code ends every session (ADR-011).
+    """
 
     def __init__(self, settings: Settings) -> None:
-        self._serializer = URLSafeTimedSerializer(session_secret(settings), salt="hh-session")
+        secret = session_secret(settings)
+        self._code = settings.demo_access_code.get_secret_value()
+        salt = "hh-session"
+        if self._code:
+            digest = hmac.new(secret.encode(), self._code.encode(), hashlib.sha256).hexdigest()
+            salt += ":" + digest[:32]
+        self._serializer = URLSafeTimedSerializer(secret, salt=salt)
         self.max_age_s = settings.session_max_age_s
         self.secure = settings.app_env not in ("local", "test")
+
+    @property
+    def access_code_required(self) -> bool:
+        return bool(self._code)
+
+    def access_code_matches(self, code: str | None) -> bool:
+        if not self._code:
+            return True
+        return bool(code) and secrets.compare_digest(code.strip().encode(), self._code.encode())
 
     def dumps(self, user_id: str) -> str:
         return self._serializer.dumps(user_id)

@@ -938,8 +938,11 @@ export interface components {
         /**
          * DemoLoginRequest
          * @description `user_id` is a demo user's id; null signs in as an anonymous guest (no personalization).
+         *     `access_code` is required when the API has a demo access code (`/v1/meta`).
          */
         DemoLoginRequest: {
+            /** Access Code */
+            access_code?: string | null;
             /** User Id */
             user_id?: string | null;
         };
@@ -1212,6 +1215,8 @@ export interface components {
         };
         /** MetaResponse */
         MetaResponse: {
+            /** Access Code Required */
+            access_code_required: boolean;
             /** Environment */
             environment: string;
             /** Git Sha */

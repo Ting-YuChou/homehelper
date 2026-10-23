@@ -11,6 +11,7 @@ class MetaResponse(BaseModel):
     release_id: str
     git_sha: str  # empty when running from source
     environment: str
+    access_code_required: bool  # signing in needs the demo access code
 
 
 @router.get("/meta", response_model=MetaResponse)
@@ -21,4 +22,5 @@ async def meta(request: Request) -> MetaResponse:
         release_id=settings.release_id,
         git_sha=settings.git_sha,
         environment=settings.app_env,
+        access_code_required=request.app.state.session_signer.access_code_required,
     )

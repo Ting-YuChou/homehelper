@@ -113,6 +113,7 @@ python3 infra/gcp/monitoring.py --project <id> --email <addr>   # uptime, 5xx, l
 | Video model: `VideoAnalyzer` protocol, `GeminiVideoAnalyzer`, `build_video_analyzer` (None without `GEMINI_API_KEY`) | `homehelper.media.gemini` |
 | Quality loop (spec §17.2, ADR-010): `IssueType`, admin-wide review queries, `RegressionCase` (export contract; `EvalCase` loads it), `build_case`/`suggest` (annotation → case), `eval_reports` (report summaries for `/admin/evals`) | `homehelper.quality` (`schemas`, `repository`, `regression`, `export`, `eval_reports`) |
 | Admin auth: `require_admin` accepts `X-Admin-Token` or the `hh_admin` cookie (`AdminSigner`; `POST /v1/admin/session` exchanges the token) | `homehelper.api.deps`, `homehelper.api.admin` |
+| Demo access code: `SessionSigner.access_code_matches()`; the session salt carries the code's fingerprint, so changing `DEMO_ACCESS_CODE` ends every session; `/v1/meta` says `access_code_required` | `homehelper.api.deps` |
 | Caller IP for rate limits: `client_ip(request, settings)` (trusts the web proxy's `X-HH-Client-IP` only with `PROXY_SECRET`) | `homehelper.api.deps` |
 | Per-driver `DATABASE_URL` (asyncpg / psycopg / psycopg2; Neon's `sslmode`) — never pass the raw URL to a driver | `homehelper.db.urls` |
 | Release at startup: `RELEASE_MANIFEST` (JSON) or `releases/<id>.yaml`; without one, production needs `KB_VERSION` (a main build, recorded with `GIT_SHA`) | `homehelper.releases.runtime` |

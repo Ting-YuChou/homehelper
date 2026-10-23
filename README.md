@@ -10,7 +10,8 @@ The design follows Sierra's agent approach:
 - **Every change is measured** with τ-bench-style simulated conversations and pass^k.
 
 > **Demo:** the live link and a demo GIF are added after the first cloud deploy
-> ([`docs/deploy.md`](docs/deploy.md)).
+> ([`docs/deploy.md`](docs/deploy.md)). The chat needs an access code, because it runs on the
+> owner's LLM keys; ask for one.
 
 ## Architecture
 
