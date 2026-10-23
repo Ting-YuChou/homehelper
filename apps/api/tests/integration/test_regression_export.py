@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 import yaml
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from homehelper.core.config import Settings
@@ -43,20 +43,15 @@ def api_settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture(autouse=True)
-async def _drop_test_cases(
+async def _drop_test_conversations(
     sessionmaker: async_sessionmaker[AsyncSession],
 ) -> AsyncIterator[None]:
-    """The integration database is the dev database: remove the cases these tests exported (by
-    their test release), so a developer's `evals regression pull` never picks them up."""
+    """The integration database is the dev database: remove this module's conversations (by their
+    test release). The cascade takes their annotations and exported cases with them, so a
+    developer's `evals regression pull` and /admin/review never see them."""
     yield
     async with sessionmaker.begin() as session:
-        await session.execute(
-            delete(RegressionCaseRow).where(
-                RegressionCaseRow.conversation_id.in_(
-                    select(Conversation.id).where(Conversation.release_id == RELEASE)
-                )
-            )
-        )
+        await session.execute(delete(Conversation).where(Conversation.release_id == RELEASE))
 
 
 async def _annotated_reply(

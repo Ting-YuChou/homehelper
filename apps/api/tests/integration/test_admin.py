@@ -1,12 +1,16 @@
 """The admin review API (spec §13.2, §17.2, M7-01) with the StubAgent, Postgres and Redis."""
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from homehelper.core.config import Settings
+from homehelper.db.models import Conversation
 from tests.conftest import make_settings
 from tests.integration.conftest import database_url, parse_sse, redis_test_url, write_demo_data
 from tests.unit.media.samples import image_bytes
@@ -15,6 +19,7 @@ pytestmark = pytest.mark.integration
 
 ADMIN = "admin-secret"
 HEADERS = {"X-Admin-Token": ADMIN}
+RELEASE = "r-admin-test"
 
 
 @pytest.fixture
@@ -25,10 +30,21 @@ def api_settings(tmp_path: Path) -> Settings:
         redis_url=redis_test_url(),
         data_dir=tmp_path,
         admin_token=ADMIN,
-        release_id="r-admin-test",
+        release_id=RELEASE,
         langfuse_base_url="https://lf.example",
         langfuse_project_id="proj1",
     )
+
+
+@pytest.fixture(autouse=True)
+async def _drop_test_conversations(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[None]:
+    """The integration database is the dev database: remove this module's conversations (and,
+    by cascade, their messages, feedback and annotations) so /admin/review stays clean."""
+    yield
+    async with sessionmaker.begin() as session:
+        await session.execute(delete(Conversation).where(Conversation.release_id == RELEASE))
 
 
 async def _conversation(api: httpx.AsyncClient, *texts: str, user: str | None = "demo_alex") -> str:
@@ -102,7 +118,7 @@ async def test_review_list_filters_and_counts(api: httpx.AsyncClient) -> None:
     await api.post(f"/v1/messages/{first}/feedback", json={"rating": "down", "reason": "Vague"})
     await api.post(f"/v1/messages/{second}/feedback", json={"rating": "up"})
 
-    rows = {r["id"]: r for r in (await _list(api, release_id="r-admin-test"))["items"]}
+    rows = {r["id"]: r for r in (await _list(api, release_id=RELEASE))["items"]}
     assert {fixed, chat} <= rows.keys()
     row = rows[fixed]
     assert (row["user_id"], row["user_is_demo"]) == ("demo_alex", True)
@@ -127,9 +143,9 @@ async def test_review_list_filters_and_counts(api: httpx.AsyncClient) -> None:
 
 async def test_review_list_pages_with_a_cursor_and_samples(api: httpx.AsyncClient) -> None:
     ids = [await _conversation(api, "Hi") for _ in range(3)]
-    page = await _list(api, limit=2, release_id="r-admin-test")
+    page = await _list(api, limit=2, release_id=RELEASE)
     assert len(page["items"]) == 2 and page["next_before"]
-    rest = await _list(api, limit=2, release_id="r-admin-test", before=page["next_before"])
+    rest = await _list(api, limit=2, release_id=RELEASE, before=page["next_before"])
     seen = [r["id"] for r in page["items"] + rest["items"]]
     assert len(seen) == len(set(seen))
     assert set(ids) <= set(seen) | {r["id"] for r in (await _list(api, limit=100))["items"]}
