@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, MessageSquarePlus, Refrigerator, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,11 @@ export function ConversationList({
   const router = useRouter();
   const queryClient = useQueryClient();
   const conversations = useQuery(conversationsQuery);
+  // Asked in the page, not with window.confirm: some browsers suppress native dialogs, and the
+  // click then silently does nothing.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  // "Keep" puts keyboard focus back on that row's delete button.
+  const refocus = useRef<string | null>(null);
 
   const remove = useMutation({
     mutationFn: (id: string) =>
@@ -38,6 +44,7 @@ export function ConversationList({
         }),
       ),
     onSuccess: (_, id) => {
+      setConfirming(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       if (id === activeId) router.push("/chat");
     },
@@ -94,18 +101,50 @@ export function ConversationList({
                   <OutcomeBadge outcome={conversation.outcome} />
                 </span>
               </Link>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete conversation"
-                className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (window.confirm("Delete this conversation?")) remove.mutate(conversation.id);
-                }}
-              >
-                <Trash2 />
-              </Button>
+              {confirming === conversation.id ? (
+                <div
+                  className="flex shrink-0 items-center gap-1"
+                  role="group"
+                  aria-label={`Delete “${conversation.title ?? "New conversation"}”?`}
+                >
+                  <Button
+                    size="xs"
+                    variant="destructive"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(conversation.id)}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    autoFocus
+                    onClick={() => {
+                      refocus.current = conversation.id;
+                      setConfirming(null);
+                    }}
+                  >
+                    Keep
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete conversation"
+                  ref={(button) => {
+                    if (button && refocus.current === conversation.id) {
+                      refocus.current = null;
+                      button.focus();
+                    }
+                  }}
+                  className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
+                  disabled={remove.isPending}
+                  onClick={() => setConfirming(conversation.id)}
+                >
+                  <Trash2 />
+                </Button>
+              )}
             </div>
           ))}
         </nav>
