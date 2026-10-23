@@ -1,0 +1,108 @@
+name: Evals
+
+# Evals on pull requests that need the cloud knowledge base and real API keys (spec §16.5,
+# §18.4, M8). Secrets come from Secret Manager through Workload Identity Federation, so PRs from
+# forks and Dependabot (no OIDC token for this repo's pool) skip them.
+#
+# - retrieval: Recall@5 / MRR on 100 dev scenarios against the served KB_VERSION, when a PR
+#   touches retrieval, ingestion, the manual manifest or the retrieval eval (about $0.20).
+# - smoke: the `smoke` suite with the journey agent, on PRs labelled `run-eval` (a few dollars).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  KB_VERSION: ${{ vars.KB_VERSION }}
+  UV_LINK_MODE: copy
+
+jobs:
+  retrieval:
+    if: >-
+      vars.GCP_WIF_PROVIDER != '' && github.event.action != 'labeled' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Does this PR touch retrieval?
+        id: paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          pattern='^(apps/api/src/homehelper/(knowledge|ingestion)/|data/manuals/|evals/homehelper_evals/retrieval/|apps/api/src/homehelper/llm/models\.yaml)'
+          if git diff --name-only "$BASE" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "No retrieval changes; skipped." >>"$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.paths.outputs.run == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - if: steps.paths.outputs.run == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+      - if: steps.paths.outputs.run == 'true'
+        run: infra/gcp/ci-secrets.sh DATABASE_URL OPENAI_API_KEY COHERE_API_KEY
+      - if: steps.paths.outputs.run == 'true'
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.19"
+          enable-cache: true
+      - name: Retrieval eval
+        if: steps.paths.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          uv sync --frozen
+          uv run python -m homehelper_evals.retrieval.run --split dev --rerank --limit 100 \
+            --conditions category --rerank-per-min 300 | tee retrieval.txt
+          { echo '### Retrieval eval'; echo '```'; cat retrieval.txt; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+
+  smoke:
+    if: >-
+      vars.GCP_WIF_PROVIDER != '' && contains(github.event.pull_request.labels.*.name, 'run-eval') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - run: |
+          infra/gcp/ci-secrets.sh DATABASE_URL ANTHROPIC_API_KEY OPENAI_API_KEY \
+            OPENROUTER_API_KEY COHERE_API_KEY LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
+            LANGFUSE_BASE_URL LANGFUSE_PROJECT_ID
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.19"
+          enable-cache: true
+      - name: Smoke suite (journey agent)
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          uv sync --frozen
+          uv run evals run --suite smoke --agent homehelper_evals.builders:journey \
+            --release "pr-$PR-${GITHUB_SHA:0:7}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-report
+          path: evals/reports/pr-*
+          if-no-files-found: ignore
