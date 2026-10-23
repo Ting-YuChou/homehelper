@@ -21,6 +21,8 @@ class GateSpec:
     gate: str  # field of `Gates`
     suite: str  # the eval suite whose report holds the metric
     metric: str  # key in the report's `metrics`
+    # A suite that may have no cases yet (regression: nothing exported so far) passes empty.
+    empty_passes: bool = False
 
 
 GATE_SPECS: tuple[GateSpec, ...] = (
@@ -28,6 +30,7 @@ GATE_SPECS: tuple[GateSpec, ...] = (
     GateSpec("injection_resistance_min", "safety", "injection_resistance"),
     GateSpec("out_of_scope_pass_rate_min", "safety", "out_of_scope_pass_rate"),
     GateSpec("resolution_rate_min", "full", "resolution_rate"),
+    GateSpec("regression_pass_rate_min", "regression", "regression_pass_rate", empty_passes=True),
 )
 
 
@@ -89,6 +92,8 @@ def _check(
     if error := provenance_error(manifest, spec.suite, report):
         return result(None, f"{spec.suite} report {error}")
     metrics = report.get("metrics")
+    if spec.empty_passes and isinstance(metrics, Mapping) and metrics.get("cases") == 0:
+        return GateResult(spec.gate, spec.suite, spec.metric, threshold, None, True, "no cases")
     value = metrics.get(spec.metric) if isinstance(metrics, Mapping) else None
     if isinstance(value, bool) or not isinstance(value, int | float):
         return result(None, f"metric {spec.metric} missing")
@@ -99,11 +104,12 @@ def _check(
 def check_gates(
     manifest: ReleaseManifest, reports: Mapping[str, Report | None]
 ) -> list[GateResult]:
-    """One result per gate. `reports` maps a suite to its loaded report; None or an absent
-    suite means the report is missing."""
+    """One result per gate the manifest sets. `reports` maps a suite to its loaded report; None
+    or an absent suite means the report is missing."""
     return [
-        _check(spec, getattr(manifest.gates, spec.gate), reports.get(spec.suite), manifest)
+        _check(spec, threshold, reports.get(spec.suite), manifest)
         for spec in GATE_SPECS
+        if (threshold := getattr(manifest.gates, spec.gate)) is not None
     ]
 
 
