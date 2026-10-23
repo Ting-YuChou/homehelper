@@ -1,5 +1,6 @@
 """Request dependencies: DB session, the signed session cookie, admin token, Origin check."""
 
+import hashlib
 import secrets
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -14,6 +15,7 @@ from homehelper.db.models import User
 from homehelper.mcp_servers.factory import McpServers
 
 SESSION_COOKIE = "hh_session"
+ADMIN_COOKIE = "hh_admin"
 _DEV_SECRET = "homehelper-local-session-secret"  # local and test only
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -45,6 +47,40 @@ class SessionSigner:
         except BadSignature:  # also covers SignatureExpired
             return None
         return value if isinstance(value, str) else None
+
+
+class AdminSigner:
+    """Signs the `hh_admin` cookie the admin token is exchanged for (M7-01).
+
+    The cookie carries a fingerprint of the token, so rotating `ADMIN_TOKEN` ends every admin
+    session; with no token configured nothing validates.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._serializer = URLSafeTimedSerializer(session_secret(settings), salt="hh-admin")
+        self._token = settings.admin_token.get_secret_value()
+        self.max_age_s = settings.admin_session_max_age_s
+        self.secure = settings.app_env not in ("local", "test")
+
+    def _fingerprint(self) -> str:
+        return hashlib.sha256(self._token.encode()).hexdigest()[:32]
+
+    def token_matches(self, token: str) -> bool:
+        return bool(self._token and token) and secrets.compare_digest(token, self._token)
+
+    def dumps(self) -> str:
+        if not self._token:
+            raise ValueError("ADMIN_TOKEN is not set")
+        return self._serializer.dumps(self._fingerprint())
+
+    def valid(self, cookie: str) -> bool:
+        if not self._token:
+            return False
+        try:
+            value = self._serializer.loads(cookie, max_age=self.max_age_s)
+        except BadSignature:  # also covers SignatureExpired
+            return False
+        return isinstance(value, str) and secrets.compare_digest(value, self._fingerprint())
 
 
 def get_settings(request: Request) -> Settings:
@@ -90,9 +126,11 @@ def check_origin(request: Request, settings: SettingsDep) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Origin not allowed")
 
 
-def require_admin(
-    settings: SettingsDep, x_admin_token: Annotated[str | None, Header()] = None
-) -> None:
-    expected = settings.admin_token.get_secret_value()
-    if not expected or not x_admin_token or not secrets.compare_digest(x_admin_token, expected):
+def require_admin(request: Request, x_admin_token: Annotated[str | None, Header()] = None) -> None:
+    """The `X-Admin-Token` header (CLI, curl) or the `hh_admin` cookie (the web app)."""
+    signer: AdminSigner = request.app.state.admin_signer
+    cookie = request.cookies.get(ADMIN_COOKIE)
+    if not (x_admin_token and signer.token_matches(x_admin_token)) and not (
+        cookie and signer.valid(cookie)
+    ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin token required")

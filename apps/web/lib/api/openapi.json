@@ -1,8 +1,577 @@
 {
   "components": {
     "schemas": {
+      "AdminAttachmentRef": {
+        "properties": {
+          "analysis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime",
+          "status",
+          "analysis"
+        ],
+        "title": "AdminAttachmentRef",
+        "type": "object"
+      },
+      "AdminConversationDetail": {
+        "properties": {
+          "active_journey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Journey"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AdminMessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_display_name": {
+            "title": "User Display Name",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "user_is_demo": {
+            "title": "User Is Demo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "release_id",
+          "outcome",
+          "active_journey",
+          "created_at",
+          "updated_at",
+          "user_id",
+          "user_display_name",
+          "user_is_demo",
+          "messages"
+        ],
+        "title": "AdminConversationDetail",
+        "type": "object"
+      },
+      "AdminConversationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminConversationRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "title": "AdminConversationPage",
+        "type": "object"
+      },
+      "AdminConversationRow": {
+        "properties": {
+          "active_journey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Journey"
+          },
+          "annotation_count": {
+            "title": "Annotation Count",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "down_count": {
+            "title": "Down Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "up_count": {
+            "title": "Up Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_display_name": {
+            "title": "User Display Name",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "user_is_demo": {
+            "title": "User Is Demo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "release_id",
+          "outcome",
+          "active_journey",
+          "created_at",
+          "updated_at",
+          "user_id",
+          "user_display_name",
+          "user_is_demo",
+          "message_count",
+          "up_count",
+          "down_count",
+          "annotation_count",
+          "cost_usd"
+        ],
+        "title": "AdminConversationRow",
+        "type": "object"
+      },
+      "AdminLogin": {
+        "properties": {
+          "token": {
+            "maxLength": 500,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "AdminLogin",
+        "type": "object"
+      },
+      "AdminManualOut": {
+        "properties": {
+          "brand": {
+            "title": "Brand",
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategoryId"
+          },
+          "doc_id": {
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "title",
+          "brand",
+          "category"
+        ],
+        "title": "AdminManualOut",
+        "type": "object"
+      },
+      "AdminMessageOut": {
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StructuredAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationOut"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AdminAttachmentRef"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "cards": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "appliance_confirm": "#/components/schemas/ApplianceConfirmCard",
+                  "booking_slots": "#/components/schemas/BookingSlotsCard",
+                  "citation": "#/components/schemas/CitationCard",
+                  "handoff": "#/components/schemas/HandoffCard",
+                  "issues": "#/components/schemas/IssuesCard",
+                  "part": "#/components/schemas/PartCard",
+                  "safety": "#/components/schemas/SafetyCard",
+                  "step": "#/components/schemas/StepCard",
+                  "video": "#/components/schemas/VideoCard"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StepCard"
+                },
+                {
+                  "$ref": "#/components/schemas/CitationCard"
+                },
+                {
+                  "$ref": "#/components/schemas/SafetyCard"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplianceConfirmCard"
+                },
+                {
+                  "$ref": "#/components/schemas/PartCard"
+                },
+                {
+                  "$ref": "#/components/schemas/VideoCard"
+                },
+                {
+                  "$ref": "#/components/schemas/BookingSlotsCard"
+                },
+                {
+                  "$ref": "#/components/schemas/HandoffCard"
+                },
+                {
+                  "$ref": "#/components/schemas/IssuesCard"
+                }
+              ]
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          },
+          "feedback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback Reason"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "trace_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Url"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "cards",
+          "citations",
+          "action",
+          "created_at",
+          "trace_id",
+          "latency_ms",
+          "cost_usd"
+        ],
+        "title": "AdminMessageOut",
+        "type": "object"
+      },
       "AnnotationCreate": {
         "properties": {
+          "expected_response": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Response"
+          },
+          "issue_types": {
+            "items": {
+              "enum": [
+                "wrong_diagnosis",
+                "unsafe",
+                "hallucination",
+                "wrong_manual",
+                "too_many_steps_at_once",
+                "tone",
+                "missed_escalation",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Issue Types",
+            "type": "array"
+          },
+          "message_id": {
+            "maxLength": 64,
+            "title": "Message Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "verdict": {
+            "enum": [
+              "correct",
+              "incorrect"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "message_id"
+        ],
+        "title": "AnnotationCreate",
+        "type": "object"
+      },
+      "AnnotationOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
           "expected_response": {
             "anyOf": [
               {
@@ -14,8 +583,33 @@
             ],
             "title": "Expected Response"
           },
+          "exported_case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exported Case Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
           "issue_types": {
             "items": {
+              "enum": [
+                "wrong_diagnosis",
+                "unsafe",
+                "hallucination",
+                "wrong_manual",
+                "too_many_steps_at_once",
+                "tone",
+                "missed_escalation",
+                "other"
+              ],
               "type": "string"
             },
             "title": "Issue Types",
@@ -36,6 +630,11 @@
             ],
             "title": "Notes"
           },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
           "verdict": {
             "enum": [
               "correct",
@@ -46,10 +645,77 @@
           }
         },
         "required": [
+          "id",
           "message_id",
+          "verdict",
+          "issue_types",
+          "expected_response",
+          "notes",
+          "exported_case_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AnnotationOut",
+        "type": "object"
+      },
+      "AnnotationUpdate": {
+        "description": "Replaces every field of an annotation that hasn't been exported.",
+        "properties": {
+          "expected_response": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Response"
+          },
+          "issue_types": {
+            "items": {
+              "enum": [
+                "wrong_diagnosis",
+                "unsafe",
+                "hallucination",
+                "wrong_manual",
+                "too_many_steps_at_once",
+                "tone",
+                "missed_escalation",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Issue Types",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "verdict": {
+            "enum": [
+              "correct",
+              "incorrect"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
           "verdict"
         ],
-        "title": "AnnotationCreate",
+        "title": "AnnotationUpdate",
         "type": "object"
       },
       "ApplianceConfirmCard": {
@@ -1747,6 +2413,16 @@
           "required": true
         },
         "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1756,17 +2432,140 @@
               }
             },
             "description": "Validation Error"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
           }
         },
         "summary": "Annotate",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/annotations/{annotation_id}": {
+      "delete": {
+        "operationId": "delete_annotation_v1_admin_annotations__annotation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Annotation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Annotation",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "update_annotation_v1_admin_annotations__annotation_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Annotation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Annotation",
         "tags": [
           "admin"
         ]
@@ -1828,8 +2627,68 @@
         ]
       }
     },
+    "/v1/admin/attachments/{attachment_id}": {
+      "get": {
+        "operationId": "attachment_url_v1_admin_attachments__attachment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attachment Url",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/v1/admin/conversations": {
       "get": {
+        "description": "Newest first, `limit` per page; with `sample`, that many random conversations instead.",
         "operationId": "review_conversations_v1_admin_conversations_get",
         "parameters": [
           {
@@ -1839,6 +2698,13 @@
             "schema": {
               "anyOf": [
                 {
+                  "enum": [
+                    "resolved",
+                    "escalated",
+                    "abandoned",
+                    "out_of_scope",
+                    "open"
+                  ],
                   "type": "string"
                 },
                 {
@@ -1875,6 +2741,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 64,
                   "type": "string"
                 },
                 {
@@ -1882,6 +2749,71 @@
                 }
               ],
               "title": "Release Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "annotated",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Annotated"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 300,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "description": "Random sample size",
+            "in": "query",
+            "name": "sample",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Random sample size",
+              "title": "Sample"
             }
           },
           {
@@ -1902,6 +2834,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConversationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1911,17 +2853,68 @@
               }
             },
             "description": "Validation Error"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
           }
         },
         "summary": "Review Conversations",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/conversations/{conversation_id}": {
+      "get": {
+        "operationId": "review_conversation_v1_admin_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Conversation",
         "tags": [
           "admin"
         ]
@@ -1969,6 +2962,156 @@
           }
         },
         "summary": "Eval Reports",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/manuals": {
+      "get": {
+        "description": "Every manual in the manifest, to pick the one a reply should have cited.",
+        "operationId": "list_manuals_v1_admin_manuals_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminManualOut"
+                  },
+                  "title": "Response List Manuals V1 Admin Manuals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Manuals",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/session": {
+      "delete": {
+        "operationId": "sign_out_v1_admin_session_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sign Out",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "description": "204 while signed in (or with the header), else 401.",
+        "operationId": "check_v1_admin_session_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "sign_in_v1_admin_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "Sign In",
         "tags": [
           "admin"
         ]

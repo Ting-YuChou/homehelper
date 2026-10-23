@@ -134,6 +134,11 @@ async def get_attachment(
     attachment = await repository.get_attachment(session, attachment_id, user_id=user.id)
     if attachment is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
+    return await signed_attachment(request, attachment)
+
+
+async def signed_attachment(request: Request, attachment: Attachment) -> AttachmentUrlOut:
+    """A short-lived URL for an attachment the caller may see (its owner, or an admin)."""
     store: MediaStore = request.app.state.media_store
     base_url = str(request.url_for("get_media", token="_")).removesuffix("_")
     signed = await store.signed_url(

@@ -45,7 +45,10 @@ class Settings(BaseSettings):
     # Web API (spec §13.2, §18.1). An empty session secret is only allowed locally and in tests.
     session_secret: SecretStr = SecretStr("")
     session_max_age_s: int = 7 * 24 * 3600
+    # `/v1/admin` (spec §17.2): the token, or the signed `hh_admin` cookie it is exchanged for.
     admin_token: SecretStr = SecretStr("")
+    admin_session_max_age_s: int = 8 * 3600
+    admin_login_rate_limit_per_hour: int = 10
     # Browser origins allowed to call the API (CORS) and to send write requests (Origin check).
     cors_origins: list[str] = ["http://localhost:3000"]
     # Turn guards (spec §18.1): messages per IP and per user, and the daily LLM spend cap in USD
@@ -75,6 +78,8 @@ class Settings(BaseSettings):
         default="https://cloud.langfuse.com",
         validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST"),
     )
+    # Only for links from the admin review page to a turn's trace.
+    langfuse_project_id: str = ""
 
     @property
     def manuals_dir(self) -> Path:

@@ -2,13 +2,14 @@
 schema the web app's TypeScript types are generated from."""
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from homehelper.channels.events import Card, StructuredAction
 from homehelper.knowledge.schemas import CategoryId, Citation
 from homehelper.mcp_servers.schemas import RepairOutcome, WarrantyState
+from homehelper.quality.schemas import IssueType, Verdict
 
 Rating = Literal["up", "down"]
 Role = Literal["user", "assistant", "system"]
@@ -142,12 +143,93 @@ class ManualOut(BaseModel):
     url: str  # where the PDF is served; append `#page=N` to open a cited page
 
 
-class AnnotationCreate(BaseModel):
+class AnnotationFields(BaseModel):
+    """A reviewer's verdict (spec §17.2). `incorrect` names at least one issue type; `correct`
+    names none."""
+
+    verdict: Verdict
+    issue_types: list[IssueType] = Field(default_factory=list, max_length=8)
+    expected_response: str | None = Field(default=None, max_length=4000)
+    notes: str | None = Field(default=None, max_length=4000)
+
+    @model_validator(mode="after")
+    def _issues_match_the_verdict(self) -> Self:
+        if len(set(self.issue_types)) != len(self.issue_types):
+            raise ValueError("issue_types must not repeat")
+        if self.verdict == "incorrect" and not self.issue_types:
+            raise ValueError("an incorrect reply needs at least one issue type")
+        if self.verdict == "correct" and self.issue_types:
+            raise ValueError("a correct reply has no issue types")
+        return self
+
+
+class AnnotationCreate(AnnotationFields):
+    message_id: str = Field(max_length=64)
+
+
+class AnnotationUpdate(AnnotationFields):
+    """Replaces every field of an annotation that hasn't been exported."""
+
+
+class AnnotationOut(_FromRow):
+    id: str
     message_id: str
-    verdict: Literal["correct", "incorrect"]
-    issue_types: list[str] = Field(default_factory=list)
-    expected_response: str | None = None
-    notes: str | None = None
+    verdict: Verdict
+    issue_types: list[IssueType]
+    expected_response: str | None
+    notes: str | None
+    exported_case_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminLogin(BaseModel):
+    token: str = Field(max_length=500)
+
+
+class AdminConversationRow(ConversationOut):
+    user_id: str
+    user_display_name: str
+    user_is_demo: bool
+    message_count: int
+    up_count: int
+    down_count: int
+    annotation_count: int
+    cost_usd: float
+
+
+class AdminConversationPage(BaseModel):
+    items: list[AdminConversationRow]
+    next_before: str | None  # pass as `before` for the next page; None on the last page
+
+
+class AdminAttachmentRef(AttachmentRef):
+    status: str
+    analysis: dict[str, Any] | None  # what the vision or video model saw (cached per upload)
+
+
+class AdminMessageOut(MessageOut):
+    trace_id: str | None
+    trace_url: str | None = None  # Langfuse, when its project id is configured
+    latency_ms: int | None
+    cost_usd: float | None
+    feedback_reason: str | None = None
+    attachments: list[AdminAttachmentRef] = Field(default_factory=list)  # type: ignore[assignment]
+    annotations: list[AnnotationOut] = Field(default_factory=list)
+
+
+class AdminConversationDetail(ConversationOut):
+    user_id: str
+    user_display_name: str
+    user_is_demo: bool
+    messages: list[AdminMessageOut]
+
+
+class AdminManualOut(BaseModel):
+    doc_id: str
+    title: str
+    brand: str
+    category: CategoryId
 
 
 class ErrorOut(BaseModel):

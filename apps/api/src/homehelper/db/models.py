@@ -161,6 +161,9 @@ class Annotation(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     exported_case_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Release(Base):
