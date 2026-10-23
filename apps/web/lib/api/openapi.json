@@ -1356,8 +1356,20 @@
         "type": "object"
       },
       "DemoLoginRequest": {
-        "description": "`user_id` is a demo user's id; null signs in as an anonymous guest (no personalization).",
+        "description": "`user_id` is a demo user's id; null signs in as an anonymous guest (no personalization).\n`access_code` is required when the API has a demo access code (`/v1/meta`).",
         "properties": {
+          "access_code": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Code"
+          },
           "user_id": {
             "anyOf": [
               {
@@ -2218,6 +2230,10 @@
       },
       "MetaResponse": {
         "properties": {
+          "access_code_required": {
+            "title": "Access Code Required",
+            "type": "boolean"
+          },
           "environment": {
             "title": "Environment",
             "type": "string"
@@ -2239,7 +2255,8 @@
           "version",
           "release_id",
           "git_sha",
-          "environment"
+          "environment",
+          "access_code_required"
         ],
         "title": "MetaResponse",
         "type": "object"

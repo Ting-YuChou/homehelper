@@ -6,6 +6,7 @@ import { ApiError, api, unwrap } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
+  meta: ["meta"] as const,
   demoUsers: ["demo-users"] as const,
   conversations: ["conversations"] as const,
   conversation: (id: string) => ["conversation", id] as const,
@@ -26,6 +27,12 @@ export const meQuery = queryOptions({
   queryKey: queryKeys.me,
   queryFn: () => unwrap(api.GET("/v1/auth/me")),
   retry: false,
+});
+
+export const metaQuery = queryOptions({
+  queryKey: queryKeys.meta,
+  queryFn: () => unwrap(api.GET("/v1/meta")),
+  staleTime: Infinity,
 });
 
 export const demoUsersQuery = queryOptions({

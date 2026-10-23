@@ -58,8 +58,8 @@ cp .env.cloud.example .env.cloud   # then edit it
 ```
 
 - **Fill in:** `DATABASE_URL` (Neon), `REDIS_URL` (Upstash), and the provider keys (from `.env`).
-- **Leave empty:** `SESSION_SECRET`, `ADMIN_TOKEN`, `PROXY_SECRET` and `MCP_AUTH_TOKEN`.
-  `secrets.sh` generates them.
+- **Leave empty:** `SESSION_SECRET`, `ADMIN_TOKEN`, `PROXY_SECRET`, `MCP_AUTH_TOKEN` and
+  `DEMO_ACCESS_CODE`. `secrets.sh` generates them.
 
 ### 3. Cloud resources
 
@@ -96,7 +96,8 @@ gcloud storage rsync -r data/parsed gs://<PROJECT_ID>-manuals/parsed
    - If it still stops, run it again; nothing is created twice.
 
 6. Check that it works:
-   - Open the web URL, sign in as a demo user and run a troubleshooting chat.
+   - Open the web URL, enter the `DEMO_ACCESS_CODE` from `.env.cloud`, sign in as a demo user
+     and run a troubleshooting chat.
    - Open `/admin` and sign in with the `ADMIN_TOKEN` from `.env.cloud`.
 
 ## Everyday operations
@@ -116,6 +117,10 @@ gcloud storage rsync -r data/parsed gs://<PROJECT_ID>-manuals/parsed
   - Then run **Ingest**, set `KB_VERSION`, and run **Deploy**.
   - The previous version stays available for rollback. Retention keeps the 5 newest versions
     plus any that a release pins.
+- **Demo access:** the demo is private. Signing in needs `DEMO_ACCESS_CODE`, so nobody else
+  can start LLM turns. To let someone try it, give them the code; afterwards, rotate it (empty
+  it in `.env.cloud`, run `secrets.sh` to generate a new one, run **Deploy**), which also ends
+  every session made with the old one.
 - **Rotate a secret:** edit `.env.cloud`, run `infra/gcp/secrets.sh` (it adds a version only
   for values that changed), then run **Deploy**. Rotating `ADMIN_TOKEN` ends every admin
   session.

@@ -73,6 +73,9 @@ async def demo_login(
             "Too many sign-ins. Please try again later.",
             headers={"Retry-After": str(decision.retry_after_s)},
         )
+    if not signer.access_code_matches(body.access_code):
+        # The web app recognises this detail (lib/auth/login.ts).
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong access code")
     if body.user_id is None:
         # A guest who still has a valid cookie keeps their guest user (and its rate limits).
         token = request.cookies.get(SESSION_COOKIE)

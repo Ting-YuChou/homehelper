@@ -1,10 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 // The main flow through the web app's /v1 proxy: sign in, send a message, and get a streamed
 // reply. Works against the stub agent (CI) and the real journey agent (a deploy candidate).
+// A demo with an access code needs it in E2E_ACCESS_CODE.
+
+async function openLogin(page: Page) {
+  await page.goto("/login");
+  const code = process.env.E2E_ACCESS_CODE;
+  if (code) await page.getByLabel("Access code").fill(code);
+}
 
 test("a demo user gets a streamed reply", async ({ page }) => {
-  await page.goto("/login");
+  await openLogin(page);
   await page.getByRole("button", { name: /Alex Kim/ }).click();
   await expect(page).toHaveURL(/\/chat/);
 
@@ -17,7 +24,7 @@ test("a demo user gets a streamed reply", async ({ page }) => {
 });
 
 test("a guest can chat without a demo profile", async ({ page }) => {
-  await page.goto("/login");
+  await openLogin(page);
   await page.getByRole("button", { name: "Continue as a guest" }).click();
   await expect(page).toHaveURL(/\/chat/);
 

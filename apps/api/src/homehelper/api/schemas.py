@@ -36,9 +36,11 @@ class DemoUserOut(BaseModel):
 
 
 class DemoLoginRequest(BaseModel):
-    """`user_id` is a demo user's id; null signs in as an anonymous guest (no personalization)."""
+    """`user_id` is a demo user's id; null signs in as an anonymous guest (no personalization).
+    `access_code` is required when the API has a demo access code (`/v1/meta`)."""
 
     user_id: str | None = None
+    access_code: str | None = Field(default=None, max_length=200)
 
 
 class ConversationCreate(BaseModel):

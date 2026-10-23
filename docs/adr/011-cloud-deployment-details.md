@@ -21,7 +21,9 @@ deployment exposed gaps that it did not settle:
    per-IP rate limits would be shared by everyone.
 5. Cloud Run refuses HTTP/1 requests over 32 MiB, but videos were allowed up to 100 MB.
 6. Should the public demo serve the manual PDFs (spec Q10)?
-7. Neon hands out `postgresql://...?sslmode=require&channel_binding=require`, which asyncpg
+7. The demo is a personal project, paid for with the owner's LLM keys. A public chat lets
+   anyone spend them, up to the daily cap.
+8. Neon hands out `postgresql://...?sslmode=require&channel_binding=require`, which asyncpg
    rejects, and its pooler refuses the checkpointer's `search_path` startup option.
 
 ## Decision
@@ -80,12 +82,23 @@ deployment exposed gaps that it did not settle:
 6. **The demo serves no PDFs** (Q10). The API image has none, so a manual's `url` is null, and
    a citation shows the manual's name and page. PDFs live in the private manuals bucket, and
    only the ingest job reads them.
-7. **One `DATABASE_URL`, spelled per driver.**
+7. **Signing in needs a demo access code.**
+   - When `DEMO_ACCESS_CODE` is set (`secrets.sh` generates a short one), `POST /v1/auth/demo-login`
+     refuses a missing or wrong code with 403. Wrong codes count against the per-IP login limit.
+     Without a session no route reaches the agent, so nobody without the code starts an LLM turn.
+   - The session cookie's signing salt carries a keyed fingerprint of the code, so changing the
+     code ends every session. That is how access given for one demo is taken back.
+   - `/v1/meta` reports `access_code_required`, and the sign-in page asks for the code only then.
+     Locally and in tests the code is empty and nothing changes.
+   - Rejected: making the Cloud Run services private (IAM). Nobody could open a link without a
+     Google account the owner grants, the web app would have to mint ID tokens for the API, and
+     the smoke tests would need them too.
+8. **One `DATABASE_URL`, spelled per driver.**
    - `homehelper.db.urls` derives the asyncpg (`ssl=`), psycopg (`sslmode=`) and psycopg2
      forms. Neon is used through its **direct** (non-pooler) endpoint.
    - The API runs at most two instances, which keeps it within the free tier's connection
      limit.
-8. **The cloud operations are scripted rather than written in Terraform.**
+9. **The cloud operations are scripted rather than written in Terraform.**
    - `infra/gcp/bootstrap.sh` sets up the APIs, Artifact Registry, buckets, least-privilege
      service accounts, WIF limited to this repository, and a budget. `infra/gcp/secrets.sh`
      copies `.env.cloud` into Secret Manager without printing values.
@@ -98,7 +111,7 @@ deployment exposed gaps that it did not settle:
        deploy, release and ingest.
      - Pull-request evals run PR code, so they use `hh-evals`, which can only read the eval
        secrets.
-9. **Jobs and evals.**
+10. **Jobs and evals.**
    - `migrate` runs `homehelper db upgrade`, since the image has no `alembic.ini`.
    - `ingest` mounts the manuals bucket's `pdfs/` and `parsed/` where the pipeline reads them.
      Its retention also keeps every `kb_version` that a `releases` row pins, because the cloud
@@ -106,11 +119,11 @@ deployment exposed gaps that it did not settle:
    - There is **no eval job**. The evals package is not in the API image, so evals run in
      GitHub Actions: `release.yml`, `ingest.yml`, and the PR `Evals` workflow (retrieval on
      retrieval changes, smoke on `run-eval`).
-10. **Monitoring** uses log lines the API writes: `turn.completed` (duration, cost, outcome) and
+11. **Monitoring** uses log lines the API writes: `turn.completed` (duration, cost, outcome) and
     `spend.threshold_crossed` (80% and 100% of the daily cap). On top of them come uptime
     checks, a 5xx ratio, p95 turn latency and spend alerts. Cloud Run's own latency metric is
     not used, because SSE turns stretch it.
-11. **Region: `us-west1` (Oregon)**, next to Neon and Upstash in AWS `us-west-2`, and close to
+12. **Region: `us-west1` (Oregon)**, next to Neon and Upstash in AWS `us-west-2`, and close to
     the US-hosted LLM APIs.
 
 ## Consequences
@@ -118,6 +131,9 @@ deployment exposed gaps that it did not settle:
 - One image per service runs in every environment; nothing environment-specific is built in.
 - Every browser request takes one more hop through the web service: a few milliseconds, and
   the web service has to stay up for the API to be reachable from browsers.
+- **The pages are public, the chat is not:** anyone can open the sign-in page, but only people
+  given the access code start LLM turns. Access lasts until the session expires (7 days) or
+  the code changes.
 - **The API is still public.** It has its own authentication and limits, and a caller who
   bypasses the proxy is identified by the address Cloud Run saw.
 - Between the API's promotion and the web app's there are a few minutes of new API with old

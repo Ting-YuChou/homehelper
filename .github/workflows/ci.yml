@@ -93,6 +93,8 @@ jobs:
       MCP_MODE: mock
       ADMIN_TOKEN: e2e-ci-admin-token  # a throwaway token for this job's own API
       E2E_ADMIN_TOKEN: e2e-ci-admin-token
+      DEMO_ACCESS_CODE: e2e-ci-code  # sign-in needs it, as on the deployed demo
+      E2E_ACCESS_CODE: e2e-ci-code
       UV_LINK_MODE: copy
     steps:
       - uses: actions/checkout@v7

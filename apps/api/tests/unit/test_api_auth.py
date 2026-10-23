@@ -20,6 +20,30 @@ def test_session_cookie_round_trips_and_rejects_tampering() -> None:
     assert SessionSigner(make_settings(session_secret="other")).loads(token) is None
 
 
+def test_changing_the_access_code_ends_every_session() -> None:
+    signer = SessionSigner(make_settings(demo_access_code="tulip-42"))
+    token = signer.dumps("demo_alex")
+    assert signer.loads(token) == "demo_alex"
+    assert SessionSigner(make_settings(demo_access_code="other")).loads(token) is None
+    assert SessionSigner(make_settings()).loads(token) is None
+
+
+def test_access_code_check() -> None:
+    signer = SessionSigner(make_settings(demo_access_code="tulip-42"))
+    assert signer.access_code_required
+    assert signer.access_code_matches("tulip-42")
+    assert signer.access_code_matches(" tulip-42 ")
+    assert not signer.access_code_matches("tulip-43")
+    assert not signer.access_code_matches("")
+    assert not signer.access_code_matches(None)
+    assert SessionSigner(make_settings(demo_access_code="tulip-42\n")).access_code_matches(
+        "tulip-42"
+    )
+    open_signer = SessionSigner(make_settings())
+    assert not open_signer.access_code_required
+    assert open_signer.access_code_matches(None)
+
+
 def test_production_needs_a_session_secret() -> None:
     with pytest.raises(RuntimeError, match="SESSION_SECRET"):
         SessionSigner(make_settings(app_env="production"))

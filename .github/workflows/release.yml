@@ -234,6 +234,8 @@ jobs:
           meta=$(curl -sf "$url/v1/meta")
           echo "$meta"
           [[ "$(jq -r .release_id <<<"$meta")" == "$RELEASE_ID" ]] || { echo "wrong release"; exit 1; }
+          [[ "$(jq -r .access_code_required <<<"$meta")" == true ]] ||
+            { echo "no DEMO_ACCESS_CODE: anyone could chat on your LLM keys (run infra/gcp/secrets.sh)"; exit 1; }
       - run: infra/gcp/cloudrun.sh promote api
       - run: infra/gcp/cloudrun.sh deploy-web --image "$WEB_IMAGE" --sha "$SHA"
       - uses: pnpm/action-setup@v6
@@ -241,12 +243,15 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: Load the demo access code for the smoke test
+        run: infra/gcp/ci-secrets.sh DEMO_ACCESS_CODE
       - name: Smoke-test the web candidate
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile --filter web...
           pnpm --filter web exec playwright install --with-deps chromium
-          E2E_BASE_URL=$(infra/gcp/cloudrun.sh url web --candidate) pnpm --filter web e2e e2e/chat.spec.ts
+          E2E_BASE_URL=$(infra/gcp/cloudrun.sh url web --candidate) E2E_ACCESS_CODE=${DEMO_ACCESS_CODE:-} \
+            pnpm --filter web e2e e2e/chat.spec.ts
       - run: infra/gcp/cloudrun.sh promote web
 
       - name: Open a PR with the manifest (and any newly pulled regression cases)

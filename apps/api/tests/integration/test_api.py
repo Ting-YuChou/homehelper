@@ -2,8 +2,11 @@
 
 import httpx
 import pytest
+from pydantic import SecretStr
+from redis.asyncio import Redis
 
 from homehelper.core.config import Settings
+from homehelper.main import create_app
 from tests.integration.conftest import parse_sse
 
 pytestmark = pytest.mark.integration
@@ -34,6 +37,26 @@ async def test_demo_login_sets_a_session_cookie(api: httpx.AsyncClient) -> None:
     assert (user["id"], user["is_demo"]) == ("demo_alex", True)
     assert (await api.get("/v1/auth/me")).json() == user
     assert (await api.post("/v1/auth/demo-login", json={"user_id": "nobody"})).status_code == 404
+
+
+async def test_signing_in_needs_the_access_code_when_one_is_set(
+    api_settings: Settings, redis: Redis, migrated: None
+) -> None:
+    app = create_app(api_settings.model_copy(update={"demo_access_code": SecretStr("tulip-42")}))
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as api:
+        for body in ({"user_id": "demo_alex"}, {"user_id": None, "access_code": "wrong"}):
+            refused = await api.post("/v1/auth/demo-login", json=body)
+            assert refused.status_code == 403
+            assert refused.json()["detail"] == "Wrong access code"
+            assert "set-cookie" not in refused.headers
+        ok = await api.post(
+            "/v1/auth/demo-login", json={"user_id": "demo_alex", "access_code": "tulip-42"}
+        )
+        assert ok.status_code == 200
+        assert (await api.get("/v1/auth/me")).json()["id"] == "demo_alex"
+    await app.state.redis.aclose()
+    await app.state.db_engine.dispose()
 
 
 async def test_guest_login_creates_an_anonymous_user(api: httpx.AsyncClient) -> None:
