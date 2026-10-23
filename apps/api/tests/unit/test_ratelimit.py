@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from fakeredis import FakeAsyncRedis
+from structlog.testing import capture_logs
 
 from homehelper.ratelimit import ConversationLock, SlidingWindowLimiter, SpendLedger, Window
 
@@ -93,3 +94,14 @@ async def test_conversation_lock_is_exclusive_and_owned(redis: FakeAsyncRedis) -
     assert await lock.acquire("conv_1") is None
     await lock.release("conv_1", token)
     assert await lock.acquire("conv_1") is not None
+
+
+async def test_spend_logs_once_when_it_nears_and_reaches_the_cap(redis: FakeAsyncRedis) -> None:
+    """The cloud spend alert counts these lines (M8-03): one warning per threshold per day."""
+    ledger = SpendLedger(redis, cap_usd=1.0, clock=Clock(1_761_004_800.0))
+    with capture_logs() as logs:
+        for cost in (0.5, 0.25, 0.1, 0.1, 0.1, 0.5):
+            await ledger.add(cost)
+    crossed = [(e["event"], e["threshold"]) for e in logs if e["event"].startswith("spend.")]
+    assert crossed == [("spend.threshold_crossed", 0.8), ("spend.threshold_crossed", 1.0)]
+    assert all(e["log_level"] == "warning" for e in logs if e["event"].startswith("spend."))

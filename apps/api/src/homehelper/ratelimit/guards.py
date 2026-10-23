@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from redis.asyncio import Redis
 
 from homehelper.core.config import Settings
+from homehelper.core.logging import get_logger
 
 Clock = Callable[[], float]  # seconds since the epoch
 
@@ -83,6 +84,12 @@ class SlidingWindowLimiter:
         return RateDecision(allowed=False, retry_after_s=max(1, -(-wait_ms // 1000)))
 
 
+log = get_logger(__name__)
+
+# Shares of the daily cap that log a warning when crossed (80%: early warning; 100%: maintenance).
+ALERT_FRACTIONS = (0.8, 1.0)
+
+
 class SpendLedger:
     """Today's (UTC) LLM spend in `spend:{YYYYMMDD}`; at or over the cap = maintenance mode."""
 
@@ -103,7 +110,19 @@ class SpendLedger:
         async with self._redis.pipeline(transaction=True) as pipe:
             pipe.incrbyfloat(key, cost_usd)
             pipe.expire(key, self.TTL_S)
-            await pipe.execute()
+            total, _ = await pipe.execute()
+        total = float(total)
+        # One warning per threshold per day, whichever add crosses it: the cloud spend alert
+        # counts these lines (M8-03).
+        for fraction in ALERT_FRACTIONS:
+            threshold = self.cap_usd * fraction
+            if self.cap_usd > 0 and total - cost_usd < threshold <= total:
+                log.warning(
+                    "spend.threshold_crossed",
+                    threshold=fraction,
+                    spent_usd=round(total, 4),
+                    cap_usd=self.cap_usd,
+                )
 
     async def spent_today(self) -> float:
         return float(await self._redis.get(self.key()) or 0)
