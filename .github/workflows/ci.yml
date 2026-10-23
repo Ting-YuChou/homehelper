@@ -66,6 +66,70 @@ jobs:
       - run: pnpm --filter web test
       - run: pnpm --filter web build
 
+  e2e:
+    # The browser flows through the web app's /v1 proxy, against the stub agent (M8-05): no LLM.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: homehelper
+          POSTGRES_PASSWORD: homehelper
+          POSTGRES_DB: homehelper
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U homehelper -d homehelper"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://homehelper:homehelper@localhost:5432/homehelper
+      REDIS_URL: redis://localhost:6379/0
+      AGENT_RUNTIME: stub
+      MCP_MODE: mock
+      ADMIN_TOKEN: e2e-ci-admin-token  # a throwaway token for this job's own API
+      E2E_ADMIN_TOKEN: e2e-ci-admin-token
+      UV_LINK_MODE: copy
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.19"
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: uv sync --frozen
+      - run: pnpm install --frozen-lockfile
+      - run: uv run homehelper db upgrade
+      - name: Start the API
+        run: |
+          nohup uv run uvicorn homehelper.main:create_app --factory --port 8000 > api.log 2>&1 &
+          timeout 60 bash -c 'until curl -sf localhost:8000/healthz; do sleep 1; done'
+      - name: Build and start the web app (standalone, as in the image)
+        run: |
+          pnpm --filter web build
+          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          cd apps/web/.next/standalone/apps/web
+          API_URL=http://localhost:8000 PORT=3000 nohup node server.js > "$GITHUB_WORKSPACE/web.log" 2>&1 &
+          timeout 60 bash -c 'until curl -sf localhost:3000/login -o /dev/null; do sleep 1; done'
+      - run: pnpm --filter web exec playwright install --with-deps chromium
+      - run: pnpm --filter web e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results
+          path: |
+            apps/web/test-results
+            api.log
+            web.log
+
   contract:
     # The committed OpenAPI schema and generated TS types must match the API (spec §18.5).
     runs-on: ubuntu-latest
