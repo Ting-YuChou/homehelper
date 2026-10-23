@@ -3,6 +3,7 @@
 import { type KeyboardEvent, type PointerEvent, useId, useRef, useState } from "react";
 
 import { type MetricFormat, type SeriesPoint, formatMetric, scaleFor } from "@/lib/admin/trends";
+import { cn } from "@/lib/utils";
 
 // Drawing space; the SVG scales with its card, so these are proportions, not pixels.
 const WIDTH = 320;
@@ -25,6 +26,7 @@ export function TrendChart({
   points: SeriesPoint[];
 }) {
   const titleId = useId();
+  const summaryId = useId();
   const svg = useRef<SVGSVGElement>(null);
   const [active, setActive] = useState<number | null>(null);
   const scale = scaleFor(
@@ -62,13 +64,18 @@ export function TrendChart({
       <figcaption id={titleId} className="text-sm font-medium">
         {label}
       </figcaption>
+      <p id={summaryId} className="sr-only">
+        {points.length} runs; latest {formatMetric(points.at(-1)?.value, format)}. Use the left and
+        right arrow keys to read each run.
+      </p>
       <div className="relative">
         <svg
           ref={svg}
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          className="h-auto w-full touch-none overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-auto w-full touch-pan-y overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-ring"
           role="img"
           aria-labelledby={titleId}
+          aria-describedby={summaryId}
           tabIndex={0}
           onPointerMove={nearest}
           onPointerLeave={() => setActive(null)}
@@ -163,10 +170,24 @@ export function TrendChart({
             </>
           )}
         </svg>
+        {/* Always mounted, so screen readers announce each point as the arrow keys move. */}
+        <span role="status" className="sr-only">
+          {shown
+            ? `${formatMetric(shown.value, format)}, ${shown.release}, ${shortDate.format(new Date(shown.createdAt))}`
+            : ""}
+        </span>
         {shown && active !== null && (
           <div
-            role="status"
-            className="pointer-events-none absolute top-0 z-10 flex -translate-x-1/2 flex-col rounded-md border bg-popover px-2 py-1 text-xs shadow-sm"
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute top-0 z-10 flex flex-col rounded-md border bg-popover px-2 py-1 text-xs shadow-sm",
+              // Kept inside the card: anchored on its outer edge near either end.
+              x(active) < WIDTH * 0.3
+                ? "translate-x-0"
+                : x(active) > WIDTH * 0.7
+                  ? "-translate-x-full"
+                  : "-translate-x-1/2",
+            )}
             style={{ left: `${(x(active) / WIDTH) * 100}%` }}
           >
             <span className="flex items-center gap-1.5 font-semibold tabular-nums">

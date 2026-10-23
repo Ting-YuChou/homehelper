@@ -19,8 +19,8 @@ import {
   emptyDraft,
   issueLabel,
 } from "@/lib/admin/annotation";
+import { refreshReview } from "@/lib/admin/cache";
 import { ApiError, api, unwrap } from "@/lib/api/client";
-import { queryKeys } from "@/lib/api/queries";
 import type { Annotation } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +146,7 @@ function AnnotationSummary({
   busy: boolean;
 }) {
   const exported = annotation.exported_case_id !== null;
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="flex flex-col gap-2 text-sm">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -177,19 +178,30 @@ function AnnotationSummary({
         </p>
       )}
       {annotation.notes && <p className="text-muted-foreground">{annotation.notes}</p>}
-      {!exported && (
-        <div className="flex gap-1">
-          <Button size="xs" variant="ghost" onClick={onEdit} disabled={busy}>
-            <Pencil data-icon="inline-start" aria-hidden />
-            Edit
-          </Button>
-          <Button size="xs" variant="ghost" onClick={onDelete} disabled={busy}>
-            <Trash2 data-icon="inline-start" aria-hidden />
-            Delete
-          </Button>
-          <ExportDialog annotationId={annotation.id} conversationId={conversationId} />
-        </div>
-      )}
+      {!exported &&
+        (confirming ? (
+          <div className="flex items-center gap-1" role="group" aria-label="Confirm delete">
+            <span className="text-sm">Delete this annotation?</span>
+            <Button size="xs" variant="destructive" onClick={onDelete} disabled={busy}>
+              Delete
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => setConfirming(false)}>
+              Keep
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-1">
+            <Button size="xs" variant="ghost" onClick={onEdit} disabled={busy}>
+              <Pencil data-icon="inline-start" aria-hidden />
+              Edit
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => setConfirming(true)} disabled={busy}>
+              <Trash2 data-icon="inline-start" aria-hidden />
+              Delete
+            </Button>
+            <ExportDialog annotationId={annotation.id} conversationId={conversationId} />
+          </div>
+        ))}
     </div>
   );
 }
@@ -207,8 +219,7 @@ export function AnnotationPanel({
   const queryClient = useQueryClient();
   // An annotation id being edited, "new" for the add form, or null.
   const [editing, setEditing] = useState<string | null>(null);
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.adminConversation(conversationId) });
+  const refresh = (delta: number) => refreshReview(queryClient, conversationId, delta);
   const failed = (error: Error) =>
     toast.error(
       error instanceof ApiError && error.status === 409
@@ -225,7 +236,7 @@ export function AnnotationPanel({
       ),
     onSuccess: () => {
       setEditing(null);
-      void refresh();
+      refresh(1);
     },
     onError: failed,
   });
@@ -245,7 +256,7 @@ export function AnnotationPanel({
       ),
     onSuccess: () => {
       setEditing(null);
-      void refresh();
+      refresh(0);
     },
     onError: failed,
   });
@@ -256,7 +267,7 @@ export function AnnotationPanel({
           params: { path: { annotation_id: id } },
         }),
       ),
-    onSuccess: () => void refresh(),
+    onSuccess: () => refresh(-1),
     onError: failed,
   });
   const busy = create.isPending || update.isPending || remove.isPending;
@@ -283,7 +294,8 @@ export function AnnotationPanel({
             key={annotation.id}
             annotation={annotation}
             conversationId={conversationId}
-            busy={busy}
+            // While a form is open, other annotations wait (its draft isn't thrown away).
+            busy={busy || editing !== null}
             onEdit={() => setEditing(annotation.id)}
             onDelete={() => remove.mutate(annotation.id)}
           />
@@ -302,7 +314,7 @@ export function AnnotationPanel({
           variant="outline"
           className="self-start"
           onClick={() => setEditing("new")}
-          disabled={busy}
+          disabled={busy || editing !== null}
         >
           Annotate this reply
         </Button>

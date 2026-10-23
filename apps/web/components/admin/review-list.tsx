@@ -142,6 +142,27 @@ function Row({ row, search }: { row: AdminConversationRow; search: string }) {
   );
 }
 
+function ReleaseFilter({ value, onApply }: { value: string; onApply: (release: string) => void }) {
+  const [release, setRelease] = useState(value);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onApply(release);
+  };
+  return (
+    <form className="flex flex-col gap-1.5" onSubmit={submit}>
+      <Label htmlFor="filter-release">Release</Label>
+      <Input
+        id="filter-release"
+        className="w-40"
+        placeholder="Any"
+        value={release}
+        onChange={(event) => setRelease(event.target.value)}
+        onBlur={() => release.trim() !== value && onApply(release)}
+      />
+    </form>
+  );
+}
+
 /** `/admin/review`: conversations to review, newest first or as a random sample. */
 export function ReviewList() {
   const router = useRouter();
@@ -149,16 +170,11 @@ export function ReviewList() {
   const searchParams = useSearchParams();
   const filters = filtersFromSearch(new URLSearchParams(searchParams.toString()));
   const search = filtersToSearch(filters);
-  const [release, setRelease] = useState(filters.release ?? "");
   const conversations = useInfiniteQuery(adminConversationsQuery(reviewQuery(filters)));
 
   const apply = (next: ReviewFilters) => {
     const query = filtersToSearch(next);
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
-  const submitRelease = (event: FormEvent) => {
-    event.preventDefault();
-    apply({ ...filters, release });
   };
   const rows = conversations.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -198,19 +214,12 @@ export function ReviewList() {
           ]}
           onChange={(annotated) => apply({ ...filters, annotated })}
         />
-        <form className="flex flex-col gap-1.5" onSubmit={submitRelease}>
-          <Label htmlFor="filter-release">Release</Label>
-          <Input
-            id="filter-release"
-            className="w-40"
-            placeholder="Any"
-            value={release}
-            onChange={(event) => setRelease(event.target.value)}
-            onBlur={() =>
-              release.trim() !== (filters.release ?? "") && apply({ ...filters, release })
-            }
-          />
-        </form>
+        {/* Keyed by the URL's value, so a filter cleared elsewhere (e.g. the nav link) resets it. */}
+        <ReleaseFilter
+          key={filters.release ?? ""}
+          value={filters.release ?? ""}
+          onApply={(release) => apply({ ...filters, release })}
+        />
         <Button
           variant={filters.sample ? "default" : "outline"}
           onClick={() =>

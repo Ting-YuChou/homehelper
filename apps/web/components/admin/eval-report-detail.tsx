@@ -20,12 +20,24 @@ import { METRICS, type ReportPoint, formatMetric } from "@/lib/admin/trends";
 import { ApiError } from "@/lib/api/client";
 import { adminEvalQuery } from "@/lib/api/queries";
 
+const passRate = (c: { successes: number; trials: number }) =>
+  c.trials ? c.successes / c.trials : 0;
+
+/** Route params may arrive encoded or not; a stray `%` must not throw. */
+function reportId(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 const dateTime = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
 
 /** `/admin/evals/[id]`: one run's metrics, configuration and per-case results. */
 export function EvalReportDetail() {
   const { id } = useParams<{ id: string }>();
-  const report = useQuery(adminEvalQuery(decodeURIComponent(id)));
+  const report = useQuery(adminEvalQuery(reportId(id)));
   if (report.isPending) return <Skeleton className="h-96 w-full" />;
   if (report.isError) {
     const missing = report.error instanceof ApiError && report.error.status === 404;
@@ -42,7 +54,7 @@ export function EvalReportDetail() {
   );
   // Failing cases first, then by id.
   const cases = [...data.cases].sort(
-    (a, b) => a.successes / a.trials - b.successes / b.trials || a.id.localeCompare(b.id),
+    (a, b) => passRate(a) - passRate(b) || a.id.localeCompare(b.id),
   );
   const config = Object.entries(data.config).filter(([, value]) => value !== null);
 

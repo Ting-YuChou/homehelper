@@ -108,6 +108,8 @@ export const adminConversationsQuery = (query: ReviewQuery) =>
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_before,
+    // A sample is drawn once; only "New sample" draws another (refetch).
+    staleTime: query.sample ? Infinity : undefined,
     retry: false,
   });
 

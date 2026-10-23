@@ -35,8 +35,9 @@ import {
   formFromCase,
   hasChecks,
 } from "@/lib/admin/export";
+import { refreshReview } from "@/lib/admin/cache";
 import { api, unwrap } from "@/lib/api/client";
-import { adminManualsQuery, queryKeys } from "@/lib/api/queries";
+import { adminManualsQuery } from "@/lib/api/queries";
 
 const NO_MANUAL = "none";
 const OUTCOME_LABELS: Record<Outcome, string> = {
@@ -181,9 +182,7 @@ export function ExportDialog({
     onSuccess: (result) => {
       setOpen(false);
       toast.success(`Exported ${result.case.id}. Run “uv run evals regression pull” to add it.`);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.adminConversation(conversationId),
-      });
+      refreshReview(queryClient, conversationId, 0);
     },
     onError: (error) => toast.error(error.message || "Couldn't export the case."),
   });
