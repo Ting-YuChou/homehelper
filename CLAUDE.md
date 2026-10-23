@@ -64,6 +64,12 @@ uv run python -m homehelper_evals.vision_media fetch          # reviewed web pho
 uv run python -m homehelper_evals.vision --models evals/models/opencode-go.yaml   # photo accuracy + calibration
 uv run evals run --suite multimodal --agent homehelper_evals.builders:journey --models evals/models/opencode-go.yaml
 uv run python -m homehelper_evals.video                       # Gemini video eval (needs GEMINI_API_KEY)
+
+# Quality loop (M7) — /admin needs ADMIN_TOKEN; reports and exported cases live in the database
+uv run evals regression pull          # exported cases -> evals/datasets/regression/<id>.yaml (+ media); commit them
+uv run evals run --suite regression --agent homehelper_evals.builders:journey   # replay them; --case ID for one
+uv run evals run --suite safety --record   # also store the report summary for /admin/evals
+uv run evals publish evals/reports         # store earlier reports for /admin/evals
 ```
 
 - Run the API without Docker: `uv run uvicorn homehelper.main:create_app --factory --reload` (it is an app factory; there is no module-level `app`).
@@ -98,6 +104,8 @@ uv run python -m homehelper_evals.video                       # Gemini video eva
 | Uploads: `MediaStore` (local / GCS, signed URLs), `build_media_store`, `MediaSigner`; checks in `validation`, `images`, `video`, `pipeline` | `homehelper.media` (`storage.py`, `signing.py`) |
 | Media for the agent: `MediaSource` protocol, `AttachmentMediaSource` / `FakeMediaSource`; `VisionResult`, `VideoResult`, `MediaObservation` | `homehelper.media.source`, `homehelper.media.fake`, `homehelper.media.schemas` |
 | Video model: `VideoAnalyzer` protocol, `GeminiVideoAnalyzer`, `build_video_analyzer` (None without `GEMINI_API_KEY`) | `homehelper.media.gemini` |
+| Quality loop (spec §17.2, ADR-010): `IssueType`, admin-wide review queries, `RegressionCase` (export contract; `EvalCase` loads it), `build_case`/`suggest` (annotation → case), `eval_reports` (report summaries for `/admin/evals`) | `homehelper.quality` (`schemas`, `repository`, `regression`, `export`, `eval_reports`) |
+| Admin auth: `require_admin` accepts `X-Admin-Token` or the `hh_admin` cookie (`AdminSigner`; `POST /v1/admin/session` exchanges the token) | `homehelper.api.deps`, `homehelper.api.admin` |
 | Eval plug-in for agents (`evals run --agent module:builder`): builder takes `AgentContext` (settings, usage sink, `registry` with `--models` overrides — build LLM clients with it), returns `AgentFactory` | `homehelper_evals.agents`; cases are `homehelper_evals.cases.EvalCase` |
 
 Changing a contract means updating every caller in the same PR and saying so in the PR description.
