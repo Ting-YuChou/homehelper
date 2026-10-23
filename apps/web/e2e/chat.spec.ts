@@ -21,6 +21,15 @@ test("a demo user gets a streamed reply", async ({ page }) => {
   // Feedback buttons appear once the reply's `message.completed` event has arrived.
   await expect(page.getByRole("button", { name: "Helpful" }).first()).toBeVisible();
   await expect(page).toHaveURL(/\/chat\/conv_/);
+
+  // Delete it again (also keeps the shared demo user's list short after deploy smoke tests).
+  const row = page
+    .getByRole("navigation", { name: "Conversations" })
+    .locator("div", { has: page.locator('a[aria-current="page"]') })
+    .last();
+  await row.getByRole("button", { name: "Delete conversation" }).click();
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page).toHaveURL(/\/chat$/);
 });
 
 test("a guest can chat without a demo profile", async ({ page }) => {
