@@ -1,0 +1,192 @@
+name: Deploy
+
+# Continuous deployment of main (spec §18.4, M8-02, ADR-011). After CI passes on a push to main:
+# build and push both images, run the migrate job (and seed-mock when data/mock changed), deploy
+# the API as a no-traffic `candidate`, smoke-test it, move traffic; then the same for the web app,
+# with the Playwright smoke tests against its candidate URL. The release is `main-<sha7>`: code
+# from this commit, models from models.yaml, the KB pinned by the KB_VERSION variable.
+# A gated release (release.yml) is overwritten by the next deploy of main.
+#
+# Needs the GitHub variables printed by infra/gcp/bootstrap.sh; without GCP_PROJECT_ID it skips.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  KB_VERSION: ${{ vars.KB_VERSION }}
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  deploy:
+    if: >-
+      vars.GCP_PROJECT_ID != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          token_format: access_token
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: What changed since the deployed commit
+        id: changes
+        run: |
+          set -euo pipefail
+          deployed=$(gcloud run services describe homehelper-api --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" --format 'value(metadata.labels.git-sha)' 2>/dev/null || true)
+          echo "deployed=${deployed:-none}"
+          if [[ -z "$deployed" ]] || ! git cat-file -e "$deployed^{commit}" 2>/dev/null; then
+            echo "deploy=true" >>"$GITHUB_OUTPUT"; echo "seed=true" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$deployed" "$SHA")
+          # Neither image contains these (a release PR touches releases/ and evals/ only).
+          code=$(grep -vE '^(releases/|docs/|evals/)|\.md$' <<<"$files" || true)
+          if [[ -n "$code" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "deploy=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "Only docs, evals or release manifests changed; nothing to deploy." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          if grep -q '^data/mock/' <<<"$files"; then echo "seed=true" >>"$GITHUB_OUTPUT"; fi
+
+      - if: steps.changes.outputs.deploy == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GCP_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+      - if: steps.changes.outputs.deploy == 'true'
+        uses: docker/setup-buildx-action@v4
+      - if: steps.changes.outputs.deploy == 'true'
+        id: api_image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/Dockerfile.api
+          target: runtime
+          push: true
+          build-args: GIT_SHA=${{ env.SHA }}
+          tags: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/homehelper/api:${{ env.SHA }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - if: steps.changes.outputs.deploy == 'true'
+        id: web_image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/Dockerfile.web
+          target: runtime
+          push: true
+          tags: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/homehelper/web:${{ env.SHA }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Migrate (and reseed the MCP mock tables when data/mock changed)
+        if: steps.changes.outputs.deploy == 'true'
+        env:
+          API_IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/homehelper/api@${{ steps.api_image.outputs.digest }}
+          SEED: ${{ steps.changes.outputs.seed }}
+        run: |
+          set -euo pipefail
+          infra/gcp/cloudrun.sh jobs --image "$API_IMAGE"
+          infra/gcp/cloudrun.sh run-job migrate
+          if [[ "$SEED" == "true" ]]; then infra/gcp/cloudrun.sh run-job seed-mock; fi
+
+      - name: Stop here until a knowledge base exists
+        id: kb
+        if: steps.changes.outputs.deploy == 'true'
+        run: |
+          if [[ -z "$KB_VERSION" ]]; then
+            {
+              echo "### No KB_VERSION yet"
+              echo "Images are pushed and the database is migrated. Run the **Ingest** workflow,"
+              echo "set the KB_VERSION variable it prints, then re-run this workflow."
+            } >>"$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy the API candidate
+        if: steps.kb.outputs.ready == 'true'
+        env:
+          API_IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/homehelper/api@${{ steps.api_image.outputs.digest }}
+        run: |
+          infra/gcp/cloudrun.sh deploy-api --image "$API_IMAGE" --sha "$SHA" \
+            --release-id "main-${SHA:0:7}" --kb-version "$KB_VERSION"
+      - name: Smoke-test the API candidate
+        if: steps.kb.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          url=$(infra/gcp/cloudrun.sh url api --candidate)
+          curl -sf --retry 5 --retry-all-errors "$url/readyz"
+          meta=$(curl -sf "$url/v1/meta")
+          echo "$meta"
+          [[ "$(jq -r .git_sha <<<"$meta")" == "$SHA" ]] || { echo "candidate runs another commit"; exit 1; }
+      - name: Send API traffic to the candidate
+        if: steps.kb.outputs.ready == 'true'
+        run: infra/gcp/cloudrun.sh promote api
+
+      - name: Deploy the web candidate
+        if: steps.kb.outputs.ready == 'true'
+        env:
+          WEB_IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/homehelper/web@${{ steps.web_image.outputs.digest }}
+        run: infra/gcp/cloudrun.sh deploy-web --image "$WEB_IMAGE" --sha "$SHA"
+      - if: steps.kb.outputs.ready == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.kb.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Smoke-test the web candidate (Playwright; the real agent costs about $0.05)
+        if: steps.kb.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile --filter web...
+          pnpm --filter web exec playwright install --with-deps chromium
+          E2E_BASE_URL=$(infra/gcp/cloudrun.sh url web --candidate) pnpm --filter web e2e e2e/chat.spec.ts
+      - name: Send web traffic to the candidate
+        if: steps.kb.outputs.ready == 'true'
+        run: infra/gcp/cloudrun.sh promote web
+
+      - name: Summary
+        if: steps.kb.outputs.ready == 'true'
+        run: |
+          {
+            echo "### Deployed main-${SHA:0:7}"
+            echo "- Web: $(infra/gcp/cloudrun.sh url web)"
+            echo "- API: $(infra/gcp/cloudrun.sh url api)"
+            echo "- KB: $KB_VERSION"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deploy-smoke
+          path: apps/web/test-results
+          if-no-files-found: ignore
