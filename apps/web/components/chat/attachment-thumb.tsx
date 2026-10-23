@@ -5,11 +5,14 @@ import { ImageOff } from "lucide-react";
 import { useRef } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { attachmentUrlQuery } from "@/lib/api/queries";
+import { adminAttachmentUrlQuery, attachmentUrlQuery } from "@/lib/api/queries";
 
-/** A sent photo or video, read through its short-lived signed URL (spec §11.1). */
-export function AttachmentThumb({ id }: { id: string }) {
-  const { data, isError, refetch } = useQuery(attachmentUrlQuery(id));
+/** A sent photo or video, read through its short-lived signed URL (spec §11.1). Reviewers fetch
+ * the URL through the admin API (`admin`), since the attachment belongs to someone else. */
+export function AttachmentThumb({ id, admin = false }: { id: string; admin?: boolean }) {
+  const own = useQuery({ ...attachmentUrlQuery(id), enabled: !admin });
+  const reviewed = useQuery({ ...adminAttachmentUrlQuery(id), enabled: admin });
+  const { data, isError, refetch } = admin ? reviewed : own;
   // An expired URL (e.g. seeking a video after 15 minutes) gets one fresh URL per successful
   // load, not a loop when the file itself can't be shown.
   const renewed = useRef(false);

@@ -22,10 +22,13 @@ def _manifest(path: Path, mtime: float) -> dict[str, ManualEntry]:
     return {entry.doc_id: entry for entry in load_manifest(path)}
 
 
-def _entry(manuals_dir: Path, doc_id: str) -> ManualEntry:
+def manual_entries(manuals_dir: Path) -> dict[str, ManualEntry]:
     path = manuals_dir / "manifest.yaml"
-    entries = _manifest(path, path.stat().st_mtime) if path.exists() else {}
-    entry = entries.get(doc_id)
+    return _manifest(path, path.stat().st_mtime) if path.exists() else {}
+
+
+def _entry(manuals_dir: Path, doc_id: str) -> ManualEntry:
+    entry = manual_entries(manuals_dir).get(doc_id)
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown manual")
     return entry

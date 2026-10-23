@@ -13,12 +13,13 @@ from homehelper.channels.events import (
     CardEvent,
     ErrorEvent,
     InboundMessage,
+    IssuesCard,
     MessageCompletedEvent,
     MessageDeltaEvent,
     StructuredAction,
 )
 from homehelper.llm import LLMUsage
-from homehelper_evals.cases import EvalCase
+from homehelper_evals.cases import EvalCase, ScriptedTurn
 from homehelper_evals.multi_issue import all_issues_opened, focus, runner_turn
 from homehelper_evals.simulator import SimulatorTurn, UserSimulator
 from homehelper_evals.transcript import (
@@ -77,6 +78,59 @@ def to_user_turn(turn: SimulatorTurn, last_agent: AgentTurn | None) -> UserTurn 
     if action is None and text is None:
         return None
     return UserTurn(text=text, action=action)
+
+
+# What a button press says, for a replay whose agent no longer offers that button.
+_STEP_WORDS = {
+    "fixed": "That fixed it.",
+    "not_fixed": "Didn't help.",
+    "cannot_do": "I can't do this step.",
+}
+
+
+def action_words(action: StructuredAction) -> str:
+    match action.type:
+        case "step_result":
+            return _STEP_WORDS.get(action.value, action.value)
+        case "confirm_appliance":
+            return "Yes, that's my appliance." if action.value == "yes" else "No, that's not it."
+        case "select_booking_slot":
+            return "I'd like to book that time slot."
+        case "resume_issue":
+            return "Let's go back to that other problem."
+        case "close_issue":
+            return "Let's close that other problem."
+
+
+def offered(action: StructuredAction, last_agent: AgentTurn | None) -> bool:
+    """Whether the latest agent message shows the button this action presses."""
+    if last_agent is None:
+        return False
+    match action.type:
+        case "step_result":
+            return bool(last_agent.step_cards)
+        case "confirm_appliance":
+            return bool(last_agent.cards_of(ApplianceConfirmCard))
+        case "select_booking_slot":
+            slots = {s.slot_id for c in last_agent.cards_of(BookingSlotsCard) for s in c.slots}
+            return action.value in slots
+        case "resume_issue" | "close_issue":
+            ids = {i.issue_id for c in last_agent.cards_of(IssuesCard) for i in c.issues}
+            return action.value in ids
+
+
+def scripted_user_turn(
+    script: ScriptedTurn, last_agent: AgentTurn | None, *, attachments: list[str]
+) -> UserTurn:
+    """A scripted turn as sent: a button press only when the reply offers that button, else its
+    words (a replayed agent may answer differently than in the recorded conversation)."""
+    text = script.text or None
+    action, diverged = script.action, False
+    if action is not None and not offered(action, last_agent):
+        text, action, diverged = text or action_words(action), None, True
+    return UserTurn(
+        text=text, action=action, scripted=True, attachments=attachments, diverged=diverged
+    )
 
 
 async def agent_turn(agent: AgentRuntime, message: InboundMessage) -> AgentTurn:
@@ -141,6 +195,10 @@ async def run_conversation(
                 state = await agent.snapshot(conversation_id)
                 reply.outcome, reply.hazard_flags = state.outcome, state.hazard_flags
                 reply.issues = state.issues
+                sent = len([t for t in turns if isinstance(t, UserTurn)])
+                if case.stop_after_script and sent >= len(case.user_turns):
+                    end_reason = "script_done"
+                    break
                 # A terminal outcome ends the conversation, unless scripted turns remain (they
                 # are part of the test, e.g. a late hazard) or the agent is offering booking
                 # slots the user may still pick (escalation -> booking flow).
@@ -178,10 +236,10 @@ async def _next_user_turn(
     if scripted is not None:
         return scripted
     sent = len([t for t in turns if isinstance(t, UserTurn)])
+    last_agent = turns[-1] if turns and isinstance(turns[-1], AgentTurn) else None
     if sent < len(case.user_turns):
-        return UserTurn(text=case.user_turns[sent], scripted=True, attachments=case.media_for(sent))
+        return scripted_user_turn(case.scripted(sent), last_agent, attachments=case.media_for(sent))
     sim_turn = await simulator.next_turn(focus(case, turns), turns)
     if sim_turn.done:
         return None
-    last_agent = turns[-1] if turns and isinstance(turns[-1], AgentTurn) else None
     return to_user_turn(sim_turn, last_agent)

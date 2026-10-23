@@ -55,6 +55,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/annotations/{annotation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Annotation */
+        put: operations["update_annotation_v1_admin_annotations__annotation_id__put"];
+        post?: never;
+        /** Delete Annotation */
+        delete: operations["delete_annotation_v1_admin_annotations__annotation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/annotations/{annotation_id}/export": {
         parameters: {
             query?: never;
@@ -64,8 +82,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export Annotation */
+        /**
+         * Export Annotation
+         * @description Export once; the annotation is frozen afterwards. `dry_run` only previews the case.
+         */
         post: operations["export_annotation_v1_admin_annotations__annotation_id__export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Attachment Url */
+        get: operations["attachment_url_v1_admin_attachments__attachment_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -79,8 +117,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Review Conversations */
+        /**
+         * Review Conversations
+         * @description Newest first, `limit` per page; with `sample`, that many random conversations instead.
+         */
         get: operations["review_conversations_v1_admin_conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review Conversation */
+        get: operations["review_conversation_v1_admin_conversations__conversation_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -96,11 +154,73 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Eval Reports */
-        get: operations["eval_reports_v1_admin_evals_get"];
+        /**
+         * List Reports
+         * @description Newest first, without per-case results.
+         */
+        get: operations["list_reports_v1_admin_evals_get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/evals/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report */
+        get: operations["get_report_v1_admin_evals__report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manuals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Manuals
+         * @description Every manual in the manifest, to pick the one a reply should have cited.
+         */
+        get: operations["list_manuals_v1_admin_manuals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check
+         * @description 204 while signed in (or with the header), else 401.
+         */
+        get: operations["check_v1_admin_session_get"];
+        put?: never;
+        /** Sign In */
+        post: operations["sign_in_v1_admin_session_post"];
+        /** Sign Out */
+        delete: operations["sign_out_v1_admin_session_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -381,14 +501,209 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdminAttachmentRef */
+        AdminAttachmentRef: {
+            /** Analysis */
+            analysis: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "video";
+            /** Mime */
+            mime: string;
+            /** Status */
+            status: string;
+        };
+        /** AdminConversationDetail */
+        AdminConversationDetail: {
+            /** Active Journey */
+            active_journey: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Messages */
+            messages: components["schemas"]["AdminMessageOut"][];
+            /** Outcome */
+            outcome: string | null;
+            /** Release Id */
+            release_id: string;
+            /** Title */
+            title: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Display Name */
+            user_display_name: string;
+            /** User Id */
+            user_id: string;
+            /** User Is Demo */
+            user_is_demo: boolean;
+        };
+        /** AdminConversationPage */
+        AdminConversationPage: {
+            /** Items */
+            items: components["schemas"]["AdminConversationRow"][];
+            /** Next Before */
+            next_before: string | null;
+        };
+        /** AdminConversationRow */
+        AdminConversationRow: {
+            /** Active Journey */
+            active_journey: string | null;
+            /** Annotation Count */
+            annotation_count: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Down Count */
+            down_count: number;
+            /** Id */
+            id: string;
+            /** Message Count */
+            message_count: number;
+            /** Outcome */
+            outcome: string | null;
+            /** Release Id */
+            release_id: string;
+            /** Title */
+            title: string | null;
+            /** Up Count */
+            up_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Display Name */
+            user_display_name: string;
+            /** User Id */
+            user_id: string;
+            /** User Is Demo */
+            user_is_demo: boolean;
+        };
+        /** AdminLogin */
+        AdminLogin: {
+            /** Token */
+            token: string;
+        };
+        /** AdminManualOut */
+        AdminManualOut: {
+            /** Brand */
+            brand: string;
+            category: components["schemas"]["CategoryId"];
+            /** Doc Id */
+            doc_id: string;
+            /** Title */
+            title: string;
+        };
+        /** AdminMessageOut */
+        AdminMessageOut: {
+            action: components["schemas"]["StructuredAction"] | null;
+            /** Annotations */
+            annotations?: components["schemas"]["AnnotationOut"][];
+            /** Attachments */
+            attachments?: components["schemas"]["AdminAttachmentRef"][];
+            /** Cards */
+            cards: (components["schemas"]["StepCard"] | components["schemas"]["CitationCard"] | components["schemas"]["SafetyCard"] | components["schemas"]["ApplianceConfirmCard"] | components["schemas"]["PartCard"] | components["schemas"]["VideoCard"] | components["schemas"]["BookingSlotsCard"] | components["schemas"]["HandoffCard"] | components["schemas"]["IssuesCard"])[];
+            /** Citations */
+            citations: components["schemas"]["Citation"][];
+            /** Content */
+            content: string;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Feedback */
+            feedback?: ("up" | "down") | null;
+            /** Feedback Reason */
+            feedback_reason?: string | null;
+            /** Id */
+            id: string;
+            /** Latency Ms */
+            latency_ms: number | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant" | "system";
+            /** Trace Id */
+            trace_id: string | null;
+            /** Trace Url */
+            trace_url?: string | null;
+        };
         /** AnnotationCreate */
         AnnotationCreate: {
             /** Expected Response */
             expected_response?: string | null;
             /** Issue Types */
-            issue_types?: string[];
+            issue_types?: ("wrong_diagnosis" | "unsafe" | "hallucination" | "wrong_manual" | "too_many_steps_at_once" | "tone" | "missed_escalation" | "other")[];
             /** Message Id */
             message_id: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "correct" | "incorrect";
+        };
+        /** AnnotationOut */
+        AnnotationOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expected Response */
+            expected_response: string | null;
+            /** Exported Case Id */
+            exported_case_id: string | null;
+            /** Id */
+            id: string;
+            /** Issue Types */
+            issue_types: ("wrong_diagnosis" | "unsafe" | "hallucination" | "wrong_manual" | "too_many_steps_at_once" | "tone" | "missed_escalation" | "other")[];
+            /** Message Id */
+            message_id: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "correct" | "incorrect";
+        };
+        /**
+         * AnnotationUpdate
+         * @description Replaces every field of an annotation that hasn't been exported.
+         */
+        AnnotationUpdate: {
+            /** Expected Response */
+            expected_response?: string | null;
+            /** Issue Types */
+            issue_types?: ("wrong_diagnosis" | "unsafe" | "hallucination" | "wrong_manual" | "too_many_steps_at_once" | "tone" | "missed_escalation" | "other")[];
             /** Notes */
             notes?: string | null;
             /**
@@ -525,6 +840,21 @@ export interface components {
              */
             type: "card";
         };
+        /** CaseSummary */
+        CaseSummary: {
+            /** Failed Checks */
+            failed_checks?: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Successes */
+            successes: number;
+            /** Trials */
+            trials: number;
+        };
         /**
          * CategoryId
          * @enum {string}
@@ -633,6 +963,117 @@ export interface components {
              * @enum {string}
              */
             type: "error";
+        };
+        /**
+         * EvalMetricsOut
+         * @description The metrics `/admin/evals` charts (spec §16.3). Older reports may lack some (null); the
+         *     rest of a report's metrics come through as extra keys.
+         */
+        EvalMetricsOut: {
+            /** Avg Turns To Resolution */
+            avg_turns_to_resolution?: number | null;
+            /** Cases */
+            cases?: number | null;
+            /** Citation Accuracy */
+            citation_accuracy?: number | null;
+            /** Cost Usd */
+            cost_usd?: {
+                [key: string]: number | null;
+            };
+            /** Errors */
+            errors?: number | null;
+            /** Failed Checks */
+            failed_checks?: {
+                [key: string]: number;
+            };
+            /** Injection Resistance */
+            injection_resistance?: number | null;
+            /** Judge Unavailable */
+            judge_unavailable?: number | null;
+            /** Latency Ms */
+            latency_ms?: {
+                [key: string]: number | null;
+            };
+            /** Multi Issue Pass Rate */
+            multi_issue_pass_rate?: number | null;
+            /** Multimodal Pass Rate */
+            multimodal_pass_rate?: number | null;
+            /** Out Of Scope Pass Rate */
+            out_of_scope_pass_rate?: number | null;
+            /** Pass Hat K */
+            pass_hat_k?: {
+                [key: string]: number | null;
+            };
+            /** Regression Pass Rate */
+            regression_pass_rate?: number | null;
+            /** Resolution Rate */
+            resolution_rate?: number | null;
+            /** Rubric */
+            rubric?: {
+                [key: string]: number | null;
+            };
+            /** Safety Pass Rate */
+            safety_pass_rate?: number | null;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Tool Scenario Pass Rate */
+            tool_scenario_pass_rate?: number | null;
+            /** Trials */
+            trials?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** EvalReportDetail */
+        EvalReportDetail: {
+            /** Cases */
+            cases: components["schemas"]["CaseSummary"][];
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Kb Version */
+            kb_version: string | null;
+            metrics: components["schemas"]["EvalMetricsOut"];
+            /** Release Id */
+            release_id: string;
+            /** Suite */
+            suite: string;
+            /** Weakened */
+            weakened: string | null;
+        };
+        /** EvalReportOut */
+        EvalReportOut: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Kb Version */
+            kb_version: string | null;
+            metrics: components["schemas"]["EvalMetricsOut"];
+            /** Release Id */
+            release_id: string;
+            /** Suite */
+            suite: string;
+            /** Weakened */
+            weakened: string | null;
         };
         /** FeedbackCreate */
         FeedbackCreate: {
@@ -807,6 +1248,106 @@ export interface components {
             status: "ok" | "error";
         };
         /**
+         * RegressionAssertions
+         * @description What the replayed reply must (not) do; a subset of the eval runner's `Assertions`.
+         */
+        RegressionAssertions: {
+            /** Expected Behavior */
+            expected_behavior?: string | null;
+            /**
+             * Forbid Step Cards
+             * @default false
+             */
+            forbid_step_cards: boolean;
+            /** Forbidden Cards */
+            forbidden_cards?: string[];
+            /** Forbidden Text */
+            forbidden_text?: string[];
+            /** Max Step Cards Per Reply */
+            max_step_cards_per_reply?: number | null;
+            /** Required Cards */
+            required_cards?: string[];
+        };
+        /** RegressionCase */
+        RegressionCase: {
+            assertions?: components["schemas"]["RegressionAssertions"];
+            /** Expected Doc Id */
+            expected_doc_id?: string | null;
+            /** Expected Outcomes */
+            expected_outcomes?: ("resolved" | "escalated" | "abandoned" | "out_of_scope")[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @default regression
+             * @constant
+             */
+            kind: "regression";
+            /**
+             * Max Turns
+             * @default 12
+             */
+            max_turns: number;
+            /** Media */
+            media?: components["schemas"]["ReplayMedia"][];
+            /** Notes */
+            notes?: string | null;
+            /** Scenario */
+            scenario: string;
+            source: components["schemas"]["RegressionSource"];
+            /**
+             * Stop After Script
+             * @default true
+             * @constant
+             */
+            stop_after_script: true;
+            /** User Id */
+            user_id?: string | null;
+            /** User Turns */
+            user_turns: components["schemas"]["ScriptedTurn"][];
+        };
+        /** RegressionExportOut */
+        RegressionExportOut: {
+            case: components["schemas"]["RegressionCase"];
+            /** Exported */
+            exported: boolean;
+            /** Yaml */
+            yaml: string;
+        };
+        /**
+         * RegressionExportRequest
+         * @description What the exported case checks. A field left out takes the suggestion for the annotation's
+         *     issue types (see `homehelper.quality.export.suggest`).
+         */
+        RegressionExportRequest: {
+            assertions?: components["schemas"]["RegressionAssertions"] | null;
+            /** Expected Doc Id */
+            expected_doc_id?: string | null;
+            /** Expected Outcomes */
+            expected_outcomes?: ("resolved" | "escalated" | "abandoned" | "out_of_scope")[] | null;
+        };
+        /**
+         * RegressionSource
+         * @description Where a case came from, so a failure can be traced back to the reviewed conversation.
+         */
+        RegressionSource: {
+            /** Annotation Id */
+            annotation_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Exported At
+             * Format: date-time
+             */
+            exported_at: string;
+            /** Issue Types */
+            issue_types?: ("wrong_diagnosis" | "unsafe" | "hallucination" | "wrong_manual" | "too_many_steps_at_once" | "tone" | "missed_escalation" | "other")[];
+            /** Message Id */
+            message_id: string;
+            /** Release Id */
+            release_id: string;
+        };
+        /**
          * RepairOut
          * @description One `user_profile.list_repair_history` record.
          */
@@ -836,6 +1377,16 @@ export interface components {
             resolution: string;
         };
         /**
+         * ReplayMedia
+         * @description A photo or video sent with one of the scripted turns, under `data/media/` (git-ignored).
+         */
+        ReplayMedia: {
+            /** Path */
+            path: string;
+            /** Turn */
+            turn: number;
+        };
+        /**
          * SSEEvent
          * @description One `data:` payload of the message stream; the SSE `event:` name equals its `type`.
          */
@@ -851,6 +1402,19 @@ export interface components {
              * @enum {string}
              */
             type: "safety";
+        };
+        /**
+         * ScriptedTurn
+         * @description One user message of a replayed conversation: typed text, a card button press, or both.
+         *     A turn with neither must send media (a photo-only message).
+         */
+        ScriptedTurn: {
+            action?: components["schemas"]["StructuredAction"] | null;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /**
          * SendMessageRequest
@@ -1050,6 +1614,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationOut"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1059,18 +1632,60 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+        };
+    };
+    update_annotation_v1_admin_annotations__annotation_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationUpdate"];
+            };
+        };
+        responses: {
             /** @description Successful Response */
-            501: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AnnotationOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    export_annotation_v1_admin_annotations__annotation_id__export_post: {
+    delete_annotation_v1_admin_annotations__annotation_id__delete: {
         parameters: {
             query?: never;
             header?: {
@@ -1083,6 +1698,27 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1092,13 +1728,97 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+        };
+    };
+    export_annotation_v1_admin_annotations__annotation_id__export_post: {
+        parameters: {
+            query?: {
+                dry_run?: boolean;
+            };
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RegressionExportRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Dry run: the case it would export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Successful Response */
-            501: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RegressionExportOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attachment_url_v1_admin_attachments__attachment_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrlOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1106,9 +1826,14 @@ export interface operations {
     review_conversations_v1_admin_conversations_get: {
         parameters: {
             query?: {
-                outcome?: string | null;
+                outcome?: ("resolved" | "escalated" | "abandoned" | "out_of_scope" | "open") | null;
                 feedback?: ("up" | "down") | null;
                 release_id?: string | null;
+                annotated?: boolean | null;
+                limit?: number;
+                before?: string | null;
+                /** @description Random sample size */
+                sample?: number | null;
             };
             header?: {
                 "x-admin-token"?: string | null;
@@ -1118,6 +1843,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminConversationPage"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1127,18 +1861,117 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+        };
+    };
+    review_conversation_v1_admin_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Successful Response */
-            501: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AdminConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    eval_reports_v1_admin_evals_get: {
+    list_reports_v1_admin_evals_get: {
+        parameters: {
+            query?: {
+                suite?: string | null;
+                release_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_v1_admin_evals__report_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_manuals_v1_admin_manuals_get: {
         parameters: {
             query?: never;
             header?: {
@@ -1149,6 +1982,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminManualOut"][];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1158,14 +2000,104 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+        };
+    };
+    check_v1_admin_session_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Successful Response */
-            501: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    sign_in_v1_admin_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminLogin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sign_out_v1_admin_session_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

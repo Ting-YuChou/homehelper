@@ -2,7 +2,8 @@
 
 Scenario cases are built from the frozen dataset; safety, injection and out-of-scope cases are
 hand-written YAML files in `evals/datasets/` (spec §16.1). Multi-issue cases (ADR-007) pair two
-frozen scenarios by variant id.
+frozen scenarios by variant id. Regression cases (spec §17.2) are exported from annotated real
+conversations, one file each under `evals/datasets/regression/`.
 """
 
 import re
@@ -14,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from homehelper.agent.protocol import Outcome
 from homehelper.knowledge.schemas import CategoryId
+from homehelper.quality.regression import RegressionSource, ScriptedTurn, empty_turns
 from homehelper_evals import DATASETS_DIR
 from homehelper_evals.manifest import ManualRef, load_manuals
 from homehelper_evals.scenarios import (
@@ -26,7 +28,14 @@ from homehelper_evals.scenarios import (
 from homehelper_evals.splits import Split
 
 CaseKind = Literal[
-    "scenario", "safety", "injection", "out_of_scope", "multi_issue", "tools", "multimodal"
+    "scenario",
+    "safety",
+    "injection",
+    "out_of_scope",
+    "multi_issue",
+    "tools",
+    "multimodal",
+    "regression",
 ]
 
 # How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, injury),
@@ -41,6 +50,7 @@ DATASET_FILES: dict[CaseKind, str] = {
     "tools": "tools.yaml",
     "multimodal": "multimodal.yaml",
 }
+REGRESSION_DIR = "regression"  # one `<case id>.yaml` per case
 
 MAX_TURNS = 12
 MULTI_ISSUE_MAX_TURNS = 20  # two problems, a switch and a return
@@ -96,6 +106,9 @@ class Assertions(BaseModel):
     # Card types (e.g. "appliance_confirm") that some agent turn must show, or none may show.
     required_cards: list[str] = Field(default_factory=list)
     forbidden_cards: list[str] = Field(default_factory=list)
+    max_step_cards_per_reply: int | None = Field(default=None, ge=1)
+    # What a reviewer expected of the last reply (regression cases), graded by the LLM judge.
+    expected_behavior: str | None = None
 
 
 class CaseMedia(BaseModel):
@@ -148,8 +161,10 @@ class EvalCase(BaseModel):
     user_fixable: bool = True
     simulator_notes: str | None = None  # extra hidden facts or behavior for the simulated user
 
-    # Turns sent verbatim before the simulator takes over (safety, injection, out-of-scope).
-    user_turns: list[str] = Field(default_factory=list)
+    # Turns sent verbatim before the simulator takes over (safety, injection, out-of-scope). A
+    # regression case also presses card buttons, and stops after its script (no simulator).
+    user_turns: list[str | ScriptedTurn] = Field(default_factory=list)
+    stop_after_script: bool = False
     hazard: str | None = None  # e.g. "gas_smell"
     hazard_turn: int | None = None  # 0-based index of the user turn that first discloses it
     safety_expectation: SafetyExpectation | None = None
@@ -170,6 +185,7 @@ class EvalCase(BaseModel):
 
     split: Split | None = None
     source_row_id: int | None = None
+    source: RegressionSource | None = None  # the reviewed conversation (regression cases)
     notes: str | None = None
 
     @model_validator(mode="after")
@@ -191,7 +207,24 @@ class EvalCase(BaseModel):
             raise ValueError(f"{self.id}: max_turns must be 1..{limit}")
         if (self.kind == "multi_issue") != (len(self.issues) >= 2):
             raise ValueError(f"{self.id}: multi_issue cases, and only they, list 2+ issues")
+        if not self.expected_outcomes and self.kind != "regression":
+            raise ValueError(f"{self.id}: expected_outcomes may only be empty on regression cases")
+        if self.kind == "regression":
+            if not self.stop_after_script:
+                raise ValueError(f"{self.id}: regression cases replay with stop_after_script")
+            if not self.user_turns:
+                raise ValueError(f"{self.id}: regression cases need user_turns")
+        if self.stop_after_script and self.max_turns < len(self.user_turns):
+            raise ValueError(f"{self.id}: max_turns must cover every scripted turn")
+        empty = empty_turns(list(self.user_turns), {m.turn for m in self.media})
+        if empty:
+            raise ValueError(f"{self.id}: user turns {empty} need text, an action or media")
         return self
+
+    def scripted(self, index: int) -> ScriptedTurn:
+        """`user_turns[index]` as a ScriptedTurn (plain strings are typed text)."""
+        turn = self.user_turns[index]
+        return ScriptedTurn(text=turn) if isinstance(turn, str) else turn
 
     def focused(self, index: int) -> "EvalCase":
         """This case as seen while the user talks about issue `index` (multi-issue cases)."""
@@ -284,7 +317,22 @@ def multi_issue_case(
     )
 
 
+def load_regression_cases(folder: Path) -> list[EvalCase]:
+    """Every `<id>.yaml` under `folder`; a missing folder has none."""
+    cases = []
+    for path in sorted(folder.glob("*.yaml")) if folder.is_dir() else []:
+        # The file leaves out RegressionCase defaults (kind, stop_after_script, no outcomes).
+        defaults = {"kind": "regression", "stop_after_script": True, "expected_outcomes": []}
+        case = EvalCase.model_validate({**defaults, **yaml.safe_load(path.read_text())})
+        if case.id != path.stem:
+            raise ValueError(f"{path.name}: case id {case.id!r} must match the file name")
+        cases.append(case)
+    return cases
+
+
 def load_dataset(kind: CaseKind, directory: Path = DATASETS_DIR) -> list[EvalCase]:
+    if kind == "regression":
+        return load_regression_cases(directory / REGRESSION_DIR)
     raw = yaml.safe_load((directory / DATASET_FILES[kind]).read_text())
     if kind == "multi_issue":
         variants = {v.variant_id: v for v in load_variants()}

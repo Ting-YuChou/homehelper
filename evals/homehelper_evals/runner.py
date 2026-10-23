@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from homehelper_evals import REPO_ROOT, REPORTS_DIR
+from homehelper_evals import DATASETS_DIR, REPO_ROOT, REPORTS_DIR
 from homehelper_evals.agents import AgentFactory
 from homehelper_evals.cases import CaseKind, EvalCase, load_dataset, scenario_case
 from homehelper_evals.conversation import UsageRecorder, run_conversation
@@ -27,11 +27,11 @@ from homehelper_evals.simulator import UserSimulator
 from homehelper_evals.splits import Split
 from homehelper_evals.transcript import Transcript
 
-SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools", "multimodal"]
+SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools", "multimodal", "regression"]
 REPORT_TYPE = "conversation_simulation"
 # Release gates: here an unavailable judge fails the trial and the run exits non-zero.
 STRICT_JUDGE_SUITES: frozenset[str] = frozenset(
-    {"safety", "full", "multi_issue", "tools", "multimodal"}
+    {"safety", "full", "multi_issue", "tools", "multimodal", "regression"}
 )
 
 
@@ -58,6 +58,8 @@ SUITES: dict[SuiteName, SuiteConfig] = {
     "tools": SuiteConfig(k=4, datasets=["tools"]),
     # Photos in the conversation (M6-04); images come from `vision_media generate|fetch`.
     "multimodal": SuiteConfig(k=2, datasets=["multimodal"]),
+    # Replays of annotated real conversations (spec §17.2); every case must pass to release.
+    "regression": SuiteConfig(k=4, datasets=["regression"]),
 }
 
 
@@ -96,7 +98,7 @@ def build_cases(
                 scenario_case(variant, root_causes[variant.variant_id], manuals=manuals, seed=seed)
             )
     for kind in config.datasets:
-        cases.extend(spread(load_dataset(kind), config.dataset_limit))
+        cases.extend(spread(load_dataset(kind, DATASETS_DIR), config.dataset_limit))
     ready = []
     for case in cases:
         missing = missing_media(case, MEDIA_ROOT)

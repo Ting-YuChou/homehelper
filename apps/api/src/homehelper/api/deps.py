@@ -1,5 +1,7 @@
 """Request dependencies: DB session, the signed session cookie, admin token, Origin check."""
 
+import hashlib
+import hmac
 import secrets
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -14,6 +16,7 @@ from homehelper.db.models import User
 from homehelper.mcp_servers.factory import McpServers
 
 SESSION_COOKIE = "hh_session"
+ADMIN_COOKIE = "hh_admin"
 _DEV_SECRET = "homehelper-local-session-secret"  # local and test only
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -45,6 +48,45 @@ class SessionSigner:
         except BadSignature:  # also covers SignatureExpired
             return None
         return value if isinstance(value, str) else None
+
+
+class AdminSigner:
+    """Signs the `hh_admin` cookie the admin token is exchanged for (M7-01).
+
+    The cookie carries a fingerprint of the token, so rotating `ADMIN_TOKEN` ends every admin
+    session; with no token configured nothing validates.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        secret = session_secret(settings)
+        self._serializer = URLSafeTimedSerializer(secret, salt="hh-admin")
+        self._secret = secret.encode()
+        self._token = settings.admin_token.get_secret_value()
+        self.max_age_s = settings.admin_session_max_age_s
+        self.secure = settings.app_env not in ("local", "test")
+
+    def _fingerprint(self) -> str:
+        # Keyed, so a cookie (signed, not encrypted) gives nothing to guess the token against.
+        return hmac.new(self._secret, self._token.encode(), hashlib.sha256).hexdigest()[:32]
+
+    def token_matches(self, token: str) -> bool:
+        if not (self._token and token):
+            return False
+        return secrets.compare_digest(token.encode(), self._token.encode())
+
+    def dumps(self) -> str:
+        if not self._token:
+            raise ValueError("ADMIN_TOKEN is not set")
+        return self._serializer.dumps(self._fingerprint())
+
+    def valid(self, cookie: str) -> bool:
+        if not self._token:
+            return False
+        try:
+            value = self._serializer.loads(cookie, max_age=self.max_age_s)
+        except BadSignature:  # also covers SignatureExpired
+            return False
+        return isinstance(value, str) and secrets.compare_digest(value, self._fingerprint())
 
 
 def get_settings(request: Request) -> Settings:
@@ -90,9 +132,30 @@ def check_origin(request: Request, settings: SettingsDep) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Origin not allowed")
 
 
-def require_admin(
-    settings: SettingsDep, x_admin_token: Annotated[str | None, Header()] = None
+async def require_admin(
+    request: Request, x_admin_token: Annotated[str | None, Header()] = None
 ) -> None:
-    expected = settings.admin_token.get_secret_value()
-    if not expected or not x_admin_token or not secrets.compare_digest(x_admin_token, expected):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin token required")
+    """The `X-Admin-Token` header (CLI, curl) or the `hh_admin` cookie (the web app). A wrong
+    header counts against the same per-IP limit as a wrong sign-in."""
+    signer: AdminSigner = request.app.state.admin_signer
+    if x_admin_token and signer.token_matches(x_admin_token):
+        return
+    cookie = request.cookies.get(ADMIN_COOKIE)
+    if cookie and signer.valid(cookie):
+        return
+    if x_admin_token:
+        await admin_attempt_allowed(request)
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin token required")
+
+
+async def admin_attempt_allowed(request: Request) -> None:
+    """Count an admin token attempt from this address; 429 once over the limit."""
+    guards = request.app.state.turn_guards
+    client_ip = request.client.host if request.client else "unknown"
+    decision = await guards.admin_login_limiter.hit(f"rl:admin-login:{client_ip}")
+    if not decision.allowed:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many admin sign-in attempts. Please try again later.",
+            headers={"Retry-After": str(decision.retry_after_s)},
+        )

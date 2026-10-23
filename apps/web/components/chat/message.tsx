@@ -21,10 +21,13 @@ export function UserMessage({
   text,
   action,
   attachments = [],
+  adminMedia = false,
 }: {
   text: string;
   action: StructuredAction | null;
   attachments?: string[];
+  /** Read the attachments through the admin API (review pages). */
+  adminMedia?: boolean;
 }) {
   const bubble = text || action;
   return (
@@ -32,7 +35,7 @@ export function UserMessage({
       {attachments.length > 0 && (
         <div className="flex max-w-[85%] flex-wrap justify-end gap-2">
           {attachments.map((id) => (
-            <AttachmentThumb key={id} id={id} />
+            <AttachmentThumb key={id} id={id} admin={adminMedia} />
           ))}
         </div>
       )}

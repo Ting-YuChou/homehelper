@@ -89,6 +89,15 @@ def test_datasets_have_spec_size(kind, minimum) -> None:
     assert all(case.kind == kind and (case.user_turns or case.issues) for case in cases)
 
 
+def test_regression_cases_are_valid_replays_of_known_demo_users() -> None:
+    # Every file under evals/datasets/regression/ loads (id = file name), replays a script, and
+    # signs in as a known demo user or a guest.
+    users = {u.user_id for u in load_mock_data(REPO_ROOT / "data" / "mock").users}
+    for case in load_dataset("regression"):
+        assert case.kind == "regression" and case.stop_after_script and case.source
+        assert case.user_id is None or case.user_id in users
+
+
 def test_tool_cases_use_known_demo_users_and_tools() -> None:
     cases = load_dataset("tools")
     assert len(cases) >= 8 and all(c.kind == "tools" and c.user_turns for c in cases)

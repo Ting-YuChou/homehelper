@@ -161,6 +161,48 @@ class Annotation(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     exported_case_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class RegressionCaseRow(Base):
+    """An annotation exported as a regression case (spec §17.2, M7-02). `evals regression pull`
+    writes these to `evals/datasets/regression/<id>.yaml`; the API can't write into the repo."""
+
+    __tablename__ = "regression_cases"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # reg-YYYYMMDD-xxxxxxxx
+    annotation_id: Mapped[str] = mapped_column(
+        ForeignKey("annotations.id", ondelete="CASCADE"), unique=True
+    )
+    conversation_id: Mapped[str] = mapped_column(String(64))
+    message_id: Mapped[str] = mapped_column(String(64))
+    case: Mapped[dict[str, Any]] = mapped_column(JSONB)  # a RegressionCase
+    # Case media path -> attachment id, so the pull can copy the stored file.
+    media_sources: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class EvalReportRow(Base):
+    """A conversation-simulation eval report, summarized for `/admin/evals` (spec §16.4, M7-04):
+    metrics, run config and per-case results; the transcripts stay in the JSON file."""
+
+    __tablename__ = "eval_reports"
+    __table_args__ = (Index("ix_eval_reports_suite_created", "suite", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)  # the report's file name stem
+    release_id: Mapped[str] = mapped_column(String(64), index=True)
+    suite: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when the run started
+    git_sha: Mapped[str | None] = mapped_column(String(40))
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    cases: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    source_uri: Mapped[str | None] = mapped_column(Text)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Release(Base):

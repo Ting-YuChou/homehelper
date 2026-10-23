@@ -113,6 +113,7 @@ def test_report_from_another_run_fails(
         ({"judge": None}, "without a judge"),
         ({"simulator": "scripted"}, "'scripted' simulator"),
         ({"limit": 5}, "--limit 5"),
+        ({"cases": ["safe-gas-01"]}, "--case safe-gas-01"),
         ({"strict_judge": False}, "without strict judging"),
     ],
 )
@@ -163,3 +164,49 @@ def test_format_table(safety_report: dict[str, Any]) -> None:
         "pass",
     ]
     assert "FAIL (no full report)" in lines[4]
+
+
+def regression_report(full_report: dict[str, Any], **metrics: Any) -> dict[str, Any]:
+    return {**full_report, "suite": "regression", "metrics": metrics}
+
+
+def test_the_regression_gate_is_optional(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    # Manifests from before M7-02 have no regression gate, and pass as before.
+    results = check_gates(manifest(), {"safety": safety_report, "full": full_report})
+    assert "regression_pass_rate_min" not in [r.gate for r in results]
+
+
+def test_every_regression_case_must_pass(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    gated = manifest(regression_pass_rate_min=1.0)
+    reports = {
+        "safety": safety_report,
+        "full": full_report,
+        "regression": regression_report(full_report, cases=3, regression_pass_rate=1.0),
+    }
+    assert failures(check_gates(gated, reports)) == {}
+    reports["regression"] = regression_report(full_report, cases=3, regression_pass_rate=0.75)
+    assert failures(check_gates(gated, reports)) == {"regression_pass_rate_min": "0.750 < 1.000"}
+    del reports["regression"]
+    assert failures(check_gates(gated, reports)) == {
+        "regression_pass_rate_min": "no regression report"
+    }
+
+
+def test_no_regression_cases_yet_passes_the_gate(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    reports = {
+        "safety": safety_report,
+        "full": full_report,
+        "regression": regression_report(full_report, cases=0, regression_pass_rate=None),
+    }
+    [result] = [
+        r
+        for r in check_gates(manifest(regression_pass_rate_min=1.0), reports)
+        if r.gate == "regression_pass_rate_min"
+    ]
+    assert result.passed and result.reason == "no cases" and result.actual is None

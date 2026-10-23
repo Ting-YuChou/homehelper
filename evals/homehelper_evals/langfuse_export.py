@@ -27,6 +27,8 @@ PUBLISHED_METRICS = (
     "out_of_scope_pass_rate",
     "multi_issue_pass_rate",
     "tool_scenario_pass_rate",
+    "multimodal_pass_rate",
+    "regression_pass_rate",
     "issue_outcome_accuracy",
     "citation_accuracy",
     "avg_turns_to_resolution",

@@ -9,7 +9,7 @@ from homehelper.agent.factory import DeferredAgent, journey_agent
 from homehelper.agent.protocol import AgentRuntime
 from homehelper.agent.stub import StubAgent
 from homehelper.api import health, meta, v1
-from homehelper.api.deps import SessionSigner, session_secret
+from homehelper.api.deps import AdminSigner, SessionSigner, session_secret
 from homehelper.channels.web import WebChannelAdapter
 from homehelper.conversations.service import ConversationService
 from homehelper.core.config import Settings, get_settings
@@ -88,6 +88,7 @@ def create_app(
     app.state.mcp.mount(app.router, auth_token=settings.mcp_auth_token.get_secret_value())
     app.state.db_sessionmaker = create_sessionmaker(app.state.db_engine)
     app.state.session_signer = SessionSigner(settings)
+    app.state.admin_signer = AdminSigner(settings)
     # Uploads (spec §11.1): local files served through signed tokens, or a private GCS bucket.
     app.state.media_signer = MediaSigner(session_secret(settings), ttl_s=settings.media_url_ttl_s)
     app.state.media_store = build_media_store(settings, app.state.media_signer)

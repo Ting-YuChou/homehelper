@@ -128,3 +128,16 @@ def test_gates_and_models_are_validated(
         report["config"]["model_overrides"] = {"no_such_task": {"model": "x", "fallbacks": []}}
     with pytest.raises(DraftError, match="unknown task"):
         draft_manifest(RELEASE_ID, reports(safety_report, full_report), gates=GATES)
+
+
+def test_a_regression_report_and_gate_go_into_the_manifest(
+    safety_report: dict[str, Any], full_report: dict[str, Any]
+) -> None:
+    regression = {**full_report, "suite": "regression", "metrics": {"cases": 0}}
+    manifest = draft_manifest(
+        RELEASE_ID,
+        {**reports(safety_report, full_report), "regression": ("evals/reports/r.json", regression)},
+        gates={**GATES, "regression_pass_rate_min": 1.0},
+    )
+    assert manifest.eval_reports["regression"] == "evals/reports/r.json"
+    assert manifest.gates.regression_pass_rate_min == 1.0
