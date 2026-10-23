@@ -2,7 +2,9 @@ import createClient from "openapi-fetch";
 
 import type { paths } from "./schema";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Same origin: the web app proxies `/v1` to the API (app/v1/[...path]/route.ts, ADR-011), so the
+// API's httpOnly session cookies are first-party.
+export const API_URL = "";
 
 // The session is an httpOnly cookie set by the API, so every request sends credentials.
 export const api = createClient<paths>({ baseUrl: API_URL, credentials: "include" });

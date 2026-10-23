@@ -20,6 +20,8 @@ FROM deps AS build
 COPY apps/web apps/web
 RUN pnpm --filter web build
 
+# API_URL (where `/v1` is proxied to) and PROXY_SECRET are read at request time, so the same
+# image runs in every environment.
 FROM node:24-slim AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=8080 HOSTNAME=0.0.0.0
 WORKDIR /app
