@@ -1,6 +1,8 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
-import { api, unwrap } from "./client";
+import type { ReviewQuery } from "@/lib/admin/filters";
+
+import { ApiError, api, unwrap } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
@@ -10,6 +12,12 @@ export const queryKeys = {
   manual: (docId: string) => ["manual", docId] as const,
   appliances: ["me", "appliances"] as const,
   attachment: (id: string) => ["attachment", id] as const,
+  admin: ["admin"] as const,
+  adminSession: ["admin", "session"] as const,
+  adminConversations: (query: ReviewQuery) => ["admin", "conversations", query] as const,
+  adminConversation: (id: string) => ["admin", "conversation", id] as const,
+  adminAttachment: (id: string) => ["admin", "attachment", id] as const,
+  adminManuals: ["admin", "manuals"] as const,
 };
 
 export const meQuery = queryOptions({
@@ -71,3 +79,66 @@ export const attachmentUrlQuery = (id: string) =>
     refetchOnReconnect: false,
     retry: false,
   });
+
+/** Whether this browser holds an admin session (the `hh_admin` cookie): true, or false on 401. */
+export const adminSessionQuery = queryOptions({
+  queryKey: queryKeys.adminSession,
+  queryFn: async () => {
+    try {
+      await unwrap(api.GET("/v1/admin/session"));
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) return false;
+      throw error;
+    }
+  },
+  retry: false,
+});
+
+export const adminConversationsQuery = (query: ReviewQuery) =>
+  infiniteQueryOptions({
+    queryKey: queryKeys.adminConversations(query),
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        api.GET("/v1/admin/conversations", {
+          params: { query: { ...query, ...(pageParam ? { before: pageParam } : {}) } },
+        }),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_before,
+    retry: false,
+  });
+
+export const adminConversationQuery = (id: string) =>
+  queryOptions({
+    queryKey: queryKeys.adminConversation(id),
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/admin/conversations/{conversation_id}", {
+          params: { path: { conversation_id: id } },
+        }),
+      ),
+    retry: false,
+  });
+
+// Same freshness rules as `attachmentUrlQuery`.
+export const adminAttachmentUrlQuery = (id: string) =>
+  queryOptions({
+    queryKey: queryKeys.adminAttachment(id),
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/admin/attachments/{attachment_id}", {
+          params: { path: { attachment_id: id } },
+        }),
+      ),
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+
+export const adminManualsQuery = queryOptions({
+  queryKey: queryKeys.adminManuals,
+  queryFn: () => unwrap(api.GET("/v1/admin/manuals")),
+  staleTime: Infinity,
+});
