@@ -81,6 +81,6 @@ async def test_demo_users_come_from_the_mock_data(client: httpx.AsyncClient) -> 
     assert all(u["display_name"] for u in users)
 
 
-async def test_admin_skeleton_answers_with_the_token(client: httpx.AsyncClient) -> None:
-    response = await client.get("/v1/admin/evals", headers={"X-Admin-Token": "admin-secret"})
-    assert response.status_code == 501
+async def test_admin_routes_accept_the_token(client: httpx.AsyncClient) -> None:
+    response = await client.get("/v1/admin/session", headers={"X-Admin-Token": "admin-secret"})
+    assert response.status_code == 204

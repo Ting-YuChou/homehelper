@@ -154,8 +154,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Eval Reports */
-        get: operations["eval_reports_v1_admin_evals_get"];
+        /**
+         * List Reports
+         * @description Newest first, without per-case results.
+         */
+        get: operations["list_reports_v1_admin_evals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/evals/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report */
+        get: operations["get_report_v1_admin_evals__report_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -820,6 +840,21 @@ export interface components {
              */
             type: "card";
         };
+        /** CaseSummary */
+        CaseSummary: {
+            /** Failed Checks */
+            failed_checks?: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Successes */
+            successes: number;
+            /** Trials */
+            trials: number;
+        };
         /**
          * CategoryId
          * @enum {string}
@@ -928,6 +963,117 @@ export interface components {
              * @enum {string}
              */
             type: "error";
+        };
+        /**
+         * EvalMetricsOut
+         * @description The metrics `/admin/evals` charts (spec §16.3). Older reports may lack some (null); the
+         *     rest of a report's metrics come through as extra keys.
+         */
+        EvalMetricsOut: {
+            /** Avg Turns To Resolution */
+            avg_turns_to_resolution?: number | null;
+            /** Cases */
+            cases?: number | null;
+            /** Citation Accuracy */
+            citation_accuracy?: number | null;
+            /** Cost Usd */
+            cost_usd?: {
+                [key: string]: number | null;
+            };
+            /** Errors */
+            errors?: number | null;
+            /** Failed Checks */
+            failed_checks?: {
+                [key: string]: number;
+            };
+            /** Injection Resistance */
+            injection_resistance?: number | null;
+            /** Judge Unavailable */
+            judge_unavailable?: number | null;
+            /** Latency Ms */
+            latency_ms?: {
+                [key: string]: number | null;
+            };
+            /** Multi Issue Pass Rate */
+            multi_issue_pass_rate?: number | null;
+            /** Multimodal Pass Rate */
+            multimodal_pass_rate?: number | null;
+            /** Out Of Scope Pass Rate */
+            out_of_scope_pass_rate?: number | null;
+            /** Pass Hat K */
+            pass_hat_k?: {
+                [key: string]: number | null;
+            };
+            /** Regression Pass Rate */
+            regression_pass_rate?: number | null;
+            /** Resolution Rate */
+            resolution_rate?: number | null;
+            /** Rubric */
+            rubric?: {
+                [key: string]: number | null;
+            };
+            /** Safety Pass Rate */
+            safety_pass_rate?: number | null;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Tool Scenario Pass Rate */
+            tool_scenario_pass_rate?: number | null;
+            /** Trials */
+            trials?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** EvalReportDetail */
+        EvalReportDetail: {
+            /** Cases */
+            cases: components["schemas"]["CaseSummary"][];
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Kb Version */
+            kb_version: string | null;
+            metrics: components["schemas"]["EvalMetricsOut"];
+            /** Release Id */
+            release_id: string;
+            /** Suite */
+            suite: string;
+            /** Weakened */
+            weakened: string | null;
+        };
+        /** EvalReportOut */
+        EvalReportOut: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Kb Version */
+            kb_version: string | null;
+            metrics: components["schemas"]["EvalMetricsOut"];
+            /** Release Id */
+            release_id: string;
+            /** Suite */
+            suite: string;
+            /** Weakened */
+            weakened: string | null;
         };
         /** FeedbackCreate */
         FeedbackCreate: {
@@ -1750,9 +1896,13 @@ export interface operations {
             };
         };
     };
-    eval_reports_v1_admin_evals_get: {
+    list_reports_v1_admin_evals_get: {
         parameters: {
-            query?: never;
+            query?: {
+                suite?: string | null;
+                release_id?: string | null;
+                limit?: number;
+            };
             header?: {
                 "x-admin-token"?: string | null;
             };
@@ -1761,6 +1911,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportOut"][];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1770,13 +1929,44 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+        };
+    };
+    get_report_v1_admin_evals__report_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Successful Response */
-            501: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EvalReportDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1089,6 +1089,41 @@
         "title": "CardEvent",
         "type": "object"
       },
+      "CaseSummary": {
+        "properties": {
+          "failed_checks": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Failed Checks",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "successes": {
+            "title": "Successes",
+            "type": "integer"
+          },
+          "trials": {
+            "title": "Trials",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "successes",
+          "trials"
+        ],
+        "title": "CaseSummary",
+        "type": "object"
+      },
       "CategoryId": {
         "enum": [
           "dishwasher",
@@ -1389,6 +1424,400 @@
           "message"
         ],
         "title": "ErrorEvent",
+        "type": "object"
+      },
+      "EvalMetricsOut": {
+        "additionalProperties": true,
+        "description": "The metrics `/admin/evals` charts (spec \u00a716.3). Older reports may lack some (null); the\nrest of a report's metrics come through as extra keys.",
+        "properties": {
+          "avg_turns_to_resolution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Turns To Resolution"
+          },
+          "cases": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cases"
+          },
+          "citation_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation Accuracy"
+          },
+          "cost_usd": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Cost Usd",
+            "type": "object"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          },
+          "failed_checks": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Failed Checks",
+            "type": "object"
+          },
+          "injection_resistance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injection Resistance"
+          },
+          "judge_unavailable": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judge Unavailable"
+          },
+          "latency_ms": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Latency Ms",
+            "type": "object"
+          },
+          "multi_issue_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multi Issue Pass Rate"
+          },
+          "multimodal_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multimodal Pass Rate"
+          },
+          "out_of_scope_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Out Of Scope Pass Rate"
+          },
+          "pass_hat_k": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Pass Hat K",
+            "type": "object"
+          },
+          "regression_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regression Pass Rate"
+          },
+          "resolution_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Rate"
+          },
+          "rubric": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Rubric",
+            "type": "object"
+          },
+          "safety_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Pass Rate"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "tool_scenario_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Scenario Pass Rate"
+          },
+          "trials": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trials"
+          }
+        },
+        "title": "EvalMetricsOut",
+        "type": "object"
+      },
+      "EvalReportDetail": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/CaseSummary"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kb_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kb Version"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/EvalMetricsOut"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          },
+          "suite": {
+            "title": "Suite",
+            "type": "string"
+          },
+          "weakened": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weakened"
+          }
+        },
+        "required": [
+          "id",
+          "release_id",
+          "suite",
+          "created_at",
+          "git_sha",
+          "kb_version",
+          "config",
+          "metrics",
+          "weakened",
+          "cases"
+        ],
+        "title": "EvalReportDetail",
+        "type": "object"
+      },
+      "EvalReportOut": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kb_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kb Version"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/EvalMetricsOut"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          },
+          "suite": {
+            "title": "Suite",
+            "type": "string"
+          },
+          "weakened": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weakened"
+          }
+        },
+        "required": [
+          "id",
+          "release_id",
+          "suite",
+          "created_at",
+          "git_sha",
+          "kb_version",
+          "config",
+          "metrics",
+          "weakened"
+        ],
+        "title": "EvalReportOut",
         "type": "object"
       },
       "FeedbackCreate": {
@@ -3296,8 +3725,55 @@
     },
     "/v1/admin/evals": {
       "get": {
-        "operationId": "eval_reports_v1_admin_evals_get",
+        "description": "Newest first, without per-case results.",
+        "operationId": "list_reports_v1_admin_evals_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "suite",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Suite"
+            }
+          },
+          {
+            "in": "query",
+            "name": "release_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Release Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
           {
             "in": "header",
             "name": "x-admin-token",
@@ -3316,6 +3792,20 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalReportOut"
+                  },
+                  "title": "Response List Reports V1 Admin Evals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3325,17 +3815,71 @@
               }
             },
             "description": "Validation Error"
+          }
+        },
+        "summary": "List Reports",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/evals/{report_id}": {
+      "get": {
+        "operationId": "get_report_v1_admin_evals__report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "title": "Report Id",
+              "type": "string"
+            }
           },
-          "501": {
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/EvalReportDetail"
+                }
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": "Eval Reports",
+        "summary": "Get Report",
         "tags": [
           "admin"
         ]

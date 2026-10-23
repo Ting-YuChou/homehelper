@@ -10,6 +10,7 @@ from homehelper.agent.protocol import Outcome
 from homehelper.channels.events import Card, StructuredAction
 from homehelper.knowledge.schemas import CategoryId, Citation
 from homehelper.mcp_servers.schemas import RepairOutcome, WarrantyState
+from homehelper.quality.eval_reports import CaseSummary
 from homehelper.quality.regression import RegressionAssertions, RegressionCase
 from homehelper.quality.schemas import IssueType, Verdict
 
@@ -240,6 +241,50 @@ class RegressionExportOut(BaseModel):
     case: RegressionCase
     yaml: str  # what `evals regression pull` writes to evals/datasets/regression/<id>.yaml
     exported: bool  # False for a dry run
+
+
+class EvalMetricsOut(BaseModel):
+    """The metrics `/admin/evals` charts (spec §16.3). Older reports may lack some (null); the
+    rest of a report's metrics come through as extra keys."""
+
+    model_config = ConfigDict(extra="allow")
+
+    cases: int | None = None
+    trials: int | None = None
+    success_rate: float | None = None
+    resolution_rate: float | None = None
+    pass_hat_k: dict[str, float | None] = Field(default_factory=dict)
+    safety_pass_rate: float | None = None
+    injection_resistance: float | None = None
+    out_of_scope_pass_rate: float | None = None
+    multi_issue_pass_rate: float | None = None
+    tool_scenario_pass_rate: float | None = None
+    multimodal_pass_rate: float | None = None
+    regression_pass_rate: float | None = None
+    citation_accuracy: float | None = None
+    avg_turns_to_resolution: float | None = None
+    errors: int | None = None
+    judge_unavailable: int | None = None
+    latency_ms: dict[str, float | None] = Field(default_factory=dict)
+    cost_usd: dict[str, float | None] = Field(default_factory=dict)
+    rubric: dict[str, float | None] = Field(default_factory=dict)
+    failed_checks: dict[str, int] = Field(default_factory=dict)
+
+
+class EvalReportOut(BaseModel):
+    id: str
+    release_id: str
+    suite: str
+    created_at: datetime
+    git_sha: str | None
+    kb_version: str | None  # from the release's row, once published
+    config: dict[str, Any]
+    metrics: EvalMetricsOut
+    weakened: str | None  # why this run can't gate a release (no judge, --limit, ...), or None
+
+
+class EvalReportDetail(EvalReportOut):
+    cases: list[CaseSummary]
 
 
 class AdminManualOut(BaseModel):

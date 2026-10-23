@@ -3,6 +3,7 @@
 evals run --suite {smoke|safety|full|regression|...} [--k 4] [--concurrency 8] [--agent stub]
           [--models x.yaml] [--case ID ...]
 evals regression pull [--force]    # exported regression cases -> evals/datasets/regression/
+evals publish <reports...>         # report summaries -> the database, for /admin/evals
 evals label-root-causes            # M2-01, one-time; writes the frozen labels file
 evals render <report.json>         # Markdown transcripts for manual review
 """
@@ -84,11 +85,21 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--seed", default="v1", help="scenario sampling seed")
     run.add_argument("--out-dir", type=Path, default=REPORTS_DIR)
     run.add_argument(
+        "--record",
+        action="store_true",
+        help="store the report's summary in the database (DATABASE_URL), for /admin/evals",
+    )
+    run.add_argument(
         "--langfuse",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="publish a Langfuse experiment run (default: on when keys are set)",
     )
+
+    publish = commands.add_parser(
+        "publish", help="store report summaries in the database, for /admin/evals"
+    )
+    publish.add_argument("reports", type=Path, nargs="+", help="report files or directories")
 
     regression = commands.add_parser("regression", help="regression cases (spec §17.2)")
     regression_commands = regression.add_subparsers(dest="regression_command", required=True)
@@ -270,6 +281,11 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     print(_summary(report))
     print(f"report: {path}")
 
+    if args.record:
+        from homehelper_evals.publish import publish_reports
+
+        await publish_reports(settings, [path])
+        print(f"recorded {path.stem} for /admin/evals")
     publish = settings.tracing_enabled if args.langfuse is None else args.langfuse
     if publish:
         from homehelper_evals.langfuse_export import publish as publish_run
@@ -345,6 +361,14 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
     started = datetime.now(UTC)
     if args.command == "label-root-causes":
         code = asyncio.run(_label(args, settings))
+    elif args.command == "publish":
+        from homehelper_evals.publish import publish_reports
+
+        published, skipped = asyncio.run(publish_reports(settings, args.reports))
+        for path in skipped:
+            print(f"skipped {path}: not a conversation-simulation report", file=sys.stderr)
+        print(f"published {len(published)} reports")
+        code = 0 if published or not skipped else 1
     elif args.command == "regression":
         from homehelper_evals.regression import pull, report
 
