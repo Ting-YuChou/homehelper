@@ -2,14 +2,15 @@
 
 - **Agent:** `homehelper.agent.runtime.JourneyAgent`. A fixed LangGraph graph: `load_context → understand → step_executor → respond → supervise → emit`. Journeys are declarative YAML (`troubleshoot`, `how_to_use`, `out_of_scope`). A pure `transition()` engine moves between steps; guardrails, hazard templates and plan post-processing are code (spec §7, §8).
 - **Compared with:** the M2-06 baseline (`docs/reports/m2-baseline.md`): one retrieval call and one responder call per turn, with no journeys, NLU or guardrails.
-- **Date:** 2026-10-22
-- **KB:** `kb_20261021_03`, the same snapshot as the baseline.
+- **Date:** 2026-10-22; re-run on the corrected data set on 2026-10-23 (see [the re-run](#re-run-on-the-corrected-data-set-v5)).
+- **KB:** `kb_20261021_03`, the same snapshot as the baseline. The re-run uses `kb_20261023_01`, re-ingested after the manifest's MyJo → Presto brand fix.
 - **Release labels.** The SHAs below are on this branch after it was rebased onto `main`; the report JSONs record the pre-rebase SHAs, given in brackets.
   - `journey-go-v1` (`full`, `safety`): commit `0c33d72` [`330308e`].
   - `journey-go-v2` (`safety`): `15d5288` [`a63ff80`], with the safety fixes.
   - `journey-go-v3` (`full`, `safety`): `852db62` [`a581077`]. It adds the planner-language and G-SAFE-05 fixes (`480d8ee`), plus the G-LOOP-01 and plan-ranking change (`0ed1b5d`).
   - `journey-go-v4` (`safety`): `a707e39` [`8d2fd6e`]. It adds G-SAFE-05 escalation when the water persists (`801faec`..`a707e39`).
-  - Not re-evaluated: the code-review fixes committed after this report. They add a one-line G-SAFE-05 reminder on later water mentions (and read more ways of saying the water persists), roll back failed turns, and delimit earlier turns and neutralize tags in the prompts.
+  - `journey-go-v5` and `baseline-go-v2` (`full`, the corrected data set): `3809e18`, which is `main` at `fd44913` plus the four data-set fixes.
+  - Not re-evaluated in v1–v4: the code-review fixes committed after this report (v5 includes them). They add a one-line G-SAFE-05 reminder on later water mentions (and read more ways of saying the water persists), roll back failed turns, and delimit earlier turns and neutralize tags in the prompts.
 
 To reproduce:
 
@@ -17,6 +18,9 @@ To reproduce:
 uv run evals run --suite full   --agent homehelper_evals.builders:journey --models evals/models/opencode-go.yaml --release journey-go-v3
 uv run evals run --suite safety --agent homehelper_evals.builders:journey --models evals/models/opencode-go.yaml --release journey-go-v4
 uv run python -m homehelper_evals.nlu --models evals/models/opencode-go.yaml
+# the re-run on the corrected data set
+uv run evals run --suite full --agent homehelper_evals.builders:journey  --models evals/models/opencode-go.yaml --release journey-go-v5
+uv run evals run --suite full --agent homehelper_evals.builders:baseline --models evals/models/opencode-go.yaml --release baseline-go-v2
 ```
 
 ## Models (substitutes, as in the baseline)
@@ -121,6 +125,84 @@ Both are LLM wording, which the supervisor did not catch. Follow-ups:
 
 The hazard misses are covered by the code layer of the two-layer detection, which runs on every message whatever NLU returns.
 
+## Re-run on the corrected data set (v5)
+
+The v1–v3 comparison froze the data set, defects included. A review of every variant
+(`evals/reviews/dataset-review-2026-10-21.md`) led to four fixes, and both agents were re-run on
+the result:
+- **Non-answer root causes are skipped.** 21 user-fixable variants had "I don't know" or "the
+  manual does not provide…" as their steps, which no agent can pass (805 → 788 candidates; 3 of
+  the 100 `full` scenarios changed).
+- **Escalation is accepted for overheat, arcing and injury scenarios.** The hazard hint missed
+  words the agent's guardrail escalates on (3 scenarios in `full`).
+- **The simulated user names the manifest brand.** Typos such as Bosh, Mr.Coffee or DirtDevil
+  skipped the retriever's brand filter (12 scenarios).
+- **MyJo is a Presto product line**, so the manifest brand is Presto; the KB was re-ingested.
+
+### `full`: 100 test scenarios, k = 4, 400 trials
+
+| Metric | Baseline v2 | Journey v5 | (Journey v3, old data set) |
+|---|---|---|---|
+| Resolution rate (pass^1) | 59.8% | **73.8%** | 66.75% |
+| pass^2 / pass^3 | 52.7% / 49.0% | **65.5% / 59.8%** | 56.3% / 50.0% |
+| pass^4 | 47.0% | **55.0%** | 45.0% |
+| Citation accuracy | 67.3% (342 trials) | **84.8%** (335 trials) | 81.0% |
+| Average turns to resolution | 2.33 | 2.83 | 2.79 |
+| Rubric: one step / clarity / empathy / English (1–5) | 4.71 / 4.57 / 4.18 / 4.92 | 4.86 / 4.49 / 4.16 / 4.83 | 4.85 / 4.49 / 4.11 / 4.83 |
+| Agent turn latency p50 / p95 | 5.2 s / 9.4 s | 8.7 s / 23.6 s | 6.0 s / 19.9 s |
+| Failed checks: outcome / citations / judge safety | 85 / 112 / 3 | 72 / 51 / 5 | 93 / 63 / 11 |
+| Errors / judge unavailable | 0 / 0 | 0 / 0 | 0 / 0 |
+
+Resolution rate by category:
+
+| Category | Baseline v2 | Journey v5 |
+|---|---|---|
+| washing machine | 20% | **75%** |
+| dryer | 42.5% | **75%** |
+| refrigerator | 57.5% | **85%** |
+| television | 52.5% | **77.5%** |
+| dishwasher | 70% | **95%** |
+| microwave | 60% | **75%** |
+| vacuum | 67.5% | **70%** |
+| blender / food processor | **77.5%** | 70% |
+| coffee maker | **80%** | 60% |
+| water purifier | **70%** | 55% |
+
+**Where v5's gain over v3 comes from.** 97 of the 100 scenarios are in both runs:
+- On those 97, resolution rose from 68.8% to 74.7% and pass^4 from 46.4% to 55.7%. The 3
+  scenarios that were dropped scored 0% in v3.
+- The 3 scenarios that now accept escalation went from 5 to 11 passing trials out of 12.
+- The 12 brand-fixed scenarios did not change (28 → 27 of 48).
+- **The 82 scenarios that no fix touched rose from 71.3% to 76.8% (pass^4 46.3% → 59.8%).** This
+  is consistent with the agent changes merged after v3 (the code-review fixes listed above), but
+  not isolated from them: the KB was re-ingested too, and a 5-point move in pass^1 on 82
+  scenarios × 4 trials is partly run-to-run noise. pass^4 counts a scenario only when all four
+  trials pass, so it moves more (13.5 points) on the same trials. For comparison, the baseline,
+  whose code did not change, went from 57.8% to 59.8% across the two data sets.
+
+**Remaining failures (v5).**
+- **Outcome (72 trials).** 67 escalated a solvable scenario (87 in v3), 4 ended with no outcome
+  and 1 failed to escalate. G-LOOP-01 fired in 55 trials (51 in v3). Escalating before the fix is
+  reached is still the largest loss, and it explains the categories where the baseline wins:
+  blenders, coffee makers and water purifiers, whose fixes are often late in the plan or missing
+  from the cited excerpts.
+- **Citations (51 trials).** Half the baseline's 112.
+- **Judge safety (5 trials)**, down from 11 in v3.
+
+Latency rose from v3 (p50 6.0 s → 8.7 s, p95 19.9 s → 23.6 s). The cause is not isolated: the
+code-review fixes add prompt text, and OpenCode Go's response times vary between runs.
+
+The `safety` suite was not re-run on v5. Its v4 numbers predate the code-review fixes, which
+touched G-SAFE-05 and the prompts.
+
+Follow-ups:
+- `HAZARD_HINT` (`evals/homehelper_evals/cases.py`) is a separate word list from the agent's
+  hazard rules (`agent/guardrails/hazards.py`). It misses some of their terms (scorch, flames,
+  refrigerant, capacitor, magnetron, …) and matches a bare "fire". It should be derived from the
+  guardrail's `KEYWORD_RULES`; changing it now would change v5's expected outcomes.
+- The retriever's brand filter only knows the manifest brand, so "MyJo coffee maker" no longer
+  narrows to the Presto manual by brand (the model and title still match).
+
 ## Cost
 
 LiteLLM has no price for the DeepSeek and MiniMax models on OpenCode Go, so they count as $0. The calls routed to Haiku 5.5 are priced at the Anthropic list price, even though the subscription bills them differently. That puts v1 `full` at $0.39 agent cost for 400 conversations, which is a lower bound. Real cost per conversation will be measured on the production mapping.
@@ -157,9 +239,9 @@ LiteLLM has no price for the DeepSeek and MiniMax models on OpenCode Go, so they
 ## Done criteria (spec §19, M3-12)
 
 - **Better than the baseline: met.**
-  - Resolution: 66.75% (v3), against 57.8%.
-  - pass^4: 45.0% against 39.0%.
-  - Citation accuracy: 81.0% against 70.3%.
+  - Resolution: 66.75% (v3), against 57.8%. On the corrected data set: 73.8% (v5) against 59.8%.
+  - pass^4: 45.0% against 39.0%; corrected: 55.0% against 47.0%.
+  - Citation accuracy: 81.0% against 70.3%; corrected: 84.8% against 67.3%.
 - **Safety suite at 100% hazard referral: met for referral (v4).**
   - Every hazard case is referred, or warned first for G-SAFE-05: the checks in code are at 100%, and injection and out of scope are at 100%.
   - The judge-rated hazard pass rate is 98.75% (2 of 160 trials, LLM wording; see above).

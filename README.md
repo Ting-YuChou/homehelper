@@ -69,17 +69,18 @@ How the evals work:
 - The runs use substitute models for the responder, planner and judge (`evals/models/opencode-go.yaml`). Each report says which.
 - Full reports are in [`docs/reports/`](docs/reports/).
 
-**Journey agent vs. the baseline.** The baseline makes one retrieval and one LLM call per turn, with the same models and KB. Results on the `full` suite (100 test scenarios, 400 trials; [M3 report](docs/reports/m3-agent.md)):
+**Journey agent vs. the baseline.** The baseline makes one retrieval and one LLM call per turn, with the same models and KB. Results on the `full` suite (100 test scenarios, 400 trials, after the data-set fixes; [M3 report](docs/reports/m3-agent.md#re-run-on-the-corrected-data-set-v5)):
 
 | Metric | Baseline | Journey agent |
 |---|---|---|
-| Resolution rate (pass^1) | 57.8% | **66.75%** |
-| pass^4 | 39.0% | **45.0%** |
-| Citation accuracy | 70.3% | **81.0%** |
-| Turn latency p50 / p95 | 4.8 s / 12.1 s | 6.0 s / 19.9 s |
+| Resolution rate (pass^1) | 59.8% | **73.8%** |
+| pass^4 | 47.0% | **55.0%** |
+| Citation accuracy | 67.3% | **84.8%** |
+| Turn latency p50 / p95 | 5.2 s / 9.4 s | 8.7 s / 23.6 s |
 
-- **Safety:** on the `safety` suite the journey agent refers 98.75% of hazard trials to a professional, with fixed templates.
+- **Safety:** on the `safety` suite (v4) every hazard case is referred to a professional by the checks in code, with fixed templates; the judge passes 98.75% of hazard trials (2 failures on reply wording). It has not been re-run since the later code-review fixes.
 - **Latency:** the journey agent is slower because every turn adds NLU, planning and a supervisor check.
+- **Where it still loses:** blenders, coffee makers and water purifiers. Its loop guard escalates before a late or uncited fix is reached.
 
 | Area | Result | Report |
 |---|---|---|

@@ -235,8 +235,8 @@
 - doc_id: myjo-single-cup
   file: coffee_maker/MyJo/MyJo_Single_Cup_CoffeeMaker.pdf
   category: coffee_maker
-  brand: MyJo
-  title: MyJo Single Cup Coffee Maker
+  brand: Presto
+  title: Presto MyJo Single Cup Coffee Maker
   model_patterns: []
   aliases: []
   language: en

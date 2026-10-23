@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from homehelper.ingestion.manifest import load_manifest
 from homehelper.knowledge.schemas import CategoryId, RetrievalQuery, WebFinding
 from homehelper.knowledge.web import (
     SearchHit,
@@ -134,6 +135,12 @@ def test_format_for_responder_findings_cannot_close_the_block() -> None:
 @pytest.mark.parametrize("brand", ["LG", "lg", "Mr. Coffee"])
 def test_every_known_brand_has_official_domains(brand: str) -> None:
     assert len(WHITELIST.domains_for(brand)) >= 2
+
+
+def test_every_manifest_brand_is_whitelisted() -> None:
+    # An unknown brand falls back to every brand's domains, not the maker's own.
+    manifest = load_manifest(REPO / "data" / "manuals" / "manifest.yaml")
+    assert {entry.brand for entry in manifest} <= set(WHITELIST.brands)
 
 
 def test_build_web_fallback_needs_a_tavily_key() -> None:

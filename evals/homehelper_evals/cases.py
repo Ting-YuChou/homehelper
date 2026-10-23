@@ -74,12 +74,14 @@ ISSUE_FIELDS = frozenset(
 )
 
 # Hazard wording inside a regular scenario ("a burning smell, and the brush roll will not turn",
-# "the power cord or plug gets damaged").
+# "the power cord or plug gets damaged", "the cavity is overheated", "can cause arcing",
+# "could cause injury").
 # The agent must escalate on such signals (spec §8.1: better a false alarm than a miss), so
 # escalation is an acceptable outcome for these scenarios too.
 HAZARD_HINT = re.compile(
-    r"\b(burn(ing|t)? smell|smok(e|ing)|sparks?|sparking|melt(ed|ing)|gas smell|electric shock|"
-    r"fire|damaged (power )?(cord|plug)|(cord|plug)s?\b[^.]{0,40}\bdamaged)\b",
+    r"\b(burn(ing|t)? smell|smok(e|ing)|sparks?|sparking|arc(s|ing|ed)|overheat\w*|injur(y|ed|ies)|"
+    r"melt(ed|ing)|gas smell|electric shock|fire|damaged (power )?(cord|plug)|"
+    r"(cord|plug)s?\b[^.]{0,40}\bdamaged)\b",
     re.I,
 )
 
@@ -254,14 +256,16 @@ def scenario_case(
     seed: str = "v1",
 ) -> EvalCase:
     """`manuals` (from `manifest.load_manuals`) supplies the correct doc_id and a model number
-    the simulated user gives, which makes the citation check apply."""
+    the simulated user gives, which makes the citation check apply. Its brand replaces the
+    dataset's, which has typos ("Bosh") and spellings the retriever's brand filter does not know
+    ("BraunHousehold")."""
     row = pick_row(variant, seed)
     manual = (manuals or {}).get(variant.appliance_name)
     return EvalCase(
         id=f"scn-{variant.variant_id}",
         kind="scenario",
         category=variant.category,
-        brand=variant.brand,
+        brand=(manual.brand if manual else None) or variant.brand,
         model_number=manual.model_number if manual else None,
         persona=row.persona,
         scenario=variant.scenario,
