@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from homehelper.agent.protocol import Outcome
 from homehelper.knowledge.schemas import CategoryId
-from homehelper.quality.regression import RegressionSource, ScriptedTurn
+from homehelper.quality.regression import RegressionSource, ScriptedTurn, empty_turns
 from homehelper_evals import DATASETS_DIR
 from homehelper_evals.manifest import ManualRef, load_manuals
 from homehelper_evals.scenarios import (
@@ -216,6 +216,9 @@ class EvalCase(BaseModel):
                 raise ValueError(f"{self.id}: regression cases need user_turns")
         if self.stop_after_script and self.max_turns < len(self.user_turns):
             raise ValueError(f"{self.id}: max_turns must cover every scripted turn")
+        empty = empty_turns(list(self.user_turns), {m.turn for m in self.media})
+        if empty:
+            raise ValueError(f"{self.id}: user turns {empty} need text, an action or media")
         return self
 
     def scripted(self, index: int) -> ScriptedTurn:
@@ -318,7 +321,9 @@ def load_regression_cases(folder: Path) -> list[EvalCase]:
     """Every `<id>.yaml` under `folder`; a missing folder has none."""
     cases = []
     for path in sorted(folder.glob("*.yaml")) if folder.is_dir() else []:
-        case = EvalCase.model_validate({"kind": "regression", **yaml.safe_load(path.read_text())})
+        # The file leaves out RegressionCase defaults (kind, stop_after_script, no outcomes).
+        defaults = {"kind": "regression", "stop_after_script": True, "expected_outcomes": []}
+        case = EvalCase.model_validate({**defaults, **yaml.safe_load(path.read_text())})
         if case.id != path.stem:
             raise ValueError(f"{path.name}: case id {case.id!r} must match the file name")
         cases.append(case)

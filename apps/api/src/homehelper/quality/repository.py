@@ -13,7 +13,14 @@ from sqlalchemy import Select, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from homehelper.conversations.repository import new_id
-from homehelper.db.models import Annotation, Conversation, Feedback, Message, User
+from homehelper.db.models import (
+    Annotation,
+    Conversation,
+    Feedback,
+    Message,
+    RegressionCaseRow,
+    User,
+)
 
 OPEN = "open"  # outcome filter for conversations that have no outcome yet
 
@@ -214,3 +221,16 @@ async def get_annotation(
     if for_update:
         stmt = stmt.with_for_update()
     return (await session.scalars(stmt)).one_or_none()
+
+
+async def add_regression_case(session: AsyncSession, row: RegressionCaseRow) -> RegressionCaseRow:
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def list_regression_cases(session: AsyncSession) -> Sequence[RegressionCaseRow]:
+    """Every exported case, oldest first (including those of since-deleted conversations: the
+    case file is what the eval suite keeps)."""
+    stmt = select(RegressionCaseRow).order_by(RegressionCaseRow.created_at, RegressionCaseRow.id)
+    return (await session.scalars(stmt)).all()

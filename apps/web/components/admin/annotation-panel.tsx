@@ -24,6 +24,8 @@ import { queryKeys } from "@/lib/api/queries";
 import type { Annotation } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+import { ExportDialog } from "./export-dialog";
+
 function AnnotationForm({
   initial,
   saving,
@@ -132,11 +134,13 @@ function AnnotationForm({
 
 function AnnotationSummary({
   annotation,
+  conversationId,
   onEdit,
   onDelete,
   busy,
 }: {
   annotation: Annotation;
+  conversationId: string;
   onEdit: () => void;
   onDelete: () => void;
   busy: boolean;
@@ -183,6 +187,7 @@ function AnnotationSummary({
             <Trash2 data-icon="inline-start" aria-hidden />
             Delete
           </Button>
+          <ExportDialog annotationId={annotation.id} conversationId={conversationId} />
         </div>
       )}
     </div>
@@ -277,6 +282,7 @@ export function AnnotationPanel({
           <AnnotationSummary
             key={annotation.id}
             annotation={annotation}
+            conversationId={conversationId}
             busy={busy}
             onEdit={() => setEditing(annotation.id)}
             onDelete={() => remove.mutate(annotation.id)}

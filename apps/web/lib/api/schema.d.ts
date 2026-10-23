@@ -82,7 +82,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export Annotation */
+        /**
+         * Export Annotation
+         * @description Export once; the annotation is frozen afterwards. `dry_run` only previews the case.
+         */
         post: operations["export_annotation_v1_admin_annotations__annotation_id__export_post"];
         delete?: never;
         options?: never;
@@ -1099,6 +1102,106 @@ export interface components {
             status: "ok" | "error";
         };
         /**
+         * RegressionAssertions
+         * @description What the replayed reply must (not) do; a subset of the eval runner's `Assertions`.
+         */
+        RegressionAssertions: {
+            /** Expected Behavior */
+            expected_behavior?: string | null;
+            /**
+             * Forbid Step Cards
+             * @default false
+             */
+            forbid_step_cards: boolean;
+            /** Forbidden Cards */
+            forbidden_cards?: string[];
+            /** Forbidden Text */
+            forbidden_text?: string[];
+            /** Max Step Cards Per Reply */
+            max_step_cards_per_reply?: number | null;
+            /** Required Cards */
+            required_cards?: string[];
+        };
+        /** RegressionCase */
+        RegressionCase: {
+            assertions?: components["schemas"]["RegressionAssertions"];
+            /** Expected Doc Id */
+            expected_doc_id?: string | null;
+            /** Expected Outcomes */
+            expected_outcomes?: ("resolved" | "escalated" | "abandoned" | "out_of_scope")[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @default regression
+             * @constant
+             */
+            kind: "regression";
+            /**
+             * Max Turns
+             * @default 12
+             */
+            max_turns: number;
+            /** Media */
+            media?: components["schemas"]["ReplayMedia"][];
+            /** Notes */
+            notes?: string | null;
+            /** Scenario */
+            scenario: string;
+            source: components["schemas"]["RegressionSource"];
+            /**
+             * Stop After Script
+             * @default true
+             * @constant
+             */
+            stop_after_script: true;
+            /** User Id */
+            user_id?: string | null;
+            /** User Turns */
+            user_turns: components["schemas"]["ScriptedTurn"][];
+        };
+        /** RegressionExportOut */
+        RegressionExportOut: {
+            case: components["schemas"]["RegressionCase"];
+            /** Exported */
+            exported: boolean;
+            /** Yaml */
+            yaml: string;
+        };
+        /**
+         * RegressionExportRequest
+         * @description What the exported case checks. A field left out takes the suggestion for the annotation's
+         *     issue types (see `homehelper.quality.export.suggest`).
+         */
+        RegressionExportRequest: {
+            assertions?: components["schemas"]["RegressionAssertions"] | null;
+            /** Expected Doc Id */
+            expected_doc_id?: string | null;
+            /** Expected Outcomes */
+            expected_outcomes?: ("resolved" | "escalated" | "abandoned" | "out_of_scope")[] | null;
+        };
+        /**
+         * RegressionSource
+         * @description Where a case came from, so a failure can be traced back to the reviewed conversation.
+         */
+        RegressionSource: {
+            /** Annotation Id */
+            annotation_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Exported At
+             * Format: date-time
+             */
+            exported_at: string;
+            /** Issue Types */
+            issue_types?: ("wrong_diagnosis" | "unsafe" | "hallucination" | "wrong_manual" | "too_many_steps_at_once" | "tone" | "missed_escalation" | "other")[];
+            /** Message Id */
+            message_id: string;
+            /** Release Id */
+            release_id: string;
+        };
+        /**
          * RepairOut
          * @description One `user_profile.list_repair_history` record.
          */
@@ -1128,6 +1231,16 @@ export interface components {
             resolution: string;
         };
         /**
+         * ReplayMedia
+         * @description A photo or video sent with one of the scripted turns, under `data/media/` (git-ignored).
+         */
+        ReplayMedia: {
+            /** Path */
+            path: string;
+            /** Turn */
+            turn: number;
+        };
+        /**
          * SSEEvent
          * @description One `data:` payload of the message stream; the SSE `event:` name equals its `type`.
          */
@@ -1143,6 +1256,19 @@ export interface components {
              * @enum {string}
              */
             type: "safety";
+        };
+        /**
+         * ScriptedTurn
+         * @description One user message of a replayed conversation: typed text, a card button press, or both.
+         *     A turn with neither must send media (a photo-only message).
+         */
+        ScriptedTurn: {
+            action?: components["schemas"]["StructuredAction"] | null;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /**
          * SendMessageRequest
@@ -1460,7 +1586,9 @@ export interface operations {
     };
     export_annotation_v1_admin_annotations__annotation_id__export_post: {
         parameters: {
-            query?: never;
+            query?: {
+                dry_run?: boolean;
+            };
             header?: {
                 "x-admin-token"?: string | null;
             };
@@ -1469,8 +1597,42 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RegressionExportRequest"] | null;
+            };
+        };
         responses: {
+            /** @description Dry run: the case it would export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionExportOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1478,15 +1640,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Successful Response */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };

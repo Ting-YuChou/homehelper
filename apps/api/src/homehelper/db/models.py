@@ -166,6 +166,24 @@ class Annotation(Base):
     )
 
 
+class RegressionCaseRow(Base):
+    """An annotation exported as a regression case (spec §17.2, M7-02). `evals regression pull`
+    writes these to `evals/datasets/regression/<id>.yaml`; the API can't write into the repo."""
+
+    __tablename__ = "regression_cases"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # reg-YYYYMMDD-xxxxxxxx
+    annotation_id: Mapped[str] = mapped_column(
+        ForeignKey("annotations.id", ondelete="CASCADE"), unique=True
+    )
+    conversation_id: Mapped[str] = mapped_column(String(64))
+    message_id: Mapped[str] = mapped_column(String(64))
+    case: Mapped[dict[str, Any]] = mapped_column(JSONB)  # a RegressionCase
+    # Case media path -> attachment id, so the pull can copy the stored file.
+    media_sources: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class Release(Base):
     """An immutable bundle of code, prompts, journeys, models and KB version (spec §17.3)."""
 

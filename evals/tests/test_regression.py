@@ -82,9 +82,11 @@ class TestCaseModel:
         assert case.scripted(0) == ScriptedTurn(text="My dishwasher won't drain")
         assert case.scripted(1).action == StructuredAction(type="step_result", value="not_fixed")
 
-    def test_scripted_turns_need_text_or_a_button(self) -> None:
-        with pytest.raises(ValueError, match="text or an action"):
+    def test_scripted_turns_need_text_a_button_or_media(self) -> None:
+        with pytest.raises(ValueError, match="text, an action or media"):
             regression(user_turns=[{"text": ""}])
+        photo = regression(user_turns=[{"text": ""}], media=[{"turn": 0, "path": "a.jpg"}])
+        assert photo.scripted(0).text == ""
 
     def test_only_regression_cases_may_leave_the_outcome_open(self) -> None:
         with pytest.raises(ValueError, match="expected_outcomes"):

@@ -2,6 +2,7 @@
 
 evals run --suite {smoke|safety|full|regression|...} [--k 4] [--concurrency 8] [--agent stub]
           [--models x.yaml] [--case ID ...]
+evals regression pull [--force]    # exported regression cases -> evals/datasets/regression/
 evals label-root-causes            # M2-01, one-time; writes the frozen labels file
 evals render <report.json>         # Markdown transcripts for manual review
 """
@@ -88,6 +89,13 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="publish a Langfuse experiment run (default: on when keys are set)",
     )
+
+    regression = commands.add_parser("regression", help="regression cases (spec §17.2)")
+    regression_commands = regression.add_subparsers(dest="regression_command", required=True)
+    pull = regression_commands.add_parser(
+        "pull", help="write exported cases to evals/datasets/regression/ (needs the database)"
+    )
+    pull.add_argument("--force", action="store_true", help="overwrite locally edited cases")
 
     label = commands.add_parser("label-root-causes", help="M2-01: label root_cause_step (LLM)")
     label.add_argument("--concurrency", type=int, default=8)
@@ -337,6 +345,10 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
     started = datetime.now(UTC)
     if args.command == "label-root-causes":
         code = asyncio.run(_label(args, settings))
+    elif args.command == "regression":
+        from homehelper_evals.regression import pull, report
+
+        code = report(asyncio.run(pull(settings, force=args.force)))
     else:
         code = asyncio.run(_run(args, settings))
     print(f"done in {(datetime.now(UTC) - started).total_seconds():.0f}s", file=sys.stderr)

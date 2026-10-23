@@ -6,9 +6,11 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from homehelper.agent.protocol import Outcome
 from homehelper.channels.events import Card, StructuredAction
 from homehelper.knowledge.schemas import CategoryId, Citation
 from homehelper.mcp_servers.schemas import RepairOutcome, WarrantyState
+from homehelper.quality.regression import RegressionAssertions, RegressionCase
 from homehelper.quality.schemas import IssueType, Verdict
 
 Rating = Literal["up", "down"]
@@ -223,6 +225,21 @@ class AdminConversationDetail(ConversationOut):
     user_display_name: str
     user_is_demo: bool
     messages: list[AdminMessageOut]
+
+
+class RegressionExportRequest(BaseModel):
+    """What the exported case checks. A field left out takes the suggestion for the annotation's
+    issue types (see `homehelper.quality.export.suggest`)."""
+
+    expected_outcomes: list[Outcome] | None = None
+    expected_doc_id: str | None = Field(default=None, max_length=100)
+    assertions: RegressionAssertions | None = None
+
+
+class RegressionExportOut(BaseModel):
+    case: RegressionCase
+    yaml: str  # what `evals regression pull` writes to evals/datasets/regression/<id>.yaml
+    exported: bool  # False for a dry run
 
 
 class AdminManualOut(BaseModel):

@@ -3,8 +3,8 @@ export and eval reports. Everything except signing in needs `require_admin`."""
 
 from fastapi import APIRouter
 
-from homehelper.api.admin import pending, review, session
+from homehelper.api.admin import export, pending, review, session
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-for module in (session, review, pending):
+for module in (session, review, export, pending):
     router.include_router(module.router)

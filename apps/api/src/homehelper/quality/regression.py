@@ -9,6 +9,7 @@ step). The API image ships without the evals package, so the contract lives here
 from datetime import datetime
 from typing import Literal, Self
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from homehelper.agent.protocol import Outcome
@@ -19,18 +20,25 @@ MAX_REPLAY_TURNS = 12  # = the eval runner's MAX_TURNS
 
 
 class ScriptedTurn(BaseModel):
-    """One user message of a replayed conversation: typed text, a card button press, or both."""
+    """One user message of a replayed conversation: typed text, a card button press, or both.
+    A turn with neither must send media (a photo-only message)."""
 
     model_config = ConfigDict(extra="forbid")
 
     text: str = ""
     action: StructuredAction | None = None
 
-    @model_validator(mode="after")
-    def _not_empty(self) -> Self:
-        if not self.text.strip() and self.action is None:
-            raise ValueError("a scripted turn needs text or an action")
-        return self
+
+def empty_turns(turns: list[ScriptedTurn | str], media_turns: set[int]) -> list[int]:
+    """Indexes of scripted turns that would send nothing at all."""
+    return [
+        index
+        for index, turn in enumerate(turns)
+        if index not in media_turns
+        and (
+            not turn.strip() if isinstance(turn, str) else not turn.text.strip() and not turn.action
+        )
+    ]
 
 
 class ReplayMedia(BaseModel):
@@ -85,3 +93,23 @@ class RegressionCase(BaseModel):
     max_turns: int = Field(default=MAX_REPLAY_TURNS, ge=1, le=MAX_REPLAY_TURNS)
     source: RegressionSource
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _turns_send_something(self) -> Self:
+        empty = empty_turns(list(self.user_turns), {m.turn for m in self.media})
+        if empty:
+            raise ValueError(f"user turns {empty} need text, an action or media")
+        if any(not 0 <= m.turn < len(self.user_turns) for m in self.media):
+            raise ValueError("media must be sent with one of the user_turns")
+        return self
+
+
+def case_yaml(case: RegressionCase) -> str:
+    """The file `evals regression pull` writes to `evals/datasets/regression/<id>.yaml`."""
+    data = case.model_dump(mode="json", exclude_defaults=True)
+    header = (
+        f"# Regression case exported from annotation {case.source.annotation_id} "
+        f"(conversation {case.source.conversation_id}, release {case.source.release_id}).\n"
+        "# Replayed by `uv run evals run --suite regression`; spec §17.2.\n"
+    )
+    return header + yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=100)

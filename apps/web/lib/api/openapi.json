@@ -1878,6 +1878,297 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RegressionAssertions": {
+        "additionalProperties": false,
+        "description": "What the replayed reply must (not) do; a subset of the eval runner's `Assertions`.",
+        "properties": {
+          "expected_behavior": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Behavior"
+          },
+          "forbid_step_cards": {
+            "default": false,
+            "title": "Forbid Step Cards",
+            "type": "boolean"
+          },
+          "forbidden_cards": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Forbidden Cards",
+            "type": "array"
+          },
+          "forbidden_text": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Forbidden Text",
+            "type": "array"
+          },
+          "max_step_cards_per_reply": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Step Cards Per Reply"
+          },
+          "required_cards": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Cards",
+            "type": "array"
+          }
+        },
+        "title": "RegressionAssertions",
+        "type": "object"
+      },
+      "RegressionCase": {
+        "additionalProperties": false,
+        "properties": {
+          "assertions": {
+            "$ref": "#/components/schemas/RegressionAssertions"
+          },
+          "expected_doc_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Doc Id"
+          },
+          "expected_outcomes": {
+            "items": {
+              "enum": [
+                "resolved",
+                "escalated",
+                "abandoned",
+                "out_of_scope"
+              ],
+              "type": "string"
+            },
+            "title": "Expected Outcomes",
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^reg-[a-z0-9-]{1,60}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "regression",
+            "default": "regression",
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_turns": {
+            "default": 12,
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Max Turns",
+            "type": "integer"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/ReplayMedia"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RegressionSource"
+          },
+          "stop_after_script": {
+            "const": true,
+            "default": true,
+            "title": "Stop After Script",
+            "type": "boolean"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "user_turns": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptedTurn"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "User Turns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "scenario",
+          "user_turns",
+          "source"
+        ],
+        "title": "RegressionCase",
+        "type": "object"
+      },
+      "RegressionExportOut": {
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/RegressionCase"
+          },
+          "exported": {
+            "title": "Exported",
+            "type": "boolean"
+          },
+          "yaml": {
+            "title": "Yaml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "yaml",
+          "exported"
+        ],
+        "title": "RegressionExportOut",
+        "type": "object"
+      },
+      "RegressionExportRequest": {
+        "description": "What the exported case checks. A field left out takes the suggestion for the annotation's\nissue types (see `homehelper.quality.export.suggest`).",
+        "properties": {
+          "assertions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegressionAssertions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_doc_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Doc Id"
+          },
+          "expected_outcomes": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "resolved",
+                    "escalated",
+                    "abandoned",
+                    "out_of_scope"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Outcomes"
+          }
+        },
+        "title": "RegressionExportRequest",
+        "type": "object"
+      },
+      "RegressionSource": {
+        "additionalProperties": false,
+        "description": "Where a case came from, so a failure can be traced back to the reviewed conversation.",
+        "properties": {
+          "annotation_id": {
+            "title": "Annotation Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "issue_types": {
+            "items": {
+              "enum": [
+                "wrong_diagnosis",
+                "unsafe",
+                "hallucination",
+                "wrong_manual",
+                "too_many_steps_at_once",
+                "tone",
+                "missed_escalation",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Issue Types",
+            "type": "array"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "message_id",
+          "annotation_id",
+          "release_id",
+          "exported_at"
+        ],
+        "title": "RegressionSource",
+        "type": "object"
+      },
       "RepairOut": {
         "description": "One `user_profile.list_repair_history` record.",
         "properties": {
@@ -1938,6 +2229,26 @@
         "title": "RepairOut",
         "type": "object"
       },
+      "ReplayMedia": {
+        "additionalProperties": false,
+        "description": "A photo or video sent with one of the scripted turns, under `data/media/` (git-ignored).",
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "turn": {
+            "title": "Turn",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "turn",
+          "path"
+        ],
+        "title": "ReplayMedia",
+        "type": "object"
+      },
       "SSEEvent": {
         "description": "One `data:` payload of the message stream; the SSE `event:` name equals its `type`.",
         "discriminator": {
@@ -1994,6 +2305,29 @@
           "instructions"
         ],
         "title": "SafetyCard",
+        "type": "object"
+      },
+      "ScriptedTurn": {
+        "additionalProperties": false,
+        "description": "One user message of a replayed conversation: typed text, a card button press, or both.\nA turn with neither must send media (a photo-only message).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StructuredAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "title": "ScriptedTurn",
         "type": "object"
       },
       "SendMessageRequest": {
@@ -2573,6 +2907,7 @@
     },
     "/v1/admin/annotations/{annotation_id}/export": {
       "post": {
+        "description": "Export once; the annotation is frozen afterwards. `dry_run` only previews the case.",
         "operationId": "export_annotation_v1_admin_annotations__annotation_id__export_post",
         "parameters": [
           {
@@ -2580,8 +2915,19 @@
             "name": "annotation_id",
             "required": true,
             "schema": {
+              "maxLength": 64,
               "title": "Annotation Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {
@@ -2601,7 +2947,43 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegressionExportRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
+          "200": {
+            "description": "Dry run: the case it would export."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegressionExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2611,14 +2993,6 @@
               }
             },
             "description": "Validation Error"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
           }
         },
         "summary": "Export Annotation",

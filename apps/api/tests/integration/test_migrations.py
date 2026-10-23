@@ -16,6 +16,7 @@ APP_TABLES = (
     "attachments",
     "feedback",
     "annotations",
+    "regression_cases",
     "releases",
 )
 
