@@ -4,6 +4,9 @@ For each filter level (model → brand + category → category → all, skipping
 can't use): dense top-k + full-text top-k, fused with reciprocal rank fusion (plus an error-code
 full-text pass when an error code is known), reranked, then judged sufficient or not. The first
 sufficient level wins; if none is, the web fallback (if any) is tried.
+
+The model level is sufficient whenever it finds chunks: once the model number has identified the
+user's own manual, another model's manual is confidently wrong however well it scores (ADR-012).
 """
 
 import copy
@@ -233,6 +236,9 @@ class KnowledgeRetriever:
         in_category = query.category is None or any(
             c.metadata.category == query.category for c in chunks
         )
+        # The user's own manual, identified by the model number: relaxing past it swapped in
+        # other models' manuals whenever its wording scored below tau (ADR-012).
+        above = above or level == "model"
         return RetrievalResult(
             query=query,
             source="manual",
