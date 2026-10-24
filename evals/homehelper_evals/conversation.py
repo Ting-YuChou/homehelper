@@ -79,7 +79,8 @@ def to_user_turn(
             if turn.booking_slot_id in offered:
                 action = StructuredAction(type="select_booking_slot", value=turn.booking_slot_id)
     text = turn.message.strip() or None
-    photo = simulated_photo(case, turn.photo) if case is not None and action is None else None
+    # A photo goes with a button press too: the user answers the step and sends the sticker.
+    photo = simulated_photo(case, turn.photo) if case is not None else None
     attachments = [photo] if photo else []
     if action is None and text is None and not attachments:
         return None

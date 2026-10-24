@@ -139,6 +139,11 @@ def test_photos_are_sent_only_when_the_case_allows_them() -> None:
     assert simulated_photo(later_case(), "exterior") == "sim-photo:exterior"
     only_photo = to_user_turn(SimulatorTurn(photo="exterior"), None, later_case())
     assert only_photo is not None and only_photo.text is None
+    with_button = SimulatorTurn(step_result="not_fixed", photo="nameplate")
+    step_turn = AgentTurn(cards=[step("bosch-shx68t55").cards[0]])
+    sent = to_user_turn(with_button, step_turn, photo_case)
+    assert sent is not None and sent.action is not None
+    assert sent.attachments == ["sim-photo:nameplate"]
 
 
 async def test_simulated_photos_come_with_their_analysis() -> None:
