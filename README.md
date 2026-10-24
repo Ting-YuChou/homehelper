@@ -58,6 +58,7 @@ A turn runs `load_context → perceive → understand → step_executor → resp
 | MCP for integrations; write tools only from code | The LLM can read a profile but never books a technician on its own | [004](docs/adr/004-mcp-for-external-integrations.md), [006](docs/adr/006-mcp-sdk-1x-and-stateless-mounting.md), [008](docs/adr/008-agent-mcp-client.md) |
 | Several open issues per conversation | Users switch appliances mid-chat; each issue keeps its own outcome | [007](docs/adr/007-multi-issue-tracking.md) |
 | Photos and videos become slots | One structured extraction; low confidence asks the user to confirm | [009](docs/adr/009-multimodal-input.md) |
+| The model number pins its manual | A weak match in the user's own manual beats a strong one in another model's | [012](docs/adr/012-keep-the-model-numbers-manual.md) |
 | Quality loop | Annotate real conversations, export them as regression cases, gate releases on them | [010](docs/adr/010-quality-loop.md) |
 | Cloud Run with a same-origin proxy | Scales to zero; immutable releases; candidate → smoke test → traffic; no stored keys | [005](docs/adr/005-cloud-run-deployment.md), [011](docs/adr/011-cloud-deployment-details.md) |
 

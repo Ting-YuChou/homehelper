@@ -161,18 +161,50 @@ async def test_stops_at_first_sufficient_level_with_rerank_scores() -> None:
 async def test_relaxes_when_a_level_is_insufficient_and_keeps_the_best() -> None:
     backend = FakeBackend(
         {
-            "model": ([cand("m:p1:0")], []),
+            "brand": ([cand("b:p1:0")], []),
             "category": ([cand("c:p1:0")], [cand("c:p2:0")]),
         }
     )
-    reranker = FakeReranker({"m:p1:0": 0.1, "c:p1:0": 0.2, "c:p2:0": 0.25})
+    reranker = FakeReranker({"b:p1:0": 0.1, "c:p1:0": 0.2, "c:p2:0": 0.25})
     r = retriever(backend, reranker=reranker, config=RetrieverConfig(tau=0.5))
     result = await r.search(
-        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, model_number="WM3400")
+        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, brand="LG")
     )
     assert not result.sufficient
     assert result.filter_level == "category"  # the higher-scoring of the insufficient levels
     assert result.top_score == 0.25
+
+
+async def test_the_identified_models_manual_is_kept_below_tau() -> None:
+    """A low-scoring excerpt from the user's own manual beats a high-scoring one from another
+    model's manual (ADR-012); the web fallback adds to it instead of replacing it."""
+    web = FakeWeb()
+    backend = FakeBackend(
+        {
+            "model": ([cand("lg-washing_machine:p9:0")], []),
+            "category": ([cand("samsung-washing_machine:p1:0")], []),
+        }
+    )
+    reranker = FakeReranker({"lg-washing_machine:p9:0": 0.3, "samsung-washing_machine:p1:0": 0.9})
+    r = retriever(backend, reranker=reranker, web=web, config=RetrieverConfig(tau=0.5))
+    result = await r.search(
+        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, model_number="WM3400")
+    )
+    assert (result.filter_level, result.sufficient, result.top_score) == ("model", False, 0.3)
+    assert result.source == "manual"
+    assert [c.chunk_id for c in result.chunks] == ["lg-washing_machine:p9:0"]
+    assert web.calls == 1 and len(result.web_findings) == 1  # e.g. for a how-to answer
+    assert all("doc_id" in f for _, f in backend.calls)
+
+
+async def test_a_model_number_whose_manual_has_no_chunks_still_relaxes() -> None:
+    backend = FakeBackend({"category": ([cand("samsung-washing_machine:p1:0")], [])})
+    reranker = FakeReranker({"samsung-washing_machine:p1:0": 0.9})
+    r = retriever(backend, reranker=reranker, config=RetrieverConfig(tau=0.5))
+    result = await r.search(
+        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, model_number="WM3400")
+    )
+    assert (result.filter_level, result.sufficient) == ("category", True)
 
 
 async def test_error_code_pass_is_boosted() -> None:

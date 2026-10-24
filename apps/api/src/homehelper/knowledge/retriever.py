@@ -4,6 +4,11 @@ For each filter level (model → brand + category → category → all, skipping
 can't use): dense top-k + full-text top-k, fused with reciprocal rank fusion (plus an error-code
 full-text pass when an error code is known), reranked, then judged sufficient or not. The first
 sufficient level wins; if none is, the web fallback (if any) is tried.
+
+A model level that finds chunks ends the search even below τ: once the model number has
+identified the user's own manual, another model's manual is confidently wrong however well it
+scores (ADR-012). Below τ the web fallback still runs, but adds its findings to that manual's
+chunks instead of replacing them.
 """
 
 import copy
@@ -183,11 +188,16 @@ class KnowledgeRetriever:
             if result.sufficient:
                 best = result
                 break
+            if level == "model" and result.chunks:
+                best = result  # the user's own manual, however it scored (ADR-012)
+                break
 
         result = best or RetrievalResult(query=query, source="none", kb_version=self._kb_version)
         if not result.sufficient and self._web is not None:
             findings = await self._web.search(query)
-            if findings:
+            if findings and result.filter_level == "model":
+                result = result.model_copy(update={"web_findings": findings})
+            elif findings:
                 result = RetrievalResult(
                     query=query,
                     source="web",

@@ -69,6 +69,12 @@ def chunk_recall_at_5(
     return {"n": len(labelled), "recall_at_5": round(hits / max(1, len(labelled)), 4)}
 
 
+def own_manual_share(results: Sequence[CaseResult]) -> float:
+    """Share of all retrieved chunks that come from the case's own manual."""
+    chunks = [doc_id == r.doc_id for r in results for doc_id in r.retrieved_doc_ids]
+    return round(sum(chunks) / max(1, len(chunks)), 4)
+
+
 def best_threshold(positives: Sequence[float], negatives: Sequence[float]) -> dict[str, float]:
     """Threshold on a score that best separates positives (should be sufficient) from negatives,
     by F1 on the positive class; ties go to the higher threshold (fewer false positives)."""

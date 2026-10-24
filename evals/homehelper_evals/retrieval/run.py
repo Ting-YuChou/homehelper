@@ -2,17 +2,24 @@
 
     uv run python -m homehelper_evals.retrieval.run                      # all cases, no rerank
     uv run python -m homehelper_evals.retrieval.run --split dev --rerank --limit 100
+    uv run python -m homehelper_evals.retrieval.run --split test --rerank --labelled \
+        --conditions model                                   # the model number's manual (ADR-012)
 
 Recall metrics use τ = 0, so every search returns its first applicable filter level and the
 numbers measure ranking alone. τ is then calibrated on the dev split: positives are dev queries
 whose correct manual is in the top 5; negatives are the same queries searched under a wrong
 category plus off-topic questions.
+
+The `model` condition is the exception: it searches with the model number a user would give
+(cases whose manual has model patterns) at the production τ, because what it measures is what
+happens when the model's own manual scores below τ: relaxing to other manuals, or keeping it.
 """
 
 import argparse
 import asyncio
 import json
 import time
+from collections import Counter
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
@@ -38,6 +45,7 @@ from homehelper_evals.retrieval.metrics import (
     best_threshold,
     by_category,
     chunk_recall_at_5,
+    own_manual_share,
     summarize,
 )
 
@@ -47,7 +55,12 @@ CONDITIONS: dict[str, Callable[[RetrievalCase], RetrievalQuery]] = {
         query_en=c.query, category=c.category, brand=c.brand
     ),
     "none": lambda c: RetrievalQuery(query_en=c.query),
+    "model": lambda c: RetrievalQuery(
+        query_en=c.query, category=c.category, brand=c.brand, model_number=c.model_number
+    ),
 }
+# Searched at the production τ, and only for cases with a model number.
+PRODUCTION_TAU = frozenset({"model"})
 
 OFF_TOPIC = [
     "What is the capital of France?",
@@ -152,24 +165,33 @@ async def main(args: argparse.Namespace) -> None:
         reranker = RateLimitedReranker(
             CohereReranker(model, settings.cohere_api_key.get_secret_value()), args.rerank_per_min
         )
+    embedder = CachingEmbedder(
+        OpenAIQueryEmbedder(
+            registry.embedding.model.split("/", 1)[-1],
+            settings.openai_api_key.get_secret_value(),
+        )
+    )
+    manuals = [m for m in load_manifest(settings.manuals_dir / "manifest.yaml") if m.reviewed]
     retriever = KnowledgeRetriever(
         backend,
-        CachingEmbedder(
-            OpenAIQueryEmbedder(
-                registry.embedding.model.split("/", 1)[-1],
-                settings.openai_api_key.get_secret_value(),
-            )
-        ),
-        [m for m in load_manifest(settings.manuals_dir / "manifest.yaml") if m.reviewed],
+        embedder,
+        manuals,
         kb_version=kb_version,
         reranker=reranker,
         config=RetrieverConfig(tau=0.0, tau_without_rerank=0.0),  # measure ranking only
+    )
+    production = KnowledgeRetriever(
+        backend, embedder, manuals, kb_version=kb_version, reranker=reranker
     )
     concurrency = 1 if args.rerank else args.concurrency
 
     cases = load_cases()
     if args.split != "all":
         cases = [c for c in cases if c.split == args.split]
+    labels = json.loads(LABELS_PATH.read_text())["labels"] if LABELS_PATH.exists() else []
+    relevant = {lab["case_id"]: set(lab["relevant_pages"]) for lab in labels}
+    if args.labelled:  # the cases with chunk-level labels (test split)
+        cases = [c for c in cases if relevant.get(c.case_id)]
     if args.limit:
         step = max(1, len(cases) // args.limit)  # deterministic spread across categories
         cases = cases[::step][: args.limit]
@@ -186,17 +208,29 @@ async def main(args: argparse.Namespace) -> None:
     }
     all_results: dict[str, list[CaseResult]] = {}
     for condition in conditions:
-        results = await run_cases(retriever, cases, condition, CONDITIONS[condition], concurrency)
+        searched = cases
+        if condition in PRODUCTION_TAU:
+            searched = [c for c in cases if c.model_number]
+        results = await run_cases(
+            production if condition in PRODUCTION_TAU else retriever,
+            searched,
+            condition,
+            CONDITIONS[condition],
+            concurrency,
+        )
         all_results[condition] = results
         report["conditions"][condition] = {
             "summary": summarize(results).model_dump(),
             "by_category": {k: v.model_dump() for k, v in by_category(results).items()},
+            "filter_levels": dict(Counter(r.filter_level or "none" for r in results)),
+            "own_manual_share": own_manual_share(results),
         }
-        print(condition, summarize(results).model_dump())
+        if relevant:
+            report["conditions"][condition]["chunk_level"] = chunk_recall_at_5(results, relevant)
+        entry = report["conditions"][condition]
+        print(condition, {k: v for k, v in entry.items() if k != "by_category"})
 
-    if "category" in all_results and LABELS_PATH.exists():
-        labels = json.loads(LABELS_PATH.read_text())["labels"]
-        relevant = {lab["case_id"]: set(lab["relevant_pages"]) for lab in labels}
+    if "category" in all_results and relevant:
         report["chunk_level"] = {
             "labels": "LLM-assisted (judge model), spot-checked; see retrieval/labels.py",
             **chunk_recall_at_5(all_results["category"], relevant),
@@ -249,6 +283,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", choices=["dev", "test", "all"], default="all")
     parser.add_argument("--conditions", default="category,brand_category,none")
     parser.add_argument("--limit", type=int, default=0, help="evenly sample this many cases")
+    parser.add_argument(
+        "--labelled", action="store_true", help="only the cases with chunk-level labels"
+    )
     parser.add_argument("--rerank", action="store_true")
     parser.add_argument("--rerank-model", default=None)
     parser.add_argument("--rerank-per-min", type=float, default=9.0)
