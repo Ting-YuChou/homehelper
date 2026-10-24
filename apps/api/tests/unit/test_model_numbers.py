@@ -74,6 +74,8 @@ def test_error_codes() -> None:
         ("I don't know", False),
         ("N/A", False),
         ("UNKNOWN", False),
+        ("NO-IDEA", False),
+        ("MISSING", False),
     ],
 )
 def test_looks_like_model(value: str, expected: bool) -> None:

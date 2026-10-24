@@ -58,7 +58,8 @@ Fields:
     book_technician).
   - question: the user's question (for ask_how_to).
   - brand, model_number, error_code: exactly as the user wrote them. model_number only for an
-    actual model number (letters and digits); never "unknown" or "I don't know".
+    actual model number (usually letters and digits, sometimes only letters such as BVMC-HC);
+    never "unknown" or "I don't know".
 {% if traits %}
   - what the appliance looks like, only when the user says it, as one of these values:
 {% for trait in traits %}

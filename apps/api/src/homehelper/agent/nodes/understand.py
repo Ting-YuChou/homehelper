@@ -78,6 +78,23 @@ def valid_traits(nlu: NLUResult, category: str | None, manuals: ManualIndex | No
     )
 
 
+def known_model(nlu: NLUResult, manuals: ManualIndex | None) -> NLUResult:
+    """A model number without a digit ("BVMC-HC", "whapsro") is kept only when a manual's model
+    pattern matches it, in capitals; otherwise words like "MISSING" or "SAMSUNG" would pass."""
+    if manuals is None:
+        return nlu
+    kept: list[SlotUpdate] = []
+    for update in nlu.slot_updates:
+        value = update.value.strip()
+        if update.name != "model_number" or any(c.isdigit() for c in value):
+            kept.append(update)
+        elif manuals.model_manuals(value, None):
+            kept.append(update.model_copy(update={"value": value.upper()}))
+    if kept == nlu.slot_updates:
+        return nlu
+    return nlu.model_copy(update={"slot_updates": kept})
+
+
 def nlu_messages(state: GraphState, deps: AgentDeps, user_text: str) -> list[Message]:
     agent = state.state
     step = deps.step(agent)
@@ -117,6 +134,7 @@ async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
 
     category = state.state.slots.get("appliance_category")
     nlu = valid_traits(nlu, category.value if category else None, deps.manuals)
+    nlu = known_model(nlu, deps.manuals)
     update: dict[str, Any] = {"turn": state.turn.model_copy(update={"nlu": nlu})}
     if nlu.search_query_en and nlu.intent in QUERY_INTENTS and message.action is None:
         update["search_query"] = nlu.search_query_en
