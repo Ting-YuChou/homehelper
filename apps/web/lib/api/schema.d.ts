@@ -1455,6 +1455,11 @@ export interface components {
             actions?: ("fixed" | "not_fixed" | "cannot_do")[];
             /** Citations */
             citations?: components["schemas"]["Citation"][];
+            /**
+             * General
+             * @default false
+             */
+            general: boolean;
             /** Index */
             index: number;
             /** Instruction */
@@ -1475,6 +1480,8 @@ export interface components {
              * @default false
              */
             warranty_warning: boolean;
+            /** Web Sources */
+            web_sources?: components["schemas"]["WebSource"][];
         };
         /**
          * StructuredAction
@@ -1548,6 +1555,18 @@ export interface components {
          * @enum {string}
          */
         WarrantyState: "active" | "expired" | "unknown";
+        /**
+         * WebSource
+         * @description An unofficial web page a step comes from (spec §10.6, ADR-013).
+         */
+        WebSource: {
+            /** Domain */
+            domain: string;
+            /** Title */
+            title?: string | null;
+            /** Url */
+            url: string;
+        };
     };
     responses: never;
     parameters: never;

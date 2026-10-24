@@ -14,10 +14,11 @@ from pydantic import BaseModel, Field
 from homehelper.agent import prompts
 from homehelper.agent.deps import AgentDeps, record
 from homehelper.agent.engine import TurnInput, transition
+from homehelper.agent.engine.identify import appearance, identify, model_hint, same_manuals
 from homehelper.agent.engine.perception import media_input
 from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
-from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS
+from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS, TRIED, merge_plan
 from homehelper.agent.nodes.mcp_actions import (
     as_tool_call,
     booking_confirmation,
@@ -26,7 +27,7 @@ from homehelper.agent.nodes.mcp_actions import (
     warranty_active,
 )
 from homehelper.agent.nodes.understand import QUERY_INTENTS
-from homehelper.agent.state import AgentState, Decision, PlanItem
+from homehelper.agent.state import AgentState, Decision, PlanBasis, PlanItem
 from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState
 from homehelper.channels.events import StatusEvent
@@ -35,6 +36,13 @@ from homehelper.llm import Message
 
 MAX_ACTION_ROUNDS = 4  # system steps chained in one turn; the catalog needs at most two
 NOTICE_REPAIR_HISTORY = "repair_history"  # an earlier repair looks like this problem
+NOTICE_REPLANNED = "replanned"  # a better identification rebuilt the plan (ADR-013)
+NOTICE_SAME_MANUALS = "same_manuals"  # it didn't tell the manuals apart: the plan stays
+NOTICE_UNKNOWN_MODEL = "unknown_model"  # a model number no manual in the library matches
+# Without the exact model: chunks per candidate manual, and how many in all (ADR-013).
+PER_MANUAL = 2
+GENERIC_TOP_K = 8
+SEARCH_ACTIONS = frozenset({"knowledge.search", "plan.build"})
 Emit = Callable[[object], None]
 
 
@@ -61,14 +69,30 @@ def _category(state: AgentState) -> CategoryId | None:
     return CategoryId(value) if value in {c.value for c in CategoryId} else None
 
 
-def retrieval_query(state: AgentState, text: str) -> RetrievalQuery:
-    return RetrievalQuery(
+def retrieval_query(
+    state: AgentState, text: str, basis: PlanBasis | None = None, deps: AgentDeps | None = None
+) -> RetrievalQuery:
+    """The search for this issue. With a `basis` (ADR-013) it searches the manuals the appliance
+    can be: several give a few chunks each plus web findings; one, like a model number's
+    manual, gets web findings only when it scores low. Without one, web results replace an
+    insufficient search, as for the baseline."""
+    query = RetrievalQuery(
         query_en=text,
         category=_category(state),
         brand=_slot(state, "brand"),
         model_number=_slot(state, "model_number"),
         error_code=_slot(state, "error_code"),
     )
+    if basis is None:
+        return query
+    seen = appearance(state, deps.manuals) if deps is not None and deps.manuals else []
+    update: dict[str, Any] = {"appearance": seen, "web": "add_when_insufficient"}
+    if basis.scope != "model":
+        update["model_number"] = None  # an unknown one would only skip ahead to `candidates`
+        update["doc_ids"] = basis.doc_ids or None
+    if basis.scope == "generic" and len(basis.doc_ids) > 1:
+        update.update(per_doc=PER_MANUAL, top_k=GENERIC_TOP_K, web="always_add")
+    return query.model_copy(update=update)
 
 
 def retrieval_label(state: AgentState) -> str:
@@ -107,6 +131,10 @@ def plan_summary(items: list[PlanItem]) -> str:
     )
 
 
+def _web(retrieval: RetrievalResult) -> list[dict[str, object]]:
+    return [{"id": f.id, "claim": f.claim, "url": f.url} for f in retrieval.web_findings if f.id]
+
+
 def _excerpts(retrieval: RetrievalResult) -> list[dict[str, object]]:
     return [
         {
@@ -127,24 +155,32 @@ async def build_plan(
     in_warranty: bool = False,
 ) -> tuple[list[PlanItem], list[Decision]]:
     retrieval = state.last_retrieval
-    if retrieval is None or not retrieval.chunks:
-        return [], [
+    web = _web(retrieval) if retrieval is not None else []
+    if retrieval is None or not (retrieval.chunks or web):
+        # The plan stays as it is: a rebuilt plan with nothing to go on keeps the old steps.
+        return state.plan, [
             Decision(kind="plan", journey=state.active_journey, reason="no manual excerpts")
         ]
     category = _slot(state, "appliance_category") or "appliance"
+    basis = state.plan_basis
+    generic = basis is not None and basis.scope == "generic"
+    tried = [item.instruction for item in state.plan if item.status in TRIED]
     prompt = prompts.render(
         "planner",
         category=category.replace("_", " "),
         brand=_slot(state, "brand"),
-        model_number=_slot(state, "model_number"),
+        model_number=_slot(state, "model_number") if not generic else None,
         symptom=_slot(state, "symptom") or retrieval.query.query_en,
         error_code=_slot(state, "error_code"),
         user_said=user_said or [],
         excerpts=_excerpts(retrieval),
+        web_findings=web,
+        manuals=len(basis.doc_ids) if generic and basis else 0,
+        tried=tried,
         max_items=MAX_PLAN_ITEMS,
     )
     draft = await deps.llm.structured("planner", [Message(role="user", content=prompt)], PlanDraft)
-    retrieved = retrieval.chunk_ids()
+    retrieved = retrieval.chunk_ids() | {str(f["id"]) for f in web}
     items = [
         PlanItem(
             id=f"p{index}",
@@ -154,6 +190,7 @@ async def build_plan(
             requires_disassembly=item.requires_disassembly,
             requires_tools=item.requires_tools,
             risk_level=item.risk_level,
+            general=generic,
         )
         for index, item in enumerate(rank_draft(draft.items), start=1)
     ]
@@ -161,6 +198,7 @@ async def build_plan(
     edit = postprocess_plan(
         items, category=_slot(state, "appliance_category"), in_warranty=in_warranty
     )
+    merged = merge_plan(state.plan, edit.items)
     decisions = [
         Decision(
             kind="plan",
@@ -168,11 +206,12 @@ async def build_plan(
             reason=f"planner drafted {len(items)} items; {len(edit.items)} kept",
         ),
         *edit.decisions,
+        *merged.decisions,
         Decision(
-            kind="plan", journey=state.active_journey, reason=f"plan: {plan_summary(edit.items)}"
+            kind="plan", journey=state.active_journey, reason=f"plan: {plan_summary(merged.items)}"
         ),
     ]
-    return edit.items, decisions
+    return merged.items, decisions
 
 
 async def run_action(
@@ -187,7 +226,11 @@ async def run_action(
     if action == "knowledge.search":
         text = graph.search_query or _slot(state, "symptom") or _slot(state, "question") or ""
         emit(StatusEvent(stage="retrieving", label=retrieval_label(state)))
-        query = retrieval_query(state, text)
+        if deps.manuals is not None and state.active_journey == "troubleshoot":
+            state.plan_basis = identify(state, deps.manuals)
+            if state.plan_basis is not None:
+                state.decision_log.append(_basis_decision(state, state.plan_basis))
+        query = retrieval_query(state, text, state.plan_basis, deps)
         with deps.span("knowledge.search", input=query.model_dump(exclude_none=True)) as span:
             state.last_retrieval = await deps.retriever.search(query)
             record(span, output=retrieval_summary(state.last_retrieval))
@@ -229,10 +272,65 @@ async def run_action(
     return state
 
 
+def _basis_decision(state: AgentState, basis: PlanBasis) -> Decision:
+    seen = ", ".join(f"{k}={v}" for k, v in basis.traits.items())
+    return Decision(
+        kind="plan",
+        journey=state.active_journey,
+        reason=(
+            f"identified: {basis.scope} {','.join(basis.doc_ids) or '(no manual)'}"
+            + (f" from model {basis.model_number}" if basis.model_number else "")
+            + (f" from {seen}" if seen else "")
+            + (f" badge {basis.badge}" if basis.badge else "")
+        ),
+    )
+
+
+def rediagnosis(
+    state: AgentState, deps: AgentDeps, actions: list[str]
+) -> tuple[list[str], list[str]]:
+    """A diagnosis repeated midway (ADR-013) runs only the search and the plan, and not even
+    those when the new details point to the same manuals; then it records them and keeps the
+    plan. Returns the actions to run and the notices for the reply."""
+    if not state.plan or "knowledge.search" not in actions or deps.manuals is None:
+        return actions, []
+    basis = identify(state, deps.manuals)
+    if basis is not None and same_manuals(basis, state.plan_basis):
+        notices = [NOTICE_SAME_MANUALS]
+        if basis.model_number and basis.scope != "model":
+            notices.append(NOTICE_UNKNOWN_MODEL)
+        state.plan_basis = basis
+        state.decision_log.append(
+            Decision(kind="plan", journey=state.active_journey, reason="same manuals: plan kept")
+        )
+        return [], notices
+    return [a for a in actions if a in SEARCH_ACTIONS], [NOTICE_REPLANNED]
+
+
 def _remember_citations(graph: GraphState, retrieval: RetrievalResult | None) -> None:
     if retrieval is not None:
         for chunk in retrieval.chunks:
             graph.citations[chunk.chunk_id] = Citation.from_chunk(chunk)
+
+
+def _model_hint(state: AgentState, deps: AgentDeps) -> str | None:
+    """The one request for the model number (ADR-013), at the first step of a general plan or
+    at a handoff for having no plan; recorded as asked here, and unrecorded by the supervisor
+    if the reply is blocked."""
+    if deps.manuals is None or state.active_journey != "troubleshoot":
+        return None
+    step = deps.step(state)
+    if step is None:
+        return None
+    at_first_step = step.type == "guide" and not any(i.status in TRIED for i in state.plan)
+    no_plan = step.type == "handoff" and not state.plan and not state.hazard_flags
+    if not (at_first_step or no_plan):
+        return None
+    hint = model_hint(state, deps.manuals, state.plan_basis)
+    category = _slot(state, "appliance_category")
+    if hint is not None and category is not None:
+        state.model_asked.append(category)
+    return hint
 
 
 async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[str, Any]:
@@ -258,7 +356,9 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     outcomes: list[ToolOutcome] = []
     if not result.skip_respond:
         for _ in range(MAX_ACTION_ROUNDS):
-            for action in result.actions:
+            actions, notices = rediagnosis(state, deps, result.actions)
+            turn.notices.extend(notices)
+            for action in actions:
                 state = await run_action(action, graph, state, deps, emit, outcomes)
             _remember_citations(graph, state.last_retrieval)
             if not result.continue_after_actions:
@@ -268,6 +368,7 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.fixed_replies.extend(result.fixed_replies)
             turn.notices.extend(result.notices)
         turn.retrieval = state.last_retrieval
+        turn.model_hint = _model_hint(state, deps)
     else:
         # A template replaces the reply (e.g. a hazard escalation), but read tools still run:
         # the visit times offered with it come from them.

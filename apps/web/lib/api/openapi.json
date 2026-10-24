@@ -2878,6 +2878,11 @@
             "title": "Citations",
             "type": "array"
           },
+          "general": {
+            "default": false,
+            "title": "General",
+            "type": "boolean"
+          },
           "index": {
             "title": "Index",
             "type": "integer"
@@ -2915,6 +2920,13 @@
             "default": false,
             "title": "Warranty Warning",
             "type": "boolean"
+          },
+          "web_sources": {
+            "items": {
+              "$ref": "#/components/schemas/WebSource"
+            },
+            "title": "Web Sources",
+            "type": "array"
           }
         },
         "required": [
@@ -3112,6 +3124,36 @@
         ],
         "title": "WarrantyState",
         "type": "string"
+      },
+      "WebSource": {
+        "description": "An unofficial web page a step comes from (spec \u00a710.6, ADR-013).",
+        "properties": {
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "domain"
+        ],
+        "title": "WebSource",
+        "type": "object"
       }
     }
   },

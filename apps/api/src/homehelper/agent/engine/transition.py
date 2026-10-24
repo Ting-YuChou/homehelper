@@ -72,6 +72,7 @@ from homehelper.agent.state import (
     PlanItemStatus,
     SlotValue,
 )
+from homehelper.knowledge.model_numbers import looks_like_model
 from homehelper.knowledge.schemas import CategoryId
 
 # Conversation-level appliance context, carried into the next journey on the same appliance.
@@ -641,6 +642,7 @@ class _Run:
         state.plan_cursor = 0
         state.step_attempts = {}
         state.last_retrieval = None
+        state.plan_basis = None
         if "appliance_category" not in carried:
             state.appliance_id = None  # the same appliance keeps its link across journeys
         state.selected_booking_slot = None
@@ -686,6 +688,10 @@ class _Run:
                         "slot", f"rejected {update.name}={update.value!r}: not an allowed value"
                     )
                     continue
+            if update.name == "model_number" and not looks_like_model(value):
+                # "I don't know it" is an answer, not a model number (ADR-013).
+                self._log("slot", f"rejected model_number={update.value!r}: not a model number")
+                continue
             self.state.slots[update.name] = SlotValue(
                 value=value, source="user", confidence=1.0, confirmed=True
             )

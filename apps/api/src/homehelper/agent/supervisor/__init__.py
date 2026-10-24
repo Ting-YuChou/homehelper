@@ -62,10 +62,15 @@ def code_checks(reply: AgentReply, *, booking_in_progress: bool) -> list[str]:
 async def llm_review(
     graph: GraphState, deps: AgentDeps, plan: ResponsePlan, reply: AgentReply
 ) -> list[str]:
+    web = plan.web or []
     prompt = prompts.render(
         "supervisor",
         task=plan.task,
-        excerpts=[{"id": c.chunk_id, "text": c.text} for c in plan.excerpts],
+        # A step from a web page is grounded in what the page says (spec §10.6, ADR-013).
+        excerpts=[
+            *({"id": c.chunk_id, "text": c.text} for c in plan.excerpts),
+            *({"id": f.id, "text": f"(unofficial web page) {f.claim}"} for f in web),
+        ],
         plan_step=plan.plan_item["instruction"] if plan.plan_item else None,
         tool_results=[tool_result_text(o) for o in graph.turn.tool_results],
         reply=reply.message,
@@ -120,6 +125,9 @@ async def supervise(graph: GraphState, deps: AgentDeps) -> dict[str, Any]:
     else:
         verdict = SupervisorVerdict(action="block", reasons=reasons)
         reply = AgentReply(message=BLOCKED_REPLY)
+        category = state.slots.get("appliance_category")
+        if turn.model_hint and category is not None and category.value in state.model_asked:
+            state.model_asked.remove(category.value)  # the user never saw the request
     if verdict.action != "pass":
         state.decision_log.append(
             Decision(

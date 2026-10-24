@@ -19,6 +19,7 @@ from homehelper.channels.events import AgentEvent, InboundMessage
 from homehelper.core.config import Settings
 from homehelper.core.tracing import Tracer
 from homehelper.knowledge.backends import build_retriever
+from homehelper.knowledge.features import ManualIndex
 from homehelper.knowledge.retriever import ResultCache
 from homehelper.knowledge.web import build_web_fallback
 from homehelper.llm import ModelRegistry, build_llm_client
@@ -77,6 +78,7 @@ async def journey_agent(
                 tools=tools,
                 media=media,
                 video=video,
+                manuals=ManualIndex.load(settings.manuals_dir),
             )
             yield JourneyAgent(deps, checkpointer)
     finally:

@@ -17,6 +17,7 @@ function step(
     total: 2,
     instruction,
     warranty_warning: false,
+    general: false,
   };
 }
 

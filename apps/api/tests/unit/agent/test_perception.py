@@ -95,3 +95,33 @@ def test_a_photo_the_model_barely_understood_gets_no_confidence_floor() -> None:
     assert result is not None
     [code] = result.slot_updates
     assert code.confidence == 0.05
+
+
+def test_what_the_appliance_looks_like_becomes_trait_slots_when_sure() -> None:
+    sure = media_input(
+        [
+            _photo(
+                category="refrigerator",
+                confidence=0.5,  # no nameplate in the photo
+                features=[{"name": "layout", "value": "side_by_side"}],
+                badges=["Family Hub", "x", "y", "z"],
+                features_confidence=0.85,
+            )
+        ]
+    )
+    assert sure is not None
+    looks = [s for s in sure.slot_updates if s.name in ("trait_layout", "badge")]
+    assert looks == [
+        PerceivedSlot(name="trait_layout", value="side_by_side", source="vision", confidence=0.85),
+        PerceivedSlot(name="badge", value="Family Hub", source="vision", confidence=0.85),
+    ]
+    unsure = media_input(
+        [
+            _photo(
+                category="refrigerator",
+                features=[{"name": "layout", "value": "side_by_side"}],
+                features_confidence=0.5,
+            )
+        ]
+    )
+    assert unsure is not None and not any(s.name == "trait_layout" for s in unsure.slot_updates)

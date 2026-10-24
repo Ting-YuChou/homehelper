@@ -23,6 +23,7 @@ from homehelper.agent.tools import McpToolbox
 from homehelper.core.config import Settings
 from homehelper.db.engine import create_engine
 from homehelper.knowledge.backends import build_retriever
+from homehelper.knowledge.features import ManualIndex
 from homehelper.knowledge.retriever import KnowledgeRetriever
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.knowledge.web import SearchHit, WebKnowledge, Whitelist
@@ -128,6 +129,7 @@ def journey(context: AgentContext) -> AgentFactory:
     data = load_mock_data(context.settings.mock_dir)
 
     video = build_video_analyzer(context.settings, context.registry, usage_sink=context.usage_sink)
+    manuals = ManualIndex.load(context.settings.manuals_dir)
 
     def factory(case: EvalCase) -> JourneyAgent:
         retriever = CaseRetriever(shared, case_web(case, llm, whitelist))
@@ -140,6 +142,7 @@ def journey(context: AgentContext) -> AgentFactory:
             tools=tools,
             media=EvalMediaSource(case=case),  # one per conversation, like its analysis cache
             video=video,
+            manuals=manuals,
         )
         return JourneyAgent(deps)
 

@@ -10,6 +10,16 @@ slots:
   brand:              { type: text, required: false }
   model_number:       { type: text, required: false, ask_policy: once }  # ask once, never insist
   error_code:         { type: text, required: false }
+  # What the user sees on the appliance, to tell its brand's manuals apart without a model
+  # number (data/manuals/features.yaml traits, ADR-013).
+  trait_type:         { type: text, required: false }
+  trait_controls:     { type: text, required: false }
+  trait_installation: { type: text, required: false }
+  trait_layout:       { type: text, required: false }
+  trait_cooking:      { type: text, required: false }
+  trait_mounting:     { type: text, required: false }
+  trait_brew_type:    { type: text, required: false }
+  badge:              { type: text, required: false }  # a series or product-line name
 
 # Evaluated before step transitions on every turn; a hit overrides the step's own transitions.
 guardrails:
@@ -44,8 +54,10 @@ steps:
   - id: diagnose
     type: system
     # Warranty and repair history need an issue linked to a profile appliance; skipped otherwise.
+    # Videos only while the exact model is unknown (ADR-013). A diagnosis repeated with a better
+    # identification runs only the search and the plan.
     actions: [mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history,
-              knowledge.search, plan.build]
+              knowledge.search, mcp:tutorials.search_videos, plan.build]
     transitions:
       - when: plan_available
         to: guide
@@ -59,6 +71,8 @@ steps:
     transitions:
       - when: user_reports_fixed
         to: resolved
+      - when: identification_changed                # a model number or what it looks like
+        to: diagnose                                # tried steps stay tried (ADR-013)
       - when: user_reports_not_fixed_and_plan_has_next
         to: guide                                   # re-entry presents the next plan item
       - when: plan_exhausted
@@ -77,6 +91,8 @@ steps:
     transitions:
       - when: booking_confirmed   # BookingSlots card action; code then calls service_booking.book
         to: escalated_end
+      - when: identification_changed_after_no_plan  # the model's own manual may cover it
+        to: diagnose
 
   - id: escalated_end
     type: end

@@ -74,11 +74,16 @@ def _video_args(graph: GraphState, state: AgentState) -> dict[str, Any] | Skip:
     query = graph.search_query or _slot(state, "question") or _slot(state, "symptom")
     if not query:
         return Skip("nothing to search videos for")
+    troubleshooting = state.active_journey == "troubleshoot"
+    if troubleshooting and (state.plan_basis is None or state.plan_basis.scope != "generic"):
+        # Beside a diagnosis only while the exact model is unknown (ADR-013).
+        return Skip("the manual is known (or can't be told): its steps come first")
     return {
         "query": query[:200],
         "brand": _slot(state, "brand"),
         "category": _slot(state, "appliance_category"),
-        "max_results": 3,
+        # One general video beside the first step; a parts-and-tutorials answer lists three.
+        "max_results": 1 if troubleshooting else 3,
     }
 
 

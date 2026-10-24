@@ -10,6 +10,7 @@ state (the API writes `messages` from these events, spec v0.8).
 import uuid
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from homehelper.agent.deps import AgentDeps, presented_item
 from homehelper.agent.engine.predicates import unconfirmed_low_confidence
@@ -32,8 +33,9 @@ from homehelper.channels.events import (
     PartCard,
     StepCard,
     VideoCard,
+    WebSource,
 )
-from homehelper.knowledge.schemas import Citation
+from homehelper.knowledge.schemas import Citation, RetrievalResult
 
 KEEP_TRANSCRIPT_LINES = 60
 MAX_RESULT_CARDS = 3  # per kind (parts, videos)
@@ -59,6 +61,18 @@ def _records(outcome: ToolOutcome) -> list[dict[str, Any]]:
     data = outcome.data
     items = data if isinstance(data, list) else [data]
     return [item for item in items if isinstance(item, dict)]
+
+
+def web_sources(citation_ids: list[str], retrieval: RetrievalResult | None) -> list[WebSource]:
+    """The unofficial pages a step cites, from the retrieval it was planned from."""
+    cited = set(citation_ids)
+    findings = retrieval.web_findings if retrieval is not None else []
+    sources = {
+        f.url: WebSource(url=f.url, title=f.title, domain=urlparse(f.url).hostname or f.url)
+        for f in findings
+        if f.id and f.id in cited
+    }
+    return list(sources.values())
 
 
 def result_cards(outcomes: list[ToolOutcome]) -> list[Card]:
@@ -99,18 +113,19 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
     cards: list[Card] = [r.card for r in [*replacing, *prefix] if r.card is not None]
     citations: list[Citation] = []
 
+    blocked = turn.verdict is not None and turn.verdict.action == "block"
     if replacing:
         text = "\n\n".join(r.text for r in replacing)
     else:
         reply_text = turn.reply.message if turn.reply else ""
-        text = "\n\n".join([*(r.text for r in prefix), reply_text]).strip()
+        hint = [turn.model_hint] if turn.model_hint and not blocked else []
+        text = "\n\n".join([*(r.text for r in prefix), reply_text, *hint]).strip()
         if turn.reply is not None:
             citations.extend(
                 graph.citations[cid] for cid in turn.reply.citation_ids if cid in graph.citations
             )
 
     step = deps.step(state)
-    blocked = turn.verdict is not None and turn.verdict.action == "block"
     if step is not None and step.type == "guide" and not turn.side_question and not replacing:
         item = presented_item(state)
         if item is not None and not blocked:
@@ -124,6 +139,8 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
                     citations=item_citations,
                     warranty_warning=item.warranty_warning,
                     issue_id=state.active_issue_id,
+                    web_sources=web_sources(item.citation_ids, state.last_retrieval),
+                    general=item.general,
                 )
             )
             citations.extend(item_citations)

@@ -37,6 +37,10 @@ StepFeedback = Literal["fixed", "not_fixed", "cannot_do", "unclear"]
 
 PlanItemStatus = Literal["pending", "presented", "done_not_fixed", "fixed", "skipped"]
 
+# What a plan was built on (ADR-013): the model number's manual, the one manual left once what
+# the appliance looks like ruled out the others (or the brand has only one), or several.
+PlanScope = Literal["model", "identified", "generic"]
+
 DecisionKind = Literal[
     "route", "transition", "skip", "guardrail", "slot", "plan", "supervisor", "tool"
 ]
@@ -59,6 +63,19 @@ class PlanItem(BaseModel):
     status: PlanItemStatus = "pending"
     warranty_warning: bool = False  # G-WARR-01: disassembly while under warranty
     safety_rule: str | None = None  # set on items inserted by code, e.g. "G-SAFE-06"
+    general: bool = False  # from several models' manuals: not specific to the user's (ADR-013)
+
+
+class PlanBasis(BaseModel):
+    """The manuals a plan was built on and what identified them (ADR-013). A turn that tells
+    the manuals apart better than this (a model number, what the appliance looks like) builds
+    the plan again."""
+
+    scope: PlanScope
+    doc_ids: list[str] = Field(default_factory=list)
+    model_number: str | None = None
+    traits: dict[str, str] = Field(default_factory=dict)  # trait name -> value (features.yaml)
+    badge: str | None = None
 
 
 class Decision(BaseModel):
@@ -112,6 +129,7 @@ class PausedIssue(BaseModel):
     plan_cursor: int = 0
     step_attempts: dict[str, int] = Field(default_factory=dict)
     last_retrieval: RetrievalResult | None = None  # the excerpts its plan cites
+    plan_basis: PlanBasis | None = None
     appliance_id: str | None = None  # the profile appliance this issue is about
 
 
@@ -148,7 +166,10 @@ class AgentState(BaseModel):
     selected_booking_slot: str | None = None  # from a BookingSlots card; read by the `book` action
     offered_slots: list[OfferedSlot] = Field(default_factory=list)  # only these can be booked
     last_retrieval: RetrievalResult | None = None
+    plan_basis: PlanBasis | None = None
     appliance_id: str | None = None  # the profile appliance of the active issue, once linked
+    # Appliance categories whose model number the user was asked for, once per conversation.
+    model_asked: list[str] = Field(default_factory=list)
     # The once-per-issue reminder about paused issues was given, or the user declined an offer.
     paused_reminder_used: bool = False
     outcome: Outcome | None = None  # summary over all issues (spec §7.4)

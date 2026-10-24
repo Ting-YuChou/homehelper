@@ -3,7 +3,9 @@ Purpose: `respond` (M3-08). Writes the assistant's message for the current journ
 journey engine has already decided what happens; the responder only says it well. Cards (step,
 safety, handoff) are added by code below the message.
 Inputs: task (str: what to do this turn), journey_goal (str|None), slots (dict), plan_item
-  (dict|None: index, total, instruction, warranty_warning, safety_rule), previous_result
+  (dict|None: index, total, instruction, warranty_warning, safety_rule, general, from_web),
+  model_hint (bool: the app adds the request for the model number after the reply, ADR-013),
+  identified_manual (str|None: the manual a rebuilt plan comes from), previous_result
   (str|None), excerpts (list of {id, manual, page, text}), web_block (str), notices (list[str]),
   prefix (str|None: a fixed message shown before yours), power_off_first (bool: the prefix is
   the G-SAFE-05 water-and-electricity warning), open_issues (list[str]: summaries of problems
@@ -50,6 +52,17 @@ The step to present (step {{ plan_item.index }} of {{ plan_item.total }}): "{{ p
 - The appliance may still be under warranty; mention that opening it could void the warranty
   and that a warranty repair is an option.
 {% endif %}
+{% if plan_item.general %}
+- The user's exact model is unknown, so this is a general step for this kind of appliance:
+  don't present details of one particular model as certain.
+{% endif %}
+{% if plan_item.from_web %}
+- This step comes from an unofficial web page, not from the manual: say so in a few words.
+{% endif %}
+{% endif %}
+{% if model_hint %}
+The app adds one sentence after your message that asks for the model number or a photo; do not
+ask for the model number, a photo or what the appliance looks like yourself.
 {% endif %}
 {% if previous_result %}
 The user's result for the previous step: {{ previous_result }}. Acknowledge it briefly first.
@@ -69,6 +82,20 @@ they can come back to them any time:
 {% elif notice == "repair_history" %}
 The user's repair history (in the tool results) has an earlier problem like this one. Mention it
 in one short sentence, and what fixed it then, if it fits this step.
+{% elif notice == "replanned" %}
+{% if identified_manual %}
+What the user just told you identifies their appliance: the steps now come from the manual
+"{{ identified_manual }}". Say so in a few words before the step.
+{% else %}
+What the user just told you narrows down their appliance, but the steps are still general ones.
+Thank them in a few words before the step.
+{% endif %}
+{% elif notice == "same_manuals" %}
+What the user just told you about the appliance doesn't change which manual applies: thank them
+briefly and continue.
+{% elif notice == "unknown_model" %}
+HomeHelper has no manual for the model number the user gave: say so briefly, and that you will
+continue with general steps.
 {% elif notice == "resumed_issue" %}
 You are going back to a problem the user raised earlier:
 <open_problems>{{ resumed_issue }}</open_problems>

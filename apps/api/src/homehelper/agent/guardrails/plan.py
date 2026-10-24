@@ -1,7 +1,9 @@
 """Pure post-processing of a planner-generated Solution Plan (spec §7.6, P1, P3).
 
 `plan.build` (M3-07) calls `postprocess_plan` on the planner output; each helper is usable alone.
-Every removal or insertion is returned as a `Decision` for the decision log (P7).
+Every removal or insertion is returned as a `Decision` for the decision log (P7). A plan built
+again for a better-identified appliance is joined to the steps already tried by `merge_plan`
+(ADR-013).
 """
 
 from collections.abc import Iterable
@@ -13,6 +15,8 @@ from homehelper.agent.guardrails.language import looks_english
 from homehelper.agent.state import Decision, PlanItem
 
 MAX_PLAN_ITEMS = 6
+WEB_ID_PREFIX = "web-"  # web findings' ids (`knowledge.web.finding_id`)
+TRIED: frozenset[str] = frozenset({"done_not_fixed", "skipped"})
 
 POWER_OFF_INSTRUCTION = (
     "Before you go further, unplug the appliance or switch off its circuit breaker, and keep it "
@@ -60,6 +64,28 @@ def drop_high_risk(items: Iterable[PlanItem]) -> PlanEdit:
     for item in items:
         if item.risk_level == "high":
             decisions.append(_plan_decision(f"dropped {item.id}: risk_level=high"))
+        else:
+            kept.append(item)
+    return PlanEdit(items=kept, decisions=decisions)
+
+
+def is_web_only(item: PlanItem) -> bool:
+    return bool(item.citation_ids) and all(c.startswith(WEB_ID_PREFIX) for c in item.citation_ids)
+
+
+def limit_web_only(items: Iterable[PlanItem]) -> PlanEdit:
+    """Spec §10.6 ③: a step only an unofficial web page supports is at least medium risk, and
+    never one that opens the appliance."""
+    kept: list[PlanItem] = []
+    decisions: list[Decision] = []
+    for item in items:
+        if not is_web_only(item):
+            kept.append(item)
+        elif item.requires_disassembly:
+            decisions.append(_plan_decision(f"dropped {item.id}: disassembly from a web page"))
+        elif item.risk_level == "low":
+            kept.append(item.model_copy(update={"risk_level": "medium"}))
+            decisions.append(_plan_decision(f"{item.id} from a web page: risk_level=medium"))
         else:
             kept.append(item)
     return PlanEdit(items=kept, decisions=decisions)
@@ -127,8 +153,8 @@ def postprocess_plan(
     in_warranty: bool = False,
     max_items: int = MAX_PLAN_ITEMS,
 ) -> PlanEdit:
-    """Apply all §7.6 rules in order: P3, G-INJ-01, high risk, G-SAFE-03, cap, G-WARR-01,
-    G-SAFE-06."""
+    """Apply all §7.6 rules in order: P3, G-INJ-01, high risk, web-only steps (§10.6),
+    G-SAFE-03, cap, G-WARR-01, G-SAFE-06."""
     decisions: list[Decision] = []
 
     def apply(edit: PlanEdit) -> list[PlanItem]:
@@ -138,6 +164,7 @@ def postprocess_plan(
     current = apply(drop_uncited(items))
     current = apply(drop_non_english(current))
     current = apply(drop_high_risk(current))
+    current = apply(limit_web_only(current))
     current = apply(forbid_high_voltage_disassembly(current, category))
     if len(current) > max_items:
         dropped = ", ".join(item.id for item in current[max_items:])
@@ -146,3 +173,37 @@ def postprocess_plan(
     current = apply(flag_warranty(current, in_warranty))
     current = apply(insert_power_off(current))
     return PlanEdit(items=current, decisions=decisions)
+
+
+def merge_plan(current: list[PlanItem], new: list[PlanItem]) -> PlanEdit:
+    """A plan built again (a model number or the appliance's look arrived midway): the steps
+    already tried stay first, with their results, so they still count towards G-LOOP-01; the
+    new plan replaces the rest, including a step shown but not answered. With no new steps the
+    current plan stays as it is. Items are renumbered in their new order."""
+    tried = [item for item in current if item.status in TRIED]
+    if not new:
+        return PlanEdit(
+            items=current,
+            decisions=[_plan_decision("kept the current plan: the new one has no steps")]
+            if current
+            else [],
+        )
+    merged: list[PlanItem] = []
+    counts = {"step": 0, "power": 0}
+    for item in [*tried, *new]:
+        kind = "power" if is_power_off(item) else "step"
+        counts[kind] += 1
+        number = counts[kind]
+        merged.append(
+            item.model_copy(
+                update={
+                    "id": f"{POWER_OFF_ID_PREFIX}-{number}" if kind == "power" else f"p{number}"
+                }
+            )
+        )
+    decisions = []
+    if tried:
+        decisions.append(
+            _plan_decision(f"kept {len(tried)} tried steps; {len(new)} new steps after them")
+        )
+    return PlanEdit(items=merged, decisions=decisions)

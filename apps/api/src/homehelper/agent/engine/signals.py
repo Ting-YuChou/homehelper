@@ -1,7 +1,9 @@
 """One turn's input, normalized into the signals predicates read.
 
 A turn is either free text understood by NLU, or a card button (`StructuredAction`) that bypasses
-NLU (spec §7.3). Both become the same `TurnSignals`, so predicates never care which it was.
+NLU (spec §7.3). Both become the same `TurnSignals`, so predicates never care which it was. Text
+typed with a step button may still add details about the appliance (`CARD_TEXT_SLOTS`): the
+button decides the step's result, the words what the appliance is (ADR-013).
 """
 
 from typing import Literal
@@ -18,6 +20,13 @@ Feedback = Literal["fixed", "not_fixed", "cannot_do"]
 CONFIRM_VALUES = frozenset({"yes", "y", "true", "confirm", "confirmed", "correct"})
 DENY_VALUES = frozenset({"no", "n", "false", "deny", "denied", "incorrect", "wrong"})
 FEEDBACK_VALUES: frozenset[str] = frozenset({"fixed", "not_fixed", "cannot_do"})
+# What a message sent with a step button may still tell (its NLU is read only for these).
+CARD_TEXT_SLOTS = ("model_number", "brand", "badge")
+CARD_TEXT_PREFIXES = ("trait_",)
+
+
+def appliance_detail(name: str) -> bool:
+    return name in CARD_TEXT_SLOTS or name.startswith(CARD_TEXT_PREFIXES)
 
 
 class TurnInput(BaseModel):
@@ -67,7 +76,11 @@ def signals_from_input(turn: TurnInput) -> TurnSignals:
 
 def _from_words_or_card(turn: TurnInput) -> TurnSignals:
     if turn.action is not None:
-        return _from_action(turn.action)
+        signals = _from_action(turn.action)
+        if turn.action.type == "step_result" and turn.nlu is not None:
+            details = [u for u in turn.nlu.slot_updates if appliance_detail(u.name)]
+            signals = signals.model_copy(update={"slot_updates": details})
+        return signals
     nlu = turn.nlu
     if nlu is None:
         return TurnSignals()

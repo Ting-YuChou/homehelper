@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { StepCard as StepCardData, StructuredAction } from "@/lib/api/types";
 import { STEP_BUTTONS } from "@/lib/chat/actions";
 
-import { CitationList } from "./citation-chip";
+import { CitationList, WebSourceList } from "./citation-chip";
 
 export function StepCard({
   card,
@@ -25,6 +25,14 @@ export function StepCard({
         <span className="text-xs font-medium tracking-wide text-sky-800 uppercase dark:text-sky-300">
           Step {card.index} of {card.total}
         </span>
+        {card.general && (
+          <span
+            className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-900 dark:text-sky-200"
+            title="Your exact model is unknown, so this step is a general one for this kind of appliance."
+          >
+            General step
+          </span>
+        )}
         <div
           className="h-1 flex-1 overflow-hidden rounded-full bg-sky-100 dark:bg-sky-900"
           aria-hidden
@@ -43,6 +51,7 @@ export function StepCard({
         </p>
       )}
       <CitationList citations={card.citations ?? []} />
+      <WebSourceList sources={card.web_sources ?? []} />
       {interactive && (
         <div className="flex flex-wrap gap-2">
           {buttons.map(({ value, label }) => (

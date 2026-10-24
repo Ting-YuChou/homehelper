@@ -20,6 +20,7 @@ from homehelper.agent.nodes.understand import MEDIA_ONLY_TEXT
 from homehelper.agent.turn import GraphState
 from homehelper.channels.events import AgentEvent, StatusEvent
 from homehelper.core.logging import get_logger
+from homehelper.knowledge.features import ManualIndex
 from homehelper.knowledge.schemas import CategoryId
 from homehelper.llm import LLMClient, Message
 from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
@@ -31,9 +32,37 @@ __all__ = ["MEDIA_ONLY_TEXT", "analyze_images", "perceive", "vision_messages"]
 CATEGORIES = [category.value for category in CategoryId]
 
 
-def vision_messages(images: list[tuple[str, bytes]]) -> list[Message]:
+def vision_traits(manuals: ManualIndex | None) -> dict[str, list[dict[str, object]]]:
+    """Per category, the visible traits the vision model may report (ADR-013)."""
+    if manuals is None:
+        return {}
+    return {
+        category.value: [
+            {"name": name, "values": list(trait.values)} for name, trait in vocab.traits.items()
+        ]
+        for category, vocab in manuals.features.categories.items()
+        if vocab.traits
+    }
+
+
+def known_traits(vision: VisionResult, manuals: ManualIndex | None) -> VisionResult:
+    """Only traits and values the photo's category has: anything else is dropped."""
+    category = vision.category if vision.category in CATEGORIES else None
+    if manuals is None or category is None:
+        return vision.model_copy(update={"features": []})
+    kept = [
+        t
+        for t in vision.features
+        if (trait := manuals.trait(CategoryId(category), t.name)) and t.value in trait.values
+    ]
+    return vision.model_copy(update={"features": kept})
+
+
+def vision_messages(
+    images: list[tuple[str, bytes]], traits: dict[str, list[dict[str, object]]] | None = None
+) -> list[Message]:
     """One user message: the instructions, then each photo as a data URL (`mime`, bytes)."""
-    text = prompts.render("vision", count=len(images), categories=CATEGORIES)
+    text = prompts.render("vision", count=len(images), categories=CATEGORIES, traits=traits or {})
     parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
     for mime, data in images:
         url = f"data:{mime};base64,{base64.b64encode(data).decode()}"
@@ -41,8 +70,12 @@ def vision_messages(images: list[tuple[str, bytes]]) -> list[Message]:
     return [Message(role="user", content=parts)]
 
 
-async def analyze_images(llm: LLMClient, images: list[tuple[str, bytes]]) -> VisionResult:
-    return await llm.structured("vision", vision_messages(images), VisionResult)
+async def analyze_images(
+    llm: LLMClient,
+    images: list[tuple[str, bytes]],
+    traits: dict[str, list[dict[str, object]]] | None = None,
+) -> VisionResult:
+    return await llm.structured("vision", vision_messages(images, traits), VisionResult)
 
 
 def _cached(photos: list[LoadedMedia]) -> VisionResult | None:
@@ -63,7 +96,7 @@ async def _photos(deps: AgentDeps, photos: list[LoadedMedia]) -> list[MediaObser
     if vision is None:
         try:
             images = [(p.mime, await deps.media.read(p)) for p in photos]
-            vision = await analyze_images(deps.llm, images)
+            vision = await analyze_images(deps.llm, images, vision_traits(deps.manuals))
         except Exception as exc:  # storage, provider or schema: never fails the turn
             log.warning("vision_failed", error=f"{type(exc).__name__}: {exc}", photos=len(photos))
             return [
@@ -78,6 +111,7 @@ async def _photos(deps: AgentDeps, photos: list[LoadedMedia]) -> list[MediaObser
         }
         for photo in photos:
             await _save(deps, photo.attachment_id, analysis)
+    vision = known_traits(vision, deps.manuals)
     return [
         MediaObservation(attachment_id=p.attachment_id, kind="image", vision=vision) for p in photos
     ]
