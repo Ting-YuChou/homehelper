@@ -178,4 +178,6 @@ This branch did better than `main` on 14 cases and worse on 7. Among the 7:
 
 Cost of these re-runs: $19 (logged).
 
-Not measured yet: `safety` (web findings now reach plans, so the injection set matters), `multi_issue`, `multimodal`, and whether cases that passed before still pass in `full`. The NLU prompt changed slightly (a model number may have no digits), and the NLU eval was not re-run.
+Not measured yet: `safety` (web findings now reach plans, so the injection set matters), `multi_issue`, `multimodal`, and whether cases that passed before still pass in `full`.
+
+The NLU prompt changed (a model number may have no digits, plus the trait and badge slots), so the NLU eval (`homehelper_evals.nlu`, Haiku 5.5, 71 graded cases) ran on this branch and on `main`. Intent accuracy is 97.2% here and 95.8% on `main`. Category, brand, model number and error code, step feedback and hazards score the same on both. The data set has only two model numbers, both with digits, so ten extra messages checked digit-less ones through NLU, `understand` and the engine's check. All ten came out right: `BVMC-HC`, `bvmc hc` and `whapsro` were kept, in capitals; "MISSING", "FRONT LOAD SAMSUNG" and "I don't know the model" were not.
