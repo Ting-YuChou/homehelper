@@ -22,7 +22,11 @@ class CategoryId(StrEnum):
 ChunkType = Literal["troubleshooting_table", "error_code", "procedure", "safety", "general"]
 
 # How far the metadata filter had to relax before enough results were found (spec §10.4 ①).
-FilterLevel = Literal["model", "brand_category", "category", "all"]
+# `candidates`: the manuals the user's appliance may be, without a model number (ADR-013).
+FilterLevel = Literal["model", "candidates", "brand_category", "category", "all"]
+# What web results do to the manual's (spec §10.6, ADR-013): replace an insufficient result
+# (the baseline), join it, or join every result.
+WebMode = Literal["replace", "add_when_insufficient", "always_add"]
 
 RetrievalSource = Literal["manual", "web", "none"]
 
@@ -67,6 +71,9 @@ class WebFinding(BaseModel):
 
     claim: str
     url: str
+    # Set by code once the claim passed the checks: plan items cite it by id (ADR-013).
+    id: str = ""
+    title: str | None = None  # the page's title, for the source shown to the user
 
 
 class RetrievalQuery(BaseModel):
@@ -76,6 +83,13 @@ class RetrievalQuery(BaseModel):
     model_number: str | None = None
     error_code: str | None = None
     top_k: int = 5
+    # Without a model number (ADR-013): the manuals the appliance may be, searched before
+    # brand + category; at most `per_doc` chunks from each, so the planner sees which steps
+    # they share; what the user sees on it, for the web search; and what web results do.
+    doc_ids: list[str] | None = None
+    per_doc: int | None = None
+    appearance: list[str] = Field(default_factory=list)
+    web: WebMode = "replace"
 
 
 class RetrievalResult(BaseModel):

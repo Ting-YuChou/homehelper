@@ -10,6 +10,21 @@ _NON_MODEL_CHARS = re.compile(r"[^A-Z0-9*?]")
 _NON_CODE_CHARS = re.compile(r"[^A-Z0-9]")
 
 
+# What people type when they don't have a model number ("not sure", "N/A", "idk").
+_NOT_A_MODEL = re.compile(
+    r"\b(unknown|not sure|don'?t know|no idea|idk|n/?a|none|can'?t find|cannot find)\b", re.I
+)
+
+
+def looks_like_model(value: str) -> bool:
+    """A model number has at least three letters or digits, one of them a digit; an answer
+    like "I don't know" is not one."""
+    compact = _NON_MODEL_CHARS.sub("", value.upper()).replace("*", "").replace("?", "")
+    return (
+        len(compact) >= 3 and any(c.isdigit() for c in compact) and not _NOT_A_MODEL.search(value)
+    )
+
+
 def normalize_model(value: str) -> str:
     """Uppercase and drop separators (spaces, `-`, `/`, `.`); keeps `*`/`?` wildcards."""
     return _NON_MODEL_CHARS.sub("", value.upper())

@@ -282,3 +282,115 @@ def test_filters_reject_unsafe_values() -> None:
     assert to_metadata_filters({"brand": "Black+Decker", "doc_id": ["a-b", "c.d"]}) is not None
     with pytest.raises(ValueError, match="unsafe filter value"):
         to_metadata_filters({"brand": "x' OR '1'='1"})
+
+
+# --- without a model number (ADR-013) -------------------------------------------------------
+
+LG_WASHERS = [
+    ManualEntry(
+        doc_id=f"lg-wm{n}",
+        file=f"washing_machine/LG/wm{n}.pdf",
+        category=CategoryId.WASHING_MACHINE,
+        brand="LG",
+        title="Manual",
+        model_patterns=[f"WM{n}*"],
+        pages=1,
+        sha256="0" * 64,
+        reviewed=True,
+    )
+    for n in (1000, 2000, 3000)
+]
+
+
+def test_candidate_manuals_come_before_brand_and_category() -> None:
+    r = KnowledgeRetriever(FakeBackend({}), FakeEmbedder(), LG_WASHERS, kb_version="kb_test")
+    query = RetrievalQuery(
+        query_en="no drain",
+        category=CategoryId.WASHING_MACHINE,
+        brand="LG",
+        doc_ids=["lg-wm1000", "lg-wm3000", "lg-dryer"],
+    )
+    levels = r.filter_levels(query)
+    assert levels[0] == ("candidates", {"doc_id": ["lg-wm1000", "lg-wm3000"]})
+    assert [level for level, _ in levels[1:]] == ["brand_category", "category"]
+    # A model number that names a manual wins over the candidates.
+    with_model = query.model_copy(update={"model_number": "WM2000HA"})
+    assert r.filter_levels(with_model)[0] == ("model", {"doc_id": ["lg-wm2000"]})
+
+
+async def test_candidate_manuals_are_kept_like_the_model_numbers_manual() -> None:
+    backend = FakeBackend({"model": ([cand("lg-wm1000:1")], [])})
+    r = KnowledgeRetriever(
+        backend,
+        FakeEmbedder(),
+        LG_WASHERS,
+        kb_version="kb_test",
+        reranker=FakeReranker({"lg-wm1000:1": 0.2}),
+        web=(web := FakeWeb()),
+    )
+    one = RetrievalQuery(
+        query_en="no drain", category=CategoryId.WASHING_MACHINE, doc_ids=["lg-wm1000"]
+    )
+    result = await r.search(one)
+    assert (result.filter_level, result.source, len(result.chunks)) == ("candidates", "manual", 1)
+    assert web.calls == 1 and result.web_findings  # added to the manual, not replacing it
+    # With two left the search stays with them too: other brands' manuals are no better.
+    several = one.model_copy(update={"doc_ids": ["lg-wm1000", "lg-wm2000"]})
+    kept = await r.search(several)
+    assert (kept.filter_level, kept.source, web.calls) == ("candidates", "manual", 2)
+
+
+async def test_per_doc_caps_the_chunks_from_each_manual() -> None:
+    chunks = [cand(f"lg-wm1000:{i}") for i in range(4)] + [cand("lg-wm2000:1"), cand("lg-wm3000:1")]
+    scores = {c.chunk_id: 0.9 - i / 100 for i, c in enumerate(chunks)}
+    r = KnowledgeRetriever(
+        FakeBackend({"model": (chunks, [])}),
+        FakeEmbedder(),
+        LG_WASHERS,
+        kb_version="kb_test",
+        reranker=FakeReranker(scores),
+    )
+    query = RetrievalQuery(
+        query_en="no drain",
+        category=CategoryId.WASHING_MACHINE,
+        doc_ids=["lg-wm1000", "lg-wm2000", "lg-wm3000"],
+        per_doc=2,
+        top_k=8,
+    )
+    result = await r.search(query)
+    assert [c.chunk_id for c in result.chunks] == [
+        "lg-wm1000:0",
+        "lg-wm1000:1",
+        "lg-wm2000:1",
+        "lg-wm3000:1",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mode", "score", "chunks", "findings", "source"),
+    [
+        ("replace", 0.2, 0, 1, "web"),  # the baseline: web replaces an insufficient result
+        ("add_when_insufficient", 0.2, 1, 1, "manual"),
+        ("add_when_insufficient", 0.9, 1, 0, "manual"),  # sufficient: no search
+        ("always_add", 0.9, 1, 1, "manual"),
+    ],
+)
+async def test_web_mode_decides_what_web_findings_do(
+    mode: str, score: float, chunks: int, findings: int, source: str
+) -> None:
+    r = retriever(
+        FakeBackend({"category": ([cand("lg-washing_machine:1")], [])}),
+        reranker=FakeReranker({"lg-washing_machine:1": score}),
+        web=FakeWeb(),
+    )
+    query = RetrievalQuery(
+        query_en="no drain",
+        category=CategoryId.WASHING_MACHINE,
+        web=mode,  # type: ignore[arg-type]
+    )
+    result = await r.search(query)
+    assert (len(result.chunks), len(result.web_findings), result.source) == (
+        chunks,
+        findings,
+        source,
+    )
