@@ -114,7 +114,7 @@ def test_simulator_prompt_follows_what_the_user_knows() -> None:
 
     typed = system_prompt(later_case())
     assert "do not mention it in your opening" in typed
-    assert "you find it and type it: SHX68T55UC" in typed
+    assert "press no button (the assistant reads only the button): SHX68T55UC" in typed
     assert "send one" in typed  # can photograph the appliance
 
     photo = system_prompt(later_case(reveal="photo"))
@@ -256,7 +256,7 @@ async def test_snapshots_are_searched_once_per_case_and_served_to_replays(
     todo, kept = pending([original, replay], tmp_path)
     assert list(todo) == ["scn-x"] and kept == 0
     client = FakeSearch()
-    save(await search(todo, client, whitelist), tmp_path)
+    await search(todo, client, whitelist, on_done=lambda k, snap: save(k, snap, tmp_path))
     assert client.queries == [
         ("Bosch dishwasher The dishwasher does not drain.", ["bosch-home.com", "ifixit.com"])
     ]
@@ -278,9 +278,6 @@ async def test_snapshots_are_searched_once_per_case_and_served_to_replays(
 def test_cli_refuses_a_snapshot_run_without_snapshots(tmp_path: Path, monkeypatch) -> None:
     from homehelper.core.config import Settings
 
-    monkeypatch.setattr(
-        "homehelper_evals.web_snapshots.SNAPSHOTS_DIR", tmp_path / "none", raising=True
-    )
     monkeypatch.setattr(cli, "apply_snapshots", lambda cases: (cases, ["scn-a"], ""))
     code = cli.main(
         [
@@ -301,3 +298,62 @@ def test_cli_refuses_a_snapshot_run_without_snapshots(tmp_path: Path, monkeypatc
         settings=Settings(_env_file=None),  # type: ignore[call-arg]
     )
     assert code == 6
+
+
+async def test_a_stale_or_failed_snapshot_counts_as_missing(tmp_path: Path) -> None:
+    whitelist = Whitelist(general=["ifixit.com"], brands={})
+    case = make_case(id="scn-x")
+    await search(
+        {"scn-x": case}, FakeSearch(), whitelist, on_done=lambda k, s: save(k, s, tmp_path)
+    )
+    edited = case.model_copy(update={"scenario": "It leaks."})
+    assert list(pending([edited], tmp_path)[0]) == ["scn-x"]
+    assert apply([edited], tmp_path)[1] == ["scn-x"]
+
+    class Failing(FakeSearch):
+        async def search(self, query: str, domains: list[str], max_results: int):  # type: ignore[override]
+            raise RuntimeError("quota")
+
+    saved: list[str] = []
+    other = make_case(id="scn-y")
+    got = await search({"scn-y": other}, Failing(), whitelist, on_done=lambda k, s: saved.append(k))
+    assert got == {} and saved == []
+
+
+async def test_full_cases_without_a_model_number_are_graded_as_before() -> None:
+    llm = FakeLLMClient({JUDGE_TASK: [{**RUBRIC, "model_requests": 3}]})
+    case = make_case(model_knowledge="unknown")  # a full case: no paired_with
+    transcript = make_transcript(UserTurn(text="It won't drain."), AgentTurn(text="Model?"))
+    result = await grade(case, transcript, RubricJudge(llm))
+    assert result.check("model_asks").passed is None and result.success
+
+
+async def test_a_model_number_typed_with_a_button_is_not_given() -> None:
+    from homehelper.channels.events import StructuredAction
+
+    pressed = UserTurn(
+        text="Didn't help. It says SHX68T55UC.",
+        action=StructuredAction(type="step_result", value="not_fixed"),
+    )
+    transcript = make_transcript(
+        UserTurn(text="It won't drain."),
+        step("bosch-she3ar76u"),
+        pressed,
+        step("bosch-she3ar76u", 2),
+    )
+    check = (await grade(later_case(), transcript)).check("model_citations")
+    assert check.passed is None and check.detail == "model number never given"
+
+
+async def test_metrics_split_finds_when_asked_by_how_the_number_comes() -> None:
+    text, photo = later_case(id="a-later"), later_case(id="b-later", reveal="photo")
+    transcript = make_transcript(UserTurn(text="It won't drain."), AgentTurn(text="Hm."))
+    results = [
+        CaseResult(
+            case=c, trials=[TrialResult(transcript=transcript, grade=await grade(c, transcript))]
+        )
+        for c in (text, photo)
+    ]
+    groups = compute_metrics(results, k=1)["no_model"]
+    assert groups["finds_when_asked/text"]["cases"] == 1
+    assert groups["finds_when_asked/photo"]["cases"] == 1

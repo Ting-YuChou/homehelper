@@ -15,7 +15,7 @@ import argparse
 import asyncio
 import hashlib
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -62,6 +62,16 @@ def snapshot_path(directory: Path, key: str) -> Path:
     return directory / f"{key}.json"
 
 
+def _current(directory: Path, case: EvalCase) -> Snapshot | None:
+    """The case's snapshot, unless it was searched for other words (the scenario or the
+    manifest's brand changed since): a stale snapshot counts as missing."""
+    path = snapshot_path(directory, snapshot_key(case))
+    if not path.exists():
+        return None
+    snapshot = Snapshot.model_validate_json(path.read_bytes())
+    return snapshot if snapshot.query == snapshot_query(case) else None
+
+
 def pending(
     cases: Iterable[EvalCase], directory: Path = SNAPSHOTS_DIR, *, force: bool = False
 ) -> tuple[dict[str, EvalCase], int]:
@@ -72,7 +82,7 @@ def pending(
         key = snapshot_key(case)
         if not needs_snapshot(case) or key in todo or key in kept:
             continue
-        if snapshot_path(directory, key).exists() and not force:
+        if _current(directory, case) and not force:
             kept.add(key)
         else:
             todo[key] = case
@@ -85,16 +95,22 @@ async def search(
     whitelist: Whitelist,
     *,
     concurrency: int = 4,
+    on_done: Callable[[str, Snapshot], None] | None = None,
 ) -> dict[str, Snapshot]:
-    """One search per case, on the domains production would search for its brand."""
+    """One search per case, on the domains production would search for its brand. Each one is
+    passed to `on_done` as soon as it arrives, so a failed search loses only itself."""
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def one(case: EvalCase) -> Snapshot:
+    async def one(key: str, case: EvalCase) -> Snapshot | None:
         query = snapshot_query(case)
         domains = whitelist.domains_for(case.brand)
-        async with semaphore:
-            hits = await client.search(query, domains, MAX_RESULTS)
-        return Snapshot(
+        try:
+            async with semaphore:
+                hits = await client.search(query, domains, MAX_RESULTS)
+        except Exception as exc:  # one bad search must not lose the others
+            print(f"search failed for {key}: {exc!r}", file=sys.stderr)
+            return None
+        snapshot = Snapshot(
             query=query,
             domains=domains,
             fetched_at=datetime.now(UTC).isoformat(timespec="seconds"),
@@ -104,15 +120,17 @@ async def search(
                 if whitelist.allows(h.url)
             ],
         )
+        if on_done is not None:
+            on_done(key, snapshot)
+        return snapshot
 
-    snapshots = await asyncio.gather(*(one(case) for case in todo.values()))
-    return dict(zip(todo, snapshots, strict=True))
+    snapshots = await asyncio.gather(*(one(key, case) for key, case in todo.items()))
+    return {key: s for key, s in zip(todo, snapshots, strict=True) if s is not None}
 
 
-def save(snapshots: dict[str, Snapshot], directory: Path = SNAPSHOTS_DIR) -> None:
+def save(key: str, snapshot: Snapshot, directory: Path = SNAPSHOTS_DIR) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    for key, snapshot in snapshots.items():
-        snapshot_path(directory, key).write_text(snapshot.model_dump_json(indent=1) + "\n")
+    snapshot_path(directory, key).write_text(snapshot.model_dump_json(indent=1) + "\n")
 
 
 def apply(
@@ -127,14 +145,16 @@ def apply(
             applied.append(case)
             continue
         key = snapshot_key(case)
-        path = snapshot_path(directory, key)
-        if not path.exists():
+        snapshot = _current(directory, case)
+        if snapshot is None:
             missing.append(key)
             applied.append(case)
             continue
-        raw = path.read_bytes()
-        digest.update(key.encode() + b"\0" + hashlib.sha256(raw).digest())
-        snapshot = Snapshot.model_validate_json(raw)
+        digest.update(
+            key.encode()
+            + b"\0"
+            + hashlib.sha256(snapshot_path(directory, key).read_bytes()).digest()
+        )
         applied.append(case.model_copy(update={"web_results": snapshot.results}))
     return applied, sorted(set(missing)), digest.hexdigest()[:16]
 
@@ -153,11 +173,21 @@ def _fetch(args: argparse.Namespace) -> int:
         return 2
     whitelist = Whitelist.load(settings.web_whitelist_path)
     todo, kept = pending(_cases(args.suites, args.seed), args.dir, force=args.force)
-    snapshots = asyncio.run(search(todo, TavilySearchClient(key), whitelist))
-    save(snapshots, args.dir)
+    snapshots = asyncio.run(
+        search(
+            todo,
+            TavilySearchClient(key),
+            whitelist,
+            on_done=lambda k, snapshot: save(k, snapshot, args.dir),
+        )
+    )
     empty = sum(1 for s in snapshots.values() if not s.results)
-    print(f"fetched {len(snapshots)} ({empty} with no results), kept {kept} ({args.dir})")
-    return 0
+    failed = len(todo) - len(snapshots)
+    print(
+        f"fetched {len(snapshots)} ({empty} with no results, {failed} failed), kept {kept} "
+        f"({args.dir})"
+    )
+    return 1 if failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:

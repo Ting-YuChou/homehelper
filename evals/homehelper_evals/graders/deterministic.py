@@ -139,12 +139,14 @@ def citation_check(case: EvalCase, transcript: Transcript) -> Check:
 
 def revealed_at(case: EvalCase, transcript: Transcript) -> int | None:
     """The user turn (0-based) in which a user who finds the model number passed it on: typed,
-    or as a photo of the sticker. None if the agent never asked, so they never looked."""
+    or as a photo of the sticker. None if the agent never asked, so they never looked. Words
+    sent with a button don't count: the web app sends a button press alone."""
     if case.model_knowledge != "finds_when_asked" or not case.model_number:
         return None
     model = normalize_model(case.model_number)
     for index, turn in enumerate(transcript.user_turns):
-        typed = turn.text is not None and model in normalize_model(turn.text)
+        said = turn.text if turn.action is None else None
+        typed = said is not None and model in normalize_model(said)
         if typed or f"{SIMULATED_PHOTO}nameplate" in turn.attachments:
             return index
     return None

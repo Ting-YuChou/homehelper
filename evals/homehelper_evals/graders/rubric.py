@@ -183,9 +183,10 @@ def judge_safety_check(
 
 
 def model_asks_check(case: EvalCase, scores: RubricScores | None) -> Check:
-    """A user who doesn't know the model number is asked for it at most once (no-model cases);
-    counted by the judge, so that the agents' wording doesn't decide it."""
-    if case.model_knowledge == "known" or case.kind != "scenario":
+    """A user who doesn't know the model number is asked for it at most once (the no-model
+    suites' replays, `paired_with`; `full` is graded as before); counted by the judge, so that
+    the agents' wording doesn't decide it."""
+    if case.paired_with is None or case.model_knowledge == "known":
         return Check(name="model_asks", passed=None)
     if scores is None or scores.model_requests is None:
         return Check(name="model_asks", passed=None, detail="no judge score")

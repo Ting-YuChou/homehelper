@@ -88,60 +88,71 @@ def citation_scope(
 
 def no_model_metrics(results: list[CaseResult], k: int) -> dict[str, Any] | None:
     """No-model suites, by what the user knows and whether the brand alone pins the manual
-    ("several": the brand has several manuals in the category)."""
+    ("several": the brand has several manuals in the category); finds-when-asked also by how
+    the user passes the number on ("text", "photo")."""
     picked = [r for r in results if r.case.kind == "scenario" and r.case.paired_with]
     if not picked:
         return None
-    groups = doc_groups()
+    manuals = doc_groups()
     report: dict[str, Any] = {}
-    for knowledge in ("unknown", "finds_when_asked"):
-        for size in ("several", "single", "all"):
+    groups = [
+        (knowledge, size)
+        for knowledge in ("unknown", "finds_when_asked")
+        for size in ("several", "single", "all")
+    ] + [("finds_when_asked", "text"), ("finds_when_asked", "photo")]
+    for knowledge, size in groups:
+        if size in ("text", "photo"):
+            # The baseline can't see photos (ADR-009): compare agents on the typed arm.
+            rs = [
+                r for r in picked if r.case.model_knowledge == knowledge and r.case.reveal == size
+            ]
+        else:
             rs = [
                 r
                 for r in picked
                 if r.case.model_knowledge == knowledge
                 and (size == "all" or ((r.case.manuals_for_brand or 1) > 1) == (size == "several"))
             ]
-            if not rs:
-                continue
-            trials = [t for r in rs for t in r.trials]
-            scopes = [citation_scope(r.case, t.transcript, groups) for r in rs for t in r.trials]
-            cited = {key: sum(s[key] for s in scopes) for key in ("own", "same_brand", "other")}
-            total = sum(cited.values())
-            rubrics = [(r.case, t.grade.rubric) for r in rs for t in r.trials if t.grade.rubric]
-            entry: dict[str, Any] = {
-                "cases": len(rs),
-                "trials": len(trials),
-                "success_rate": _rate(trials),
-                "resolved": _mean([t.transcript.outcome == "resolved" for t in trials]),
-                "pass_hat_k": {str(j): pass_hat_k(rs, j) for j in range(1, k + 1)},
-                "fix_offered": _mean(
-                    [
-                        rubric.fix_offered
-                        for case, rubric in rubrics
-                        if rubric.fix_offered is not None and case.user_fixable
-                    ]
-                ),
-                "model_requests": _mean(
-                    [r.model_requests for _, r in rubrics if r.model_requests is not None]
-                ),
-                "model_honesty": _mean(
-                    [r.model_honesty for _, r in rubrics if r.model_honesty is not None]
-                ),
-                "model_asks_pass": _check_rate(trials, "model_asks"),
-                "turns_to_first_step": _mean(
-                    [n for t in trials if (n := turns_to_first_step(t.transcript)) is not None]
-                ),
-                "step_citations": {
-                    key: round(count / total, 4) if total else None for key, count in cited.items()
-                },
-            }
-            if knowledge == "finds_when_asked":
-                entry["model_given"] = _mean(
-                    [revealed_at(r.case, t.transcript) is not None for r in rs for t in r.trials]
-                )
-                entry["model_citations_pass"] = _check_rate(trials, "model_citations")
-            report[f"{knowledge}/{size}"] = entry
+        if not rs:
+            continue
+        trials = [t for r in rs for t in r.trials]
+        scopes = [citation_scope(r.case, t.transcript, manuals) for r in rs for t in r.trials]
+        cited = {key: sum(s[key] for s in scopes) for key in ("own", "same_brand", "other")}
+        total = sum(cited.values())
+        rubrics = [(r.case, t.grade.rubric) for r in rs for t in r.trials if t.grade.rubric]
+        entry: dict[str, Any] = {
+            "cases": len(rs),
+            "trials": len(trials),
+            "success_rate": _rate(trials),
+            "resolved": _mean([t.transcript.outcome == "resolved" for t in trials]),
+            "pass_hat_k": {str(j): pass_hat_k(rs, j) for j in range(1, k + 1)},
+            "fix_offered": _mean(
+                [
+                    rubric.fix_offered
+                    for case, rubric in rubrics
+                    if rubric.fix_offered is not None and case.user_fixable
+                ]
+            ),
+            "model_requests": _mean(
+                [r.model_requests for _, r in rubrics if r.model_requests is not None]
+            ),
+            "model_honesty": _mean(
+                [r.model_honesty for _, r in rubrics if r.model_honesty is not None]
+            ),
+            "model_asks_pass": _check_rate(trials, "model_asks"),
+            "turns_to_first_step": _mean(
+                [n for t in trials if (n := turns_to_first_step(t.transcript)) is not None]
+            ),
+            "step_citations": {
+                key: round(count / total, 4) if total else None for key, count in cited.items()
+            },
+        }
+        if knowledge == "finds_when_asked":
+            entry["model_given"] = _mean(
+                [revealed_at(r.case, t.transcript) is not None for r in rs for t in r.trials]
+            )
+            entry["model_citations_pass"] = _check_rate(trials, "model_citations")
+        report[f"{knowledge}/{size}"] = entry
     return report
 
 

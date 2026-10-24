@@ -50,17 +50,17 @@ uv run evals run --suite full     --agent homehelper_evals.builders:baseline --w
 
 ## Before (main + the eval changes, 2026-10-24)
 
-Both agents at `6c2eb05` (`main` plus this PR's eval changes; the agents are unchanged from `main`).
+Both agents ran at `6c2eb05`, which is `main` plus this PR's eval changes; the agents themselves are unchanged from `main`. `baseline-before_full` records `93f31bc`: that commit landed while it ran, and it only changes photos, which `full` cases never send. The numbers below come from re-grading the saved transcripts with this PR's final checks (see [Changes](#changes-to-the-eval-during-this-work)). Only the baseline's `full` numbers change, through 3 trials.
 
 | | Journey `no_model` | Baseline `no_model` | Journey `full` | Baseline `full` |
 |---|---|---|---|---|
 | Trials | 220 (k = 2) | 220 | 400 (k = 4) | 400 |
-| Success | 69.5% | **77.7%** | **71.5%** | 66.0% |
-| pass^2 | 60.9% | **71.8%** | 60.5% | 59.8% |
-| pass^4 | – | – | 48.0% | **53.0%** |
+| Success | 69.5% | **77.7%** | **71.5%** | 66.2% |
+| pass^2 | 60.9% | **71.8%** | 60.5% | 60.3% |
+| pass^4 | – | – | 48.0% | **54.0%** |
 | Resolved | 59.5% | **69.1%** | 63.2% | **71.8%** |
 | Escalated | 40.5% | 30.9% | 36.7% | 28.0% |
-| Fix offered (judge) | 59.5% | **70.5%** | 66.2% | **73.3%** |
+| Fix offered (judge, user-fixable cases) | 63.0% | **74.5%** | 71.2% | **78.8%** |
 | Citation accuracy (model known) | – | – | **97.1%** (273) | 72.4% (340) |
 | Rubric (one step / clarity / empathy / English) | 4.69 / 4.18 / 3.93 / 4.94 | 4.04 / 3.85 / 3.69 / 4.87 | 4.72 / 4.22 / 3.79 / 4.96 | 4.21 / 3.96 / 3.73 / 4.93 |
 | Agent turn p50 / p95 | 3.3 s / 16.4 s | 4.6 s / 10.5 s | 3.3 s / 16.0 s | 4.6 s / 9.5 s |
@@ -79,22 +79,39 @@ The same 55 cases in `full`, compared with the `no_model` runs (success rate):
 
 The baseline's `full` rows look worse than its `no_model` rows because of the citation check: with a known model number, the baseline cites another model's manual in 28% of trials. Without one, that check doesn't apply.
 
+The find-when-asked arm by how the user passes the number on. The baseline can't see photos (ADR-009), so the typed arm (33 cases) is the fair comparison:
+
+| | Journey | Baseline |
+|---|---|---|
+| Typed: success | 63.6% | 75.8% |
+| Typed: model number given | 0% | 16.7% |
+| Typed: steps after it cite its manual | – | 60.0% (of 11 trials) |
+| Photo: success | 77.3% | 79.5% |
+
 ## What the before run shows
 
 - **Without a model number, the journey agent is worse than the baseline** (69.5% vs 77.7%). It resolves less (59.5% vs 69.1%) and hands off more (40.5% vs 30.9%). With the model number, the journey agent is ahead on success and far ahead on citing the right manual.
-- **It never asks for the model number.** `troubleshoot.yaml` declares `ask_policy: once`, but nothing reads it. The judge counted 0 requests in all 220 journey trials, so a user who would find the number when asked never gets the chance. The baseline asked in 24 trials.
+- **It never asks for the model number.** `troubleshoot.yaml` declares `ask_policy: once`, but nothing reads it. The judge counted 0 requests in all 220 journey trials, so a user who would find the number when asked never gets the chance. The baseline asked in 43 of 220 trials (24 of the 110 find-when-asked ones), and twice or more in 14 (the `model_asks` failures).
 - **Why the journey trials failed** (67 of 220):
   - **The plan ran out (32), and in 26 of these the fix was never offered.** Brand plus category retrieval mixes manuals of different models, so the plan's steps aren't the user's model's.
   - **No plan at all, so a handoff (28).**
     - In 16, the manual scored below τ, web findings replaced the chunks, and the planner, which reads only manual excerpts, had nothing to work with.
     - In 11, the search had relaxed to other brands' manuals, and the planner rightly found nothing that fit.
   - **G-LOOP-01 (7).** Six steps failed.
-- **The model number goes unused even when the user offers it.** A model number given mid-conversation is stored, but the plan keeps its old steps.
+- **The model number would go unused even if the user offered it.** The before runs can't show this, since the journey never got a number. From the code (`nodes/act.py`): a model number given mid-conversation is stored, but nothing searches again, so the plan keeps its old steps.
 - **Groups that look alike.** For brands with several manuals, 60% of the journey's step citations come from another model of the same brand.
 
 ## Changes to the eval during this work
 
+These came from trying the suite on the changed agent and from the code review. They were made after the before runs. The before numbers above are re-graded with the final checks; the transcripts are unchanged.
+
+- **`model_asks` applies only to the no-model replays.** It had also applied to `full`'s 14 cases without a model number, which moved `full`'s success rate (a release gate) by 3 baseline trials.
+- **A model number typed together with a button press doesn't count as given.** The web app sends a button press on its own, and the baseline reads only the button. Correspondingly, the simulated user now types the number without pressing a button.
+- **The find-when-asked arm is also split by text and photo,** because the baseline ignores photos.
+- **A snapshot searched for other words (the scenario or the brand changed) counts as missing,** and one failed search no longer loses the snapshots already fetched.
 - **The simulated user answers a request for the model number made in passing.** Before, only an explicit request got an answer; now "if it's handy, tell me the model number" does too. This was changed after the before runs.
   - The journey agent never asked before, so its before numbers don't depend on it.
   - The baseline's requests were explicit and mostly answered already (11 of the 15 typed reveals it asked for).
 - **A simulated photo now goes with a button press.** Before, when the user pressed a step button and sent the sticker in the same turn, the photo was dropped. The baseline ignores photos, and the journey agent never asked for one before, so neither before run depends on it.
+
+Not changed: release gates (`releases/gates.py`) don't look at the web mode. `release.yml` runs `full` without `--web snapshot`, as before. Deciding which mode gates a release is left for later.
