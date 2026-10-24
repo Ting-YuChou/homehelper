@@ -177,7 +177,7 @@ async def test_relaxes_when_a_level_is_insufficient_and_keeps_the_best() -> None
 
 async def test_the_identified_models_manual_is_kept_below_tau() -> None:
     """A low-scoring excerpt from the user's own manual beats a high-scoring one from another
-    model's manual (ADR-012), and it does not trigger the web fallback."""
+    model's manual (ADR-012); the web fallback adds to it instead of replacing it."""
     web = FakeWeb()
     backend = FakeBackend(
         {
@@ -190,10 +190,21 @@ async def test_the_identified_models_manual_is_kept_below_tau() -> None:
     result = await r.search(
         RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, model_number="WM3400")
     )
-    assert (result.filter_level, result.sufficient, result.top_score) == ("model", True, 0.3)
+    assert (result.filter_level, result.sufficient, result.top_score) == ("model", False, 0.3)
+    assert result.source == "manual"
     assert [c.chunk_id for c in result.chunks] == ["lg-washing_machine:p9:0"]
-    assert web.calls == 0
+    assert web.calls == 1 and len(result.web_findings) == 1  # e.g. for a how-to answer
     assert all("doc_id" in f for _, f in backend.calls)
+
+
+async def test_a_model_number_whose_manual_has_no_chunks_still_relaxes() -> None:
+    backend = FakeBackend({"category": ([cand("samsung-washing_machine:p1:0")], [])})
+    reranker = FakeReranker({"samsung-washing_machine:p1:0": 0.9})
+    r = retriever(backend, reranker=reranker, config=RetrieverConfig(tau=0.5))
+    result = await r.search(
+        RetrievalQuery(query_en="x", category=CategoryId.WASHING_MACHINE, model_number="WM3400")
+    )
+    assert (result.filter_level, result.sufficient) == ("category", True)
 
 
 async def test_error_code_pass_is_boosted() -> None:

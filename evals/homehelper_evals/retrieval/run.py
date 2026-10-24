@@ -227,7 +227,8 @@ async def main(args: argparse.Namespace) -> None:
         }
         if relevant:
             report["conditions"][condition]["chunk_level"] = chunk_recall_at_5(results, relevant)
-        print(condition, summarize(results).model_dump(), report["conditions"][condition])
+        entry = report["conditions"][condition]
+        print(condition, {k: v for k, v in entry.items() if k != "by_category"})
 
     if "category" in all_results and relevant:
         report["chunk_level"] = {

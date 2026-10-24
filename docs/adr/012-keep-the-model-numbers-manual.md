@@ -26,10 +26,11 @@ offline showed how much this cost:
 
 ## Decision
 
-The model level is sufficient whenever it finds any chunks. Once the model number has picked
-the user's manual, the search no longer relaxes past it, and the web fallback no longer
-replaces it. A model number that matches no manual, or whose manual returns no chunks, still
-relaxes as before.
+A model level that finds any chunks ends the search, however its best chunk scored. Once the
+model number has picked the user's manual, the search no longer relaxes past it. Below τ the
+web fallback still runs, but its findings are added to that manual's chunks instead of
+replacing them. A model number that matches no manual, or whose manual returns no chunks,
+still relaxes as before.
 
 ## Consequences
 
@@ -42,14 +43,19 @@ relaxes as before.
   | Chunk-level Recall@5 | 0.888 | 0.950 |
   | Retrieved chunks from the user's manual | 92.3% | 99.5% |
 
-  Command: `python -m homehelper_evals.retrieval.run --split test --rerank --labelled
-  --conditions model`.
+  Command: `uv run python -m homehelper_evals.retrieval.run --split test --rerank --labelled
+  --conditions model`. The "before" column is the same command with the early stop at the
+  model level removed.
 - **Weak results:** a weak match in the user's own manual now goes to the planner. The planner
   already returns no items when the excerpts don't address the problem, which leads to
   `plan_unavailable` and a handoff. Before, a relaxed search would have put another model's
   steps in front of the user.
-- **No web fallback for these searches.** It never helped here anyway: web findings replaced
-  the chunks, and the planner can't use findings (`plan_unavailable`).
+- **Web findings join the manual's chunks.** A how-to answer (the `how_to_use` journey, or a
+  how-to side question) gets both the user's manual and the web findings when the manual
+  scores below τ. Before, the findings replaced the chunks of whatever level had scored best.
+  The planner still reads only chunks, so troubleshooting plans don't change.
+- **`sufficient` stays honest.** A model level below τ is reported as not sufficient, though
+  the search stopped there.
 - **Baseline unaffected.** The baseline never filters by model, so its numbers don't change.
 
 ## Alternatives considered
