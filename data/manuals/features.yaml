@@ -1,0 +1,144 @@
+# What a user can see on an appliance without its model number: where the model sticker usually
+# is, and the visible traits that tell manuals of the same brand and category apart.
+#
+# Only manuals whose brand has several manuals in a category are listed, and only with traits
+# their manual (or, for Samsung, the model-number prefix) states. A trait a manual doesn't
+# state is left out: unknown, not "no". A manual lists every value it covers.
+# Checked by apps/api/tests/unit/test_features.py against manifest.yaml.
+
+categories:
+  washing_machine:
+    model_location: on a sticker inside the door opening, on the back of the door, or on the back of the machine
+    traits:
+      type:
+        question: Does it load from the front or from the top, or is it a washer-dryer combo?
+        values:
+          front_load: front-loading
+          top_load: top-loading
+          washer_dryer_combo: a washer-dryer combo
+  dryer:
+    model_location: on a sticker inside the door opening or on the back panel
+  dishwasher:
+    model_location: on a sticker on the edge of the door or the side of the tub, seen with the door open
+    traits:
+      controls:
+        question: Are the buttons on the front of the door, or on its top edge where you only see them with the door open?
+        values:
+          front: on the front of the door
+          top: on the top edge of the door
+      installation:
+        question: Is it built in under the counter, hidden behind a cabinet panel, or freestanding?
+        values:
+          built_in: built in under the counter
+          panel_ready: hidden behind a cabinet panel
+          freestanding: freestanding
+  refrigerator:
+    model_location: on a sticker inside the fresh-food compartment, on a side wall or near the top
+    traits:
+      layout:
+        question: Is it French door, side by side, a bottom-freezer, a top-freezer, or a freezer only?
+        values:
+          french_door: French door (two doors on top, freezer drawer below)
+          side_by_side: side by side (fridge and freezer doors next to each other)
+          bottom_freezer: bottom-freezer (one door on top, freezer drawer below)
+          top_freezer: top-freezer
+          freezer_only: a freezer only
+  microwave:
+    model_location: on a sticker inside the door frame, or on the back or side of the oven
+    traits:
+      cooking:
+        question: Does it have Convection or Grill buttons, or only regular microwave settings?
+        values:
+          combination: Convection or Grill buttons
+          microwave_only: only regular microwave settings
+      mounting:
+        question: Does it sit on the counter, or is it mounted over the stove?
+        values:
+          countertop: on the counter
+          over_the_range: mounted over the stove
+  coffee_maker:
+    model_location: on a sticker on the bottom of the machine
+    traits:
+      brew_type:
+        question: What kind of coffee maker is it - a drip maker with a glass carafe, one with a thermal carafe, a single-serve, a combined carafe and single-serve, or a cold-brew maker?
+        values:
+          glass_carafe: a drip maker with a glass carafe
+          thermal_carafe: a drip maker with a thermal carafe
+          single_serve: a single-serve machine
+          carafe_and_single_serve: a combined carafe and single-serve machine
+          cold_brew: a cold-brew maker
+  blender_food_processor:
+    model_location: on a sticker on the bottom of the motor base
+  vacuum:
+    model_location: on a sticker on the bottom or back of the vacuum
+  television:
+    model_location: on a sticker on the back of the TV, or in the TV's settings menu under Support or About
+  water_purifier:
+    model_location: on a sticker on the filter housing or the side of the unit
+    traits:
+      type:
+        question: Does it sit on the counter, or is it under the sink - and if under the sink, is it a reverse osmosis system?
+        values:
+          countertop: on the counter
+          under_sink_filter: an under-sink filter
+          under_sink_ro: an under-sink reverse osmosis system
+
+# doc_id -> trait -> values it covers; `badges` is text printed on the appliance or its name
+# (a series or product line) that the user might mention.
+manuals:
+  # Bosch dishwashers: only the 800 Series manual names its hidden (top) controls.
+  bosch-shx68t55: {controls: [top], installation: [built_in], badges: [800 Series]}
+  bosch-she3ar76u: {installation: [built_in]}
+  criterion-cdw2fcm: {controls: [front], installation: [built_in]}
+  criterion-cdw5tcms: {controls: [top], installation: [built_in]}
+  siemens-sn24d203: {badges: [iQ100]}
+  siemens-sn56p530eu: {installation: [built_in], badges: [iQ500]}
+  siemens-sn258i06: {badges: [iQ500]}
+
+  lg-wm9900h-a: {type: [front_load]}
+  lg-wm6998h-a: {type: [front_load]}
+  lg-wm6700h-a: {type: [front_load]}
+  lg-wm4000h-a: {type: [front_load]}
+  lg-wm5500h-a: {type: [front_load]}
+  samsung-ww1-b: {type: [front_load]}
+  samsung-wd18db8995: {type: [washer_dryer_combo]}
+  samsung-wd5100d: {type: [washer_dryer_combo]}
+  samsung-wf9-f09c: {type: [front_load]}
+
+  ge-side-by-side: {layout: [side_by_side]}
+  ge-bottom-freezer: {layout: [bottom_freezer, french_door]}
+  lg-lrsds2706: {layout: [side_by_side]}
+  lg-ls27t3230: {layout: [side_by_side]}
+  # Samsung: RF = French door, RZ = freezer.
+  samsung-rf23db: {layout: [french_door]}
+  samsung-side-by-side: {layout: [side_by_side]}
+  samsung-rz32: {layout: [freezer_only]}
+  samsung-rf24bb6: {layout: [french_door]}
+
+  lg-mc8088: {cooking: [combination], mounting: [countertop]}
+  lg-mh6842b: {cooking: [combination], mounting: [countertop]}
+  lg-lmc1575: {cooking: [microwave_only], mounting: [countertop]}
+  panasonic-nn-cd65ns: {cooking: [combination]}
+  panasonic-nn-cs89: {cooking: [combination]}
+  # Samsung: MC = convection, ME = microwave only; all five are over-the-range (vent fan, hood).
+  samsung-mc17j8000c: {cooking: [combination], mounting: [over_the_range]}
+  samsung-me11a7710d: {cooking: [microwave_only], mounting: [over_the_range]}
+  samsung-me21d-6300: {cooking: [microwave_only], mounting: [over_the_range]}
+  samsung-me21d-6700: {cooking: [microwave_only], mounting: [over_the_range]}
+  samsung-mc17t8000c: {cooking: [combination], mounting: [over_the_range]}
+
+  cuisinart-dcc-1170: {brew_type: [thermal_carafe]}
+  cuisinart-ss-16: {brew_type: [carafe_and_single_serve], badges: [Coffee Center]}
+  mr-coffee-bvmc-hc: {brew_type: [single_serve], badges: [HotCup]}
+  mr-coffee-bvmc-knx: {brew_type: [glass_carafe]}
+  mr-coffee-lm: {brew_type: [glass_carafe]}
+  mr-coffee-express-cold-brew: {brew_type: [cold_brew]}
+  mr-coffee-iced-hot: {brew_type: [single_serve]}
+
+  samsung-qef1: {badges: [QLED]}
+
+  brondell-h630: {type: [countertop], badges: [Cypress]}
+  brondell-rc100: {type: [under_sink_ro], badges: [Circle]}
+  brondell-uc300: {type: [under_sink_filter]}
+  whirlpool-whapsro: {type: [under_sink_ro]}
+  whirlpool-wharos5: {type: [under_sink_ro]}

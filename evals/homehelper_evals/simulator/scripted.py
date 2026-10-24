@@ -68,7 +68,8 @@ def opening_message(case: EvalCase) -> str:
     )
     if not appliance:
         return case.scenario
-    model = f" (model {case.model_number})" if case.model_number else ""
+    known = case.model_number and case.model_knowledge == "known"
+    model = f" (model {case.model_number})" if known else ""
     return f"Hi, I have a problem with my {appliance}{model}. {case.scenario}"
 
 

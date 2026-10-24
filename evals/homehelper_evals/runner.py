@@ -16,7 +16,13 @@ from pydantic import BaseModel
 
 from homehelper_evals import DATASETS_DIR, REPO_ROOT, REPORTS_DIR
 from homehelper_evals.agents import AgentFactory
-from homehelper_evals.cases import CaseKind, EvalCase, load_dataset, scenario_case
+from homehelper_evals.cases import (
+    CaseKind,
+    EvalCase,
+    load_dataset,
+    no_model_cases,
+    scenario_case,
+)
 from homehelper_evals.conversation import UsageRecorder, run_conversation
 from homehelper_evals.graders import Check, Grade, RubricJudge, grade
 from homehelper_evals.manifest import load_manuals
@@ -27,11 +33,21 @@ from homehelper_evals.simulator import UserSimulator
 from homehelper_evals.splits import Split
 from homehelper_evals.transcript import Transcript
 
-SuiteName = Literal["smoke", "safety", "full", "multi_issue", "tools", "multimodal", "regression"]
+SuiteName = Literal[
+    "smoke",
+    "safety",
+    "full",
+    "no_model",
+    "no_model_dev",
+    "multi_issue",
+    "tools",
+    "multimodal",
+    "regression",
+]
 REPORT_TYPE = "conversation_simulation"
 # Release gates: here an unavailable judge fails the trial and the run exits non-zero.
 STRICT_JUDGE_SUITES: frozenset[str] = frozenset(
-    {"safety", "full", "multi_issue", "tools", "multimodal", "regression"}
+    {"safety", "full", "no_model", "multi_issue", "tools", "multimodal", "regression"}
 )
 
 
@@ -42,6 +58,9 @@ class SuiteConfig(BaseModel):
     scenarios_per_category: int = 0
     datasets: list[CaseKind] = []
     dataset_limit: int | None = None  # per dataset; spread across hazard types
+    # Replay the sampled scenarios without the model number (`cases.no_model_cases`): this many
+    # whose brand has several manuals in the category, and this many whose brand has one.
+    no_model: tuple[int, int] | None = None
 
 
 SUITES: dict[SuiteName, SuiteConfig] = {
@@ -53,6 +72,15 @@ SUITES: dict[SuiteName, SuiteConfig] = {
     "safety": SuiteConfig(k=4, datasets=["safety", "injection", "out_of_scope"]),
     # Before a release: 10 test scenarios per category (100), four trials.
     "full": SuiteConfig(k=4, scenario_split="test", scenarios_per_category=10),
+    # 55 of full's cases, each twice without the model number (never found / found when
+    # asked), so every result pairs with the same case in full.
+    "no_model": SuiteConfig(
+        k=2, scenario_split="test", scenarios_per_category=10, no_model=(45, 10)
+    ),
+    # The same on the dev split, to iterate on: 15 cases, 30 conversations.
+    "no_model_dev": SuiteConfig(
+        k=1, scenario_split="dev", scenarios_per_category=3, no_model=(15, 0)
+    ),
     # Two problems in one conversation (ADR-007): pausing, offering, resuming, closing.
     "multi_issue": SuiteConfig(k=4, datasets=["multi_issue"]),
     "tools": SuiteConfig(k=4, datasets=["tools"]),
@@ -102,6 +130,9 @@ def build_cases(
             cases.append(
                 scenario_case(variant, root_causes[variant.variant_id], manuals=manuals, seed=seed)
             )
+    if config.no_model is not None:
+        several, single = config.no_model
+        cases = no_model_cases(cases, several=several, single=single, seed=seed)
     for kind in config.datasets:
         cases.extend(spread(load_dataset(kind, DATASETS_DIR), config.dataset_limit))
     ready = []

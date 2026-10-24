@@ -3,8 +3,10 @@
 import re
 
 from homehelper.channels.events import CitationCard, StepCard
+from homehelper.knowledge.model_numbers import normalize_model
 from homehelper_evals.cases import EvalCase
 from homehelper_evals.graders.base import Check
+from homehelper_evals.media import SIMULATED_PHOTO
 from homehelper_evals.render import render_agent_turn
 from homehelper_evals.transcript import AgentTurn, Transcript
 
@@ -88,8 +90,11 @@ def cited_doc_ids(transcript: Transcript) -> list[str]:
 
 
 def _knows_the_manual(case: EvalCase) -> bool:
-    """The user gave a model number, or (regression cases) a reviewer named the right manual."""
-    return bool(case.model_number) or case.kind == "regression"
+    """The user gave a model number from the start, or (regression cases) a reviewer named the
+    right manual. A user who finds it later is checked from then on (`model_citation_check`)."""
+    return (bool(case.model_number) and case.model_knowledge == "known") or (
+        case.kind == "regression"
+    )
 
 
 def _expected_doc(case: EvalCase, turn: AgentTurn) -> str | None:
@@ -130,6 +135,44 @@ def citation_check(case: EvalCase, transcript: Transcript) -> Check:
     passed = bool(doc_ids) and not wrong
     detail = "no citations" if not doc_ids else (f"wrong manuals: {wrong}" if wrong else "")
     return Check(name="citations", passed=passed, detail=detail)
+
+
+def revealed_at(case: EvalCase, transcript: Transcript) -> int | None:
+    """The user turn (0-based) in which a user who finds the model number passed it on: typed,
+    or as a photo of the sticker. None if the agent never asked, so they never looked. Words
+    sent with a button don't count: the web app sends a button press alone."""
+    if case.model_knowledge != "finds_when_asked" or not case.model_number:
+        return None
+    model = normalize_model(case.model_number)
+    for index, turn in enumerate(transcript.user_turns):
+        said = turn.text if turn.action is None else None
+        typed = said is not None and model in normalize_model(said)
+        if typed or f"{SIMULATED_PHOTO}nameplate" in turn.attachments:
+            return index
+    return None
+
+
+def model_citation_check(case: EvalCase, transcript: Transcript) -> Check:
+    """Once a user who didn't know the model number passes it on, the steps that follow must
+    cite that model's manual (and only it). Not applicable if they never did, or if no step
+    followed."""
+    if case.model_knowledge != "finds_when_asked" or not case.expected_doc_id:
+        return Check(name="model_citations", passed=None)
+    index = revealed_at(case, transcript)
+    if index is None:
+        return Check(name="model_citations", passed=None, detail="model number never given")
+    later = transcript.agent_turns_after(index)
+    doc_ids = [d for turn in later for card in turn.step_cards for d in card_doc_ids(card)]
+    if not any(turn.step_cards for turn in later):
+        return Check(name="model_citations", passed=None, detail="no steps after the model")
+    wrong = sorted({d for d in doc_ids if d != case.expected_doc_id})
+    passed = bool(doc_ids) and not wrong
+    detail = "no citations" if not doc_ids else (f"wrong manuals: {wrong}" if wrong else "")
+    return Check(name="model_citations", passed=passed, detail=detail)
+
+
+def card_doc_ids(card: StepCard) -> list[str]:
+    return [c.doc_id for c in card.citations]
 
 
 def tool_call_check(case: EvalCase, transcript: Transcript) -> Check:
@@ -202,6 +245,7 @@ def deterministic_checks(case: EvalCase, transcript: Transcript) -> list[Check]:
         completed_check(case, transcript),
         turn_limit_check(case, transcript),
         citation_check(case, transcript),
+        model_citation_check(case, transcript),
         tool_call_check(case, transcript),
         forbidden_text_check(case, transcript),
         step_card_check(case, transcript),

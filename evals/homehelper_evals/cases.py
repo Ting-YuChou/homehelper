@@ -6,7 +6,9 @@ frozen scenarios by variant id. Regression cases (spec §17.2) are exported from
 conversations, one file each under `evals/datasets/regression/`.
 """
 
+import hashlib
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import Literal
 
@@ -41,6 +43,12 @@ CaseKind = Literal[
 # How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, injury),
 # or give the safety instruction first and then continue (G-SAFE-05, water + electricity).
 SafetyExpectation = Literal["escalate", "safety_first"]
+
+# What the simulated user knows of the model number: gives it from the start, never finds it,
+# or finds it on the sticker once the agent asks (no-model suites).
+ModelKnowledge = Literal["known", "unknown", "finds_when_asked"]
+# How a user who finds the model number passes it on: typed, or as a photo of the sticker.
+Reveal = Literal["text", "photo"]
 
 DATASET_FILES: dict[CaseKind, str] = {
     "safety": "safety.yaml",
@@ -155,6 +163,8 @@ class EvalCase(BaseModel):
     persona: str = "Frustrated but Polite"
     # The signed-in demo user from `data/mock/` (tools cases, M5); None chats as a guest.
     user_id: str | None = None
+    model_knowledge: ModelKnowledge = "known"
+    reveal: Reveal = "text"
 
     # Hidden from the agent; only the simulated user sees these.
     scenario: str
@@ -162,6 +172,8 @@ class EvalCase(BaseModel):
     root_cause_step: int | None = None  # 1-based into solution_steps
     user_fixable: bool = True
     simulator_notes: str | None = None  # extra hidden facts or behavior for the simulated user
+    appearance: list[str] = Field(default_factory=list)  # what the user can see (features.yaml)
+    can_send_photo: bool = False  # may photograph the appliance when the agent asks
 
     # Turns sent verbatim before the simulator takes over (safety, injection, out-of-scope). A
     # regression case also presses card buttons, and stops after its script (no simulator).
@@ -187,6 +199,10 @@ class EvalCase(BaseModel):
 
     split: Split | None = None
     source_row_id: int | None = None
+    # No-model cases: the `full` case this one replays without the model number, and how many
+    # manuals the manifest has for the brand and category (1: the brand alone pins the manual).
+    paired_with: str | None = None
+    manuals_for_brand: int | None = None
     source: RegressionSource | None = None  # the reviewed conversation (regression cases)
     notes: str | None = None
 
@@ -221,6 +237,10 @@ class EvalCase(BaseModel):
         empty = empty_turns(list(self.user_turns), {m.turn for m in self.media})
         if empty:
             raise ValueError(f"{self.id}: user turns {empty} need text, an action or media")
+        if self.model_knowledge == "unknown" and self.model_number:
+            raise ValueError(f"{self.id}: a user who doesn't know the model can't have one")
+        if self.model_knowledge == "finds_when_asked" and not self.model_number:
+            raise ValueError(f"{self.id}: finds_when_asked needs the model number to find")
         return self
 
     def scripted(self, index: int) -> ScriptedTurn:
@@ -261,12 +281,17 @@ def scenario_case(
     ("BraunHousehold")."""
     row = pick_row(variant, seed)
     manual = (manuals or {}).get(variant.appliance_name)
+    model_number = manual.model_number if manual else None
     return EvalCase(
         id=f"scn-{variant.variant_id}",
         kind="scenario",
         category=variant.category,
         brand=(manual.brand if manual else None) or variant.brand,
-        model_number=manual.model_number if manual else None,
+        model_number=model_number,
+        # Without one the simulated user must not make one up.
+        model_knowledge="known" if model_number else "unknown",
+        appearance=manual.appearance if manual else [],
+        manuals_for_brand=manual.manuals_for_brand if manual else None,
         persona=row.persona,
         scenario=variant.scenario,
         solution_steps=variant.solution_steps,
@@ -284,6 +309,62 @@ def scenario_case(
         split=variant.split,
         source_row_id=row.id,
     )
+
+
+def no_model_cases(
+    cases: list[EvalCase], *, several: int, single: int, seed: str = "v1"
+) -> list[EvalCase]:
+    """Scenario cases replayed without the model number, each twice: once the user never finds
+    it, once they find it when the agent asks (typed or photographed, alternating by hash).
+
+    Picks `several` cases whose brand has several manuals in the category (the model number is
+    what tells them apart) and `single` controls whose brand has one, round-robin across
+    categories. Only cases with a known manual and model number qualify, so both replays grade
+    against the same manual as the original case.
+    """
+    eligible = [c for c in cases if c.kind == "scenario" and c.model_number and c.expected_doc_id]
+    picked = _across_categories(
+        [c for c in eligible if (c.manuals_for_brand or 1) > 1], several
+    ) + _across_categories([c for c in eligible if (c.manuals_for_brand or 1) == 1], single)
+    replays = []
+    for case in picked:
+        common = {"paired_with": case.id, "can_send_photo": True}
+        reveal: Reveal = (
+            "photo" if hashlib.sha256(f"{seed}:{case.id}".encode()).digest()[0] % 2 else "text"
+        )
+        replays.append(
+            case.model_copy(
+                update={
+                    **common,
+                    "id": f"{case.id}-unknown",
+                    "model_number": None,
+                    "model_knowledge": "unknown",
+                }
+            )
+        )
+        replays.append(
+            case.model_copy(
+                update={
+                    **common,
+                    "id": f"{case.id}-later",
+                    "model_knowledge": "finds_when_asked",
+                    "reveal": reveal,
+                }
+            )
+        )
+    return replays
+
+
+def _across_categories(cases: list[EvalCase], limit: int) -> list[EvalCase]:
+    queues: dict[str, list[EvalCase]] = defaultdict(list)
+    for case in cases:
+        queues[case.category.value if case.category else ""].append(case)
+    picked: list[EvalCase] = []
+    while len(picked) < limit and any(queues.values()):
+        for key in sorted(queues):
+            if queues[key] and len(picked) < limit:
+                picked.append(queues[key].pop(0))
+    return picked
 
 
 def multi_issue_case(

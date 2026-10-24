@@ -39,7 +39,8 @@ worked: press "fixed" on a step card, or say it is fixed.
 your appliance still does not work, so never press "fixed" for it.
    - Your message must agree with the button you press.
 3. Answer questions only from your situation. If you do not know something, say you are not \
-sure, or give a plausible, harmless answer that does not hint at the fix.
+sure, or give a plausible, harmless answer that does not hint at the fix. Never make up a \
+model number.
 4. When the latest assistant message has a step card with buttons, set step_result to the \
 button you press; a short message is optional. The assistant reads only the button, not a \
 message sent with it: to ask or request anything else (a part, a technician, a question), \
@@ -72,11 +73,7 @@ def system_prompt(case: EvalCase) -> str:
     ]
     if appliance:
         situation.append(f"- Appliance: {appliance}")
-    if case.model_number:
-        situation.append(
-            f"- Model number (mention it in your opening, and give it whenever asked): "
-            f"{case.model_number}"
-        )
+    situation.extend(_model_lines(case))
     situation.append(f"- What is going on: {case.scenario}")
     if case.root_cause_text and case.user_fixable:
         situation.append(f"- THE FIX (the only action that solves it): {case.root_cause_text}")
@@ -90,6 +87,52 @@ def system_prompt(case: EvalCase) -> str:
     if case.simulator_notes:
         situation.append(f"- Also: {case.simulator_notes}")
     return "\n".join(situation) + "\n\n" + RULES
+
+
+def _model_lines(case: EvalCase) -> list[str]:
+    if case.model_knowledge == "known":
+        if not case.model_number:
+            return []
+        return [
+            f"- Model number (mention it in your opening, and give it whenever asked): "
+            f"{case.model_number}"
+        ]
+    lines = []
+    if case.model_knowledge == "unknown":
+        lines.append(
+            "- You do not know the model number and cannot find it. If asked, say so. Never "
+            "make one up."
+        )
+    else:  # finds_when_asked
+        found = (
+            "you find it and type it, with how any step went, and press no button (the "
+            f"assistant reads only the button): {case.model_number}"
+            if case.reveal == "text"
+            else 'you take a photo of the sticker: set photo to "nameplate" and say it is the '
+            "sticker (do not type the number); you may also press a step button"
+        )
+        lines.append(
+            "- You do not know the model number, so do not mention it in your opening. As "
+            "soon as the assistant asks for the model number or for a photo of the model "
+            "sticker or label, even in passing or 'if it's handy', you go and look, and pass "
+            f"it on in that same reply: {found}."
+        )
+    if case.appearance:
+        lines.append(
+            "- What you can see on it (mention it only if the assistant asks what it looks "
+            "like, and then answer only from this; say you are not sure about anything "
+            f"else): {'; '.join(case.appearance)}"
+        )
+    else:
+        lines.append(
+            "- If asked what it looks like beyond its brand and type, say you are not sure."
+        )
+    if case.can_send_photo:
+        lines.append(
+            "- Only if the assistant asks for a photo of the appliance itself, you can send "
+            'one: set photo to "exterior" and say it is the photo.'
+        )
+    return lines
 
 
 def turn_prompt(case: EvalCase, history: list[Turn]) -> str:

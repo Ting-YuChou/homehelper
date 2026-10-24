@@ -54,3 +54,6 @@ Thumbs.db
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Third-party pages saved for evals (web_snapshots.py); recreated with `fetch`
+evals/cache/

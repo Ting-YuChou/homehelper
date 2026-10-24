@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from homehelper_evals.cases import CaseKind, EvalCase
 from homehelper_evals.graders import Grade
+from homehelper_evals.graders.deterministic import card_doc_ids, revealed_at
+from homehelper_evals.manifest import doc_groups
 from homehelper_evals.transcript import Transcript
 
 EVAL_SIDE_TASKS = frozenset({"user_simulator", "judge"})
@@ -43,6 +45,115 @@ def pass_hat_k(results: list[CaseResult], k: int) -> float | None:
 
 def _rate(trials: list[TrialResult]) -> float | None:
     return statistics.fmean(t.success for t in trials) if trials else None
+
+
+def _mean(values: list[float] | list[bool] | list[int]) -> float | None:
+    return round(statistics.fmean(values), 4) if values else None
+
+
+def _check_rate(trials: list[TrialResult], name: str) -> float | None:
+    results = [c.passed for t in trials for c in t.grade.checks if c.name == name]
+    return _mean([r for r in results if r is not None])
+
+
+def turns_to_first_step(transcript: Transcript) -> int | None:
+    """User turns sent before the first reply with a step card (1: the first reply had one)."""
+    sent = 0
+    for turn in transcript.turns:
+        if turn.role == "user":
+            sent += 1
+        elif turn.step_cards:
+            return sent
+    return None
+
+
+def citation_scope(
+    case: EvalCase, transcript: Transcript, groups: dict[str, tuple[str | None, str | None]]
+) -> dict[str, int]:
+    """Step-card citations by manual: the user's own, another model of the same brand and
+    category, or another appliance's."""
+    own = (case.brand, case.category.value if case.category else None)
+    counts = {"own": 0, "same_brand": 0, "other": 0}
+    for turn in transcript.agent_turns:
+        for card in turn.step_cards:
+            for doc_id in card_doc_ids(card):
+                if doc_id == case.expected_doc_id:
+                    counts["own"] += 1
+                elif groups.get(doc_id) == own:
+                    counts["same_brand"] += 1
+                else:
+                    counts["other"] += 1
+    return counts
+
+
+def no_model_metrics(results: list[CaseResult], k: int) -> dict[str, Any] | None:
+    """No-model suites, by what the user knows and whether the brand alone pins the manual
+    ("several": the brand has several manuals in the category); finds-when-asked also by how
+    the user passes the number on ("text", "photo")."""
+    picked = [r for r in results if r.case.kind == "scenario" and r.case.paired_with]
+    if not picked:
+        return None
+    manuals = doc_groups()
+    report: dict[str, Any] = {}
+    groups = [
+        (knowledge, size)
+        for knowledge in ("unknown", "finds_when_asked")
+        for size in ("several", "single", "all")
+    ] + [("finds_when_asked", "text"), ("finds_when_asked", "photo")]
+    for knowledge, size in groups:
+        if size in ("text", "photo"):
+            # The baseline can't see photos (ADR-009): compare agents on the typed arm.
+            rs = [
+                r for r in picked if r.case.model_knowledge == knowledge and r.case.reveal == size
+            ]
+        else:
+            rs = [
+                r
+                for r in picked
+                if r.case.model_knowledge == knowledge
+                and (size == "all" or ((r.case.manuals_for_brand or 1) > 1) == (size == "several"))
+            ]
+        if not rs:
+            continue
+        trials = [t for r in rs for t in r.trials]
+        scopes = [citation_scope(r.case, t.transcript, manuals) for r in rs for t in r.trials]
+        cited = {key: sum(s[key] for s in scopes) for key in ("own", "same_brand", "other")}
+        total = sum(cited.values())
+        rubrics = [(r.case, t.grade.rubric) for r in rs for t in r.trials if t.grade.rubric]
+        entry: dict[str, Any] = {
+            "cases": len(rs),
+            "trials": len(trials),
+            "success_rate": _rate(trials),
+            "resolved": _mean([t.transcript.outcome == "resolved" for t in trials]),
+            "pass_hat_k": {str(j): pass_hat_k(rs, j) for j in range(1, k + 1)},
+            "fix_offered": _mean(
+                [
+                    rubric.fix_offered
+                    for case, rubric in rubrics
+                    if rubric.fix_offered is not None and case.user_fixable
+                ]
+            ),
+            "model_requests": _mean(
+                [r.model_requests for _, r in rubrics if r.model_requests is not None]
+            ),
+            "model_honesty": _mean(
+                [r.model_honesty for _, r in rubrics if r.model_honesty is not None]
+            ),
+            "model_asks_pass": _check_rate(trials, "model_asks"),
+            "turns_to_first_step": _mean(
+                [n for t in trials if (n := turns_to_first_step(t.transcript)) is not None]
+            ),
+            "step_citations": {
+                key: round(count / total, 4) if total else None for key, count in cited.items()
+            },
+        }
+        if knowledge == "finds_when_asked":
+            entry["model_given"] = _mean(
+                [revealed_at(r.case, t.transcript) is not None for r in rs for t in r.trials]
+            )
+            entry["model_citations_pass"] = _check_rate(trials, "model_citations")
+        report[f"{knowledge}/{size}"] = entry
+    return report
 
 
 def _percentile(values: list[float], q: float) -> float | None:
@@ -126,6 +237,7 @@ def compute_metrics(results: list[CaseResult], k: int) -> dict[str, Any]:
             for t in all_trials
         ),
         "failed_checks": dict(sorted(failed.items())),
+        "no_model": no_model_metrics(results, k),
         "latency_ms": {
             "agent_turn_p50": _percentile(turn_latencies, 50),
             "agent_turn_p95": _percentile(turn_latencies, 95),

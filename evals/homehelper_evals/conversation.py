@@ -20,6 +20,7 @@ from homehelper.channels.events import (
 )
 from homehelper.llm import LLMUsage
 from homehelper_evals.cases import EvalCase, ScriptedTurn
+from homehelper_evals.media import simulated_photo
 from homehelper_evals.multi_issue import all_issues_opened, focus, runner_turn
 from homehelper_evals.simulator import SimulatorTurn, UserSimulator
 from homehelper_evals.transcript import (
@@ -57,9 +58,12 @@ class UsageRecorder:
             _usage_bucket.reset(token)
 
 
-def to_user_turn(turn: SimulatorTurn, last_agent: AgentTurn | None) -> UserTurn | None:
+def to_user_turn(
+    turn: SimulatorTurn, last_agent: AgentTurn | None, case: EvalCase | None = None
+) -> UserTurn | None:
     """Map a simulator turn to what the user sends. Button presses only count when the latest
-    agent message actually offered that button. Returns None when there is nothing to send."""
+    agent message actually offered that button, and photos when the case lets the user take
+    them. Returns None when there is nothing to send."""
     action = None
     if last_agent is not None:
         if turn.step_result and last_agent.step_cards:
@@ -75,9 +79,12 @@ def to_user_turn(turn: SimulatorTurn, last_agent: AgentTurn | None) -> UserTurn 
             if turn.booking_slot_id in offered:
                 action = StructuredAction(type="select_booking_slot", value=turn.booking_slot_id)
     text = turn.message.strip() or None
-    if action is None and text is None:
+    # A photo goes with a button press too: the user answers the step and sends the sticker.
+    photo = simulated_photo(case, turn.photo) if case is not None else None
+    attachments = [photo] if photo else []
+    if action is None and text is None and not attachments:
         return None
-    return UserTurn(text=text, action=action)
+    return UserTurn(text=text, action=action, attachments=attachments)
 
 
 # What a button press says, for a replay whose agent no longer offers that button.
@@ -242,4 +249,4 @@ async def _next_user_turn(
     sim_turn = await simulator.next_turn(focus(case, turns), turns)
     if sim_turn.done:
         return None
-    return to_user_turn(sim_turn, last_agent)
+    return to_user_turn(sim_turn, last_agent, case)
