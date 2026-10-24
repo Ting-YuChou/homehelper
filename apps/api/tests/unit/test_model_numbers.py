@@ -2,6 +2,7 @@ import pytest
 
 from homehelper.knowledge.model_numbers import (
     error_code_variants,
+    looks_like_model,
     matches_any,
     model_matches,
     normalize_error_code,
@@ -56,3 +57,24 @@ def test_error_codes() -> None:
     assert error_code_variants("4C") == ["4C"]
     assert error_code_variants("E1") == ["E1", "EI"]
     assert error_code_variants("--") == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("WM3400CW", True),
+        ("rf28r7351sr", True),
+        ("BVMC-HC", True),
+        ("WHAPSRO", True),
+        ("BEFX", True),
+        ("A1", False),
+        ("LG", False),
+        ("front", False),
+        ("Front Load", False),
+        ("I don't know", False),
+        ("N/A", False),
+        ("UNKNOWN", False),
+    ],
+)
+def test_looks_like_model(value: str, expected: bool) -> None:
+    assert looks_like_model(value) is expected

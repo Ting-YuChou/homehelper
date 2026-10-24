@@ -218,6 +218,22 @@ def test_dont_know_is_not_a_model_number() -> None:
     assert any("not a model number" in d.reason for d in result.decisions)
 
 
+def test_a_model_number_without_digits_is_kept() -> None:
+    from homehelper.agent.engine import transition
+
+    turn = say(
+        "report_problem",
+        "My Mr. Coffee BVMC-HC won't brew",
+        slots={
+            "appliance_category": "coffee_maker",
+            "symptom": "won't brew",
+            "model_number": "BVMC-HC",
+        },
+    )
+    result = transition(CATALOG, new_state(), turn)
+    assert result.state.slots["model_number"].value == "BVMC-HC"
+
+
 def test_nlu_trait_updates_must_fit_the_category() -> None:
     from homehelper.agent.nodes.understand import valid_traits
     from homehelper.agent.state import NLUResult, SlotUpdate

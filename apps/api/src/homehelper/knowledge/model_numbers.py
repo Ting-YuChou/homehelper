@@ -17,12 +17,16 @@ _NOT_A_MODEL = re.compile(
 
 
 def looks_like_model(value: str) -> bool:
-    """A model number has at least three letters or digits, one of them a digit; an answer
-    like "I don't know" is not one."""
+    """A model number has at least three letters or digits and usually a digit; without one it
+    is a single word in capitals of at least four ("BVMC-HC", "WHAPSRO"). An answer like "I
+    don't know" is not one."""
+    if _NOT_A_MODEL.search(value):
+        return False
     compact = _NON_MODEL_CHARS.sub("", value.upper()).replace("*", "").replace("?", "")
-    return (
-        len(compact) >= 3 and any(c.isdigit() for c in compact) and not _NOT_A_MODEL.search(value)
-    )
+    if any(c.isdigit() for c in compact):
+        return len(compact) >= 3
+    word = value.strip()
+    return len(compact) >= 4 and " " not in word and word == word.upper()
 
 
 def normalize_model(value: str) -> str:
