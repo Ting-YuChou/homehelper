@@ -80,7 +80,8 @@ def valid_traits(nlu: NLUResult, category: str | None, manuals: ManualIndex | No
 
 def known_model(nlu: NLUResult, manuals: ManualIndex | None) -> NLUResult:
     """A model number without a digit ("BVMC-HC", "whapsro") is kept only when a manual's model
-    pattern matches it, in capitals; otherwise words like "MISSING" or "SAMSUNG" would pass."""
+    pattern matches it, in capitals and as one word ("bvmc hc" -> "BVMC-HC"); otherwise words
+    like "MISSING" or "SAMSUNG" would pass."""
     if manuals is None:
         return nlu
     kept: list[SlotUpdate] = []
@@ -89,7 +90,8 @@ def known_model(nlu: NLUResult, manuals: ManualIndex | None) -> NLUResult:
         if update.name != "model_number" or any(c.isdigit() for c in value):
             kept.append(update)
         elif manuals.model_manuals(value, None):
-            kept.append(update.model_copy(update={"value": value.upper()}))
+            word = "-".join(value.upper().split())
+            kept.append(update.model_copy(update={"value": word}))
     if kept == nlu.slot_updates:
         return nlu
     return nlu.model_copy(update={"slot_updates": kept})

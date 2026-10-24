@@ -237,6 +237,7 @@ def test_a_model_number_without_digits_is_kept() -> None:
 def test_a_model_number_without_digits_must_be_a_known_one() -> None:
     from homehelper.agent.nodes.understand import known_model
     from homehelper.agent.state import NLUResult, SlotUpdate
+    from homehelper.knowledge.model_numbers import looks_like_model
 
     def model(value: str) -> list[str]:
         nlu = NLUResult(
@@ -245,10 +246,16 @@ def test_a_model_number_without_digits_must_be_a_known_one() -> None:
         return [u.value for u in known_model(nlu, INDEX).slot_updates]
 
     assert model("shx-m") == ["SHX-M"]  # Bosch's SHX* pattern, typed in lower case
+    assert model("shx m") == ["SHX-M"]
+    assert all(looks_like_model(value) for value in model("shx m") + model("shxm"))
     assert model("rf23r62e3sr") == ["rf23r62e3sr"]  # with a digit: unchanged
     assert model("MISSING") == []
     assert model("SAMSUNG") == []
     assert model("front") == []
+    nlu = NLUResult(
+        intent="report_problem", slot_updates=[SlotUpdate(name="model_number", value="x")]
+    )
+    assert known_model(nlu, None) is nlu
 
 
 def test_nlu_trait_updates_must_fit_the_category() -> None:
