@@ -11,6 +11,7 @@
 data
 !data/mock
 !data/manuals/manifest.yaml
+!data/manuals/features.yaml
 legacy
 docs
 evals/reports

@@ -14,10 +14,12 @@ COPY apps/api apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package homehelper --no-editable
 # Read at startup (Settings.data_dir / web_whitelist_path are relative to /app): MCP mock data
-# and the manual manifest (retrieval filters, citation titles). PDFs never ship in the image.
+# and the manual manifest (retrieval filters, citation titles) with the traits that tell its
+# manuals apart (ADR-013). PDFs never ship in the image.
 COPY config config
 COPY data/mock data/mock
 COPY data/manuals/manifest.yaml data/manuals/manifest.yaml
+COPY data/manuals/features.yaml data/manuals/features.yaml
 
 # Local development: editable install + dev tools; source is bind-mounted by docker compose.
 FROM builder AS dev
