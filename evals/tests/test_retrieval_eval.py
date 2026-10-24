@@ -6,9 +6,15 @@ from homehelper_evals.retrieval.metrics import (
     CaseResult,
     best_threshold,
     chunk_recall_at_5,
+    own_manual_share,
     summarize,
 )
-from homehelper_evals.retrieval.run import RateLimitedReranker, wrong_category
+from homehelper_evals.retrieval.run import (
+    CONDITIONS,
+    PRODUCTION_TAU,
+    RateLimitedReranker,
+    wrong_category,
+)
 
 
 def result(
@@ -78,3 +84,20 @@ async def test_rate_limited_reranker_spaces_calls() -> None:
         await limited.rerank("q", ["d"], 1)
     assert time.monotonic() - started >= 0.2
     assert limited.calls == 3
+
+
+def test_own_manual_share_counts_chunks_not_cases() -> None:
+    assert own_manual_share([result("1", ["a", "a", "b"]), result("2", ["b"])]) == 0.5
+    assert own_manual_share([]) == 0
+
+
+def test_model_condition_searches_with_the_manuals_model_number() -> None:
+    case = next(c for c in load_cases() if c.doc_id == "lg-wm4000h-a")
+    assert case.model_number == "WM4000H0A"  # WM4000H*A, the inner wildcard filled in
+    query = CONDITIONS["model"](case)
+    assert (query.model_number, query.brand, query.category) == (
+        "WM4000H0A",
+        "LG",
+        CategoryId.WASHING_MACHINE,
+    )
+    assert "model" in PRODUCTION_TAU

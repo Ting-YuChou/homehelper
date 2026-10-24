@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from homehelper.ingestion.manifest import file_index, load_manifest
 from homehelper.knowledge.schemas import CategoryId
 from homehelper_evals import REPO_ROOT, SCENARIOS_PATH
+from homehelper_evals.manifest import example_model_number
 from homehelper_evals.splits import Split, group_key, load_splits
 
 # v1 dataset product names → category ids (including the v1 "Diswasher" typo).
@@ -32,6 +33,8 @@ class RetrievalCase(BaseModel):
     category: CategoryId
     brand: str  # from the manifest, so v1 label mistakes (e.g. LG vs Samsung) don't leak in
     split: Split
+    # A model number the manual's patterns match (`manifest.example_model_number`), if any.
+    model_number: str | None = None
 
 
 def load_cases(manifest_path: Path | None = None) -> list[RetrievalCase]:
@@ -53,5 +56,6 @@ def load_cases(manifest_path: Path | None = None) -> list[RetrievalCase]:
                     category=PRODUCT_CATEGORIES[row["product_name"]],
                     brand=entries[doc_id].brand,
                     split=splits[str(row["id"])],
+                    model_number=example_model_number(entries[doc_id].model_patterns),
                 )
     return list(cases.values())
