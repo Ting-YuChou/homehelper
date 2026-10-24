@@ -110,7 +110,7 @@ def test_simulator_prompt_follows_what_the_user_knows() -> None:
     unknown = system_prompt(make_case(model_knowledge="unknown", appearance=["front-loading"]))
     assert "do not know the model number and cannot find it" in unknown
     assert "Never make up a model number" in unknown
-    assert "front-loading" in unknown
+    assert "front-loading" in unknown and "mention it only if the assistant asks" in unknown
 
     typed = system_prompt(later_case())
     assert "do not mention it in your opening" in typed

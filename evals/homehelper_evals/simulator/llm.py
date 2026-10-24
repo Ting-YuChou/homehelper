@@ -117,8 +117,9 @@ def _model_lines(case: EvalCase) -> list[str]:
         )
     if case.appearance:
         lines.append(
-            "- What you can see on it (if asked what it looks like, answer only from this; "
-            f"say you are not sure about anything else): {'; '.join(case.appearance)}"
+            "- What you can see on it (mention it only if the assistant asks what it looks "
+            "like, and then answer only from this; say you are not sure about anything "
+            f"else): {'; '.join(case.appearance)}"
         )
     else:
         lines.append(
