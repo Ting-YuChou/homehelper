@@ -111,9 +111,10 @@ def _model_lines(case: EvalCase) -> list[str]:
             "sticker (do not type the number)"
         )
         lines.append(
-            "- You do not know the model number, so do not mention it in your opening. Only "
-            "if the assistant asks for the model number, or for a photo of the model sticker "
-            f"or label, you go and look: {found}."
+            "- You do not know the model number, so do not mention it in your opening. As "
+            "soon as the assistant asks for the model number or for a photo of the model "
+            "sticker or label, even in passing or 'if it's handy', you go and look, and pass "
+            f"it on in that same reply (you may also press a step button): {found}."
         )
     if case.appearance:
         lines.append(
