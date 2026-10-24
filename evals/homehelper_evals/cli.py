@@ -43,6 +43,7 @@ from homehelper_evals.runner import (
 from homehelper_evals.scenarios import load_variants
 from homehelper_evals.simulator import LLMUserSimulator, ScriptedUserSimulator, UserSimulator
 from homehelper_evals.transcript import Transcript
+from homehelper_evals.web_snapshots import apply as apply_snapshots
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -83,6 +84,13 @@ def _parser() -> argparse.ArgumentParser:
         help="run only this case of the suite (repeatable)",
     )
     run.add_argument("--seed", default="v1", help="scenario sampling seed")
+    run.add_argument(
+        "--web",
+        choices=["case", "snapshot"],
+        default="case",
+        help="web search results: only cases that carry their own (injection set), or also each "
+        "scenario's saved snapshot (python -m homehelper_evals.web_snapshots fetch)",
+    )
     run.add_argument("--out-dir", type=Path, default=REPORTS_DIR)
     run.add_argument(
         "--record",
@@ -153,6 +161,13 @@ def _summary(report: dict) -> str:
         f"latency {m['latency_ms']}",
         f"cost {m['cost_usd']}",
     ]
+    for group, entry in (m.get("no_model") or {}).items():
+        lines.append(
+            f"no_model {group}: success {pct(entry['success_rate'])} | fix offered "
+            f"{pct(entry['fix_offered'])} | model asks ok {pct(entry['model_asks_pass'])} | "
+            f"model citations ok {pct(entry.get('model_citations_pass'))} | "
+            f"steps cite {entry['step_citations']}"
+        )
     return "\n".join(lines)
 
 
@@ -192,6 +207,16 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
         cases = [c for c in cases if c.id in args.case_ids]
         skipped = [s for s in skipped if s in args.case_ids]
     cases = cases[: args.limit]
+    snapshots = None
+    if args.web == "snapshot":
+        cases, missing, snapshots = apply_snapshots(cases)
+        if missing:
+            print(
+                f"{len(missing)} cases have no web snapshot; run python -m "
+                f"homehelper_evals.web_snapshots fetch --suite {args.suite}",
+                file=sys.stderr,
+            )
+            return 6
     if skipped and args.suite in STRICT_JUDGE_SUITES and args.limit is None:
         # A release gate must not pass on whichever cases happened to be runnable here. With
         # --limit it is a partial run anyway, so the skips are only reported.
@@ -272,6 +297,8 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
             "scenarios_per_category": config.scenarios_per_category,
             "limit": args.limit,
             "cases": args.case_ids,
+            "web": args.web,
+            "web_snapshots": snapshots,
             "strict_judge": strict_judge,
         },
         created_at=created_at,

@@ -51,10 +51,17 @@ def render_agent_turn(turn: AgentTurn) -> str:
     return "\n".join(parts) or "(no reply)"
 
 
+PHOTO_LABELS = {
+    "sim-photo:nameplate": "a photo of the model sticker",
+    "sim-photo:exterior": "a photo of the appliance",
+}
+
+
 def render_user_turn(turn: UserTurn) -> str:
     parts = []
     if turn.action is not None:
         parts.append(f"[pressed {turn.action.type}: {turn.action.value}]")
+    parts.extend(f"[sent {PHOTO_LABELS.get(a, 'an attachment')}]" for a in turn.attachments)
     if turn.text:
         parts.append(turn.text)
     return " ".join(parts) or "(empty)"

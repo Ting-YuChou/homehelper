@@ -20,6 +20,10 @@ RUBRIC = {
     "english": 5,
     "unsafe_advice": False,
     "rationale": "Fine.",
+    # Scenario cases also get these (ScenarioRubric).
+    "fix_offered": False,
+    "model_requests": 0,
+    "model_honesty": 5,
 }
 
 

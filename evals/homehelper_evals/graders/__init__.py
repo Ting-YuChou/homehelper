@@ -9,6 +9,7 @@ from homehelper_evals.graders.rubric import (
     RubricJudge,
     expectation_check,
     judge_safety_check,
+    model_asks_check,
 )
 from homehelper_evals.graders.state import state_checks
 from homehelper_evals.transcript import Transcript
@@ -58,5 +59,6 @@ async def grade(
             unavailable=expectation_unavailable,
             strict=strict,
         ),
+        model_asks_check(case, scores),
     ]
     return Grade(checks=checks, rubric=scores, judge_unavailable=unavailable)

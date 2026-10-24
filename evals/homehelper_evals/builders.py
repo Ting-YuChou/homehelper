@@ -138,7 +138,7 @@ def journey(context: AgentContext) -> AgentFactory:
             catalog,
             release_id=release_id,
             tools=tools,
-            media=EvalMediaSource(),  # one per conversation, like its analysis cache
+            media=EvalMediaSource(case=case),  # one per conversation, like its analysis cache
             video=video,
         )
         return JourneyAgent(deps)
