@@ -45,6 +45,8 @@ uv run evals run --suite tools --agent stub --simulator scripted --no-judge   # 
 uv run evals run --suite smoke   # Haiku simulator + Sonnet judge against the stub agent
 uv run evals run --suite smoke --models models.yaml   # per-task overrides, e.g. `nlu: opencode_go/openai/glm-5.3`
 uv run evals run --suite multi_issue --agent stub --simulator scripted --no-judge   # two interleaved problems (ADR-007), no LLM cost
+uv run python -m homehelper_evals.web_snapshots fetch --suite full --suite no_model_dev   # one Tavily search per scenario, saved (git-ignored)
+uv run evals run --suite no_model --agent homehelper_evals.builders:journey --web snapshot   # full's cases without the model number; --web snapshot serves the saved pages
 pnpm --filter web build
 pnpm --filter web test  # vitest (SSE parsing, turn reducer)
 make openapi            # regenerate apps/web/lib/api/{openapi.json,schema.d.ts}; CI fails if stale
@@ -103,6 +105,7 @@ python3 infra/gcp/monitoring.py --project <id> --email <addr>   # uptime, 5xx, l
 | `AgentRuntime` protocol, `AgentSnapshot`, `Outcome` | `homehelper.agent.protocol` |
 | dev/test split | `data/scenarios/splits.json` via `homehelper_evals.splits` (`--check` verifies it is current) |
 | Per-turn LLM cost: `with track_usage() as tally:` collects every call in scope (contextvar, follows tasks) | `homehelper.llm` (`usage.py`) |
+| What tells a brand's manuals apart (`data/manuals/features.yaml`): `FeatureCatalog` | `homehelper.knowledge.features` |
 | Agent injection: `create_app(settings, agent=...)` → `app.state.agent`; defaults to the scripted `StubAgent` | `homehelper.main`, `homehelper.agent.stub` |
 | MCP tool registry: read/write, LLM-callable (`LLM_CALLABLE_TOOLS`, `WRITE_TOOLS`) | `homehelper.mcp_servers.registry` |
 | Agent MCP client: `Toolbox` protocol, `McpToolbox` (LLM whitelist + `user_id` binding, `call_action` for step actions), `ToolOutcome` | `homehelper.agent.tools` |

@@ -1,0 +1,100 @@
+# Troubleshooting without a model number
+
+- **Question:** how well do the agents do when the user knows the brand and type of appliance, but not its model number?
+- **Suites:**
+  - **`no_model`:** replays 55 of `full`'s cases without the model number, each twice.
+    - The two runs: once the user never finds the number (`unknown`), once they find it as soon as the agent asks (`finds_when_asked`), either typed or as a photo of the sticker.
+    - Which cases: 45 come from brands with several manuals in the category, so only the model number tells those manuals apart; 10 from brands with one manual, as a control.
+    - Every result pairs with the same case in `full`, where the user gives the model number.
+  - **`no_model_dev`:** the same on the dev split (30 conversations), for iterating.
+- **Models:** the production mapping (`apps/api/src/homehelper/llm/models.yaml`), all on Anthropic directly.
+
+  | Task | Model |
+  |---|---|
+  | responder, planner, judge | Sonnet 5.5 |
+  | NLU, supervisor, extraction, simulated user | Haiku 5.5 |
+
+  The earlier reports used the OpenCode Go substitutes, so their numbers don't compare with these.
+- **Web search:** `--web snapshot`. Each scenario has one saved Tavily search, made with a fixed query (brand, type of appliance, situation) on the production whitelist. Both agents get the same pages before and after a change. Until now evals had no web search at all for scenario cases.
+- **KB:** `kb_20261023_01`.
+
+To reproduce (the snapshots are not in git; `fetch` recreates them):
+
+```bash
+uv run python -m homehelper_evals.web_snapshots fetch --suite full --suite no_model_dev
+uv run evals run --suite no_model --agent homehelper_evals.builders:journey  --web snapshot --release journey-before
+uv run evals run --suite no_model --agent homehelper_evals.builders:baseline --web snapshot --release baseline-before
+uv run evals run --suite full     --agent homehelper_evals.builders:journey  --web snapshot --release journey-before
+uv run evals run --suite full     --agent homehelper_evals.builders:baseline --web snapshot --release baseline-before
+```
+
+## What the suite checks
+
+- **What the simulated user knows.**
+  - The prompt says whether the user knows the model number, never finds it, or finds it when asked.
+  - It says never to make one up. Before, the 14 `full` cases without a model number sometimes got an invented one.
+  - The user can describe the appliance only from `data/manuals/features.yaml` (front or top loading, French door or side by side, ...), and only when asked.
+  - When asked, the user can send a photo of the appliance or of its sticker.
+- **Simulated photos.**
+  - A photo arrives with the analysis a vision model would return for the case's appliance.
+  - So the suite measures what the agent does with a photo, not how well the photo is read (`homehelper_evals.vision` measures that). The baseline ignores attachments, as before (ADR-009).
+- **Pass or fail.**
+  - Outcome, safety and turn limit, as in `full`.
+  - `model_asks`: the user is asked for the model number at most once. The judge counts the requests, so the agents' wording doesn't decide it.
+  - `model_citations`: once a user who didn't know the number passes it on, the steps that follow must cite that model's manual.
+- **Reported only:**
+  - `fix_offered`: the judge, given the fix, says whether the agent ever asked the user to do it. This separates "never found the fix" from "found it, but the user didn't confirm".
+  - `model_honesty` (1–5): whether the agent passes off one model's details as certain.
+  - Where step citations come from: the user's manual, another model of the same brand, or another appliance.
+  - User turns before the first step.
+
+## Before (main + the eval changes, 2026-10-24)
+
+Both agents at `6c2eb05` (`main` plus this PR's eval changes; the agents are unchanged from `main`).
+
+| | Journey `no_model` | Baseline `no_model` | Journey `full` | Baseline `full` |
+|---|---|---|---|---|
+| Trials | 220 (k = 2) | 220 | 400 (k = 4) | 400 |
+| Success | 69.5% | **77.7%** | **71.5%** | 66.0% |
+| pass^2 | 60.9% | **71.8%** | 60.5% | 59.8% |
+| pass^4 | – | – | 48.0% | **53.0%** |
+| Resolved | 59.5% | **69.1%** | 63.2% | **71.8%** |
+| Escalated | 40.5% | 30.9% | 36.7% | 28.0% |
+| Fix offered (judge) | 59.5% | **70.5%** | 66.2% | **73.3%** |
+| Citation accuracy (model known) | – | – | **97.1%** (273) | 72.4% (340) |
+| Rubric (one step / clarity / empathy / English) | 4.69 / 4.18 / 3.93 / 4.94 | 4.04 / 3.85 / 3.69 / 4.87 | 4.72 / 4.22 / 3.79 / 4.96 | 4.21 / 3.96 / 3.73 / 4.93 |
+| Agent turn p50 / p95 | 3.3 s / 16.4 s | 4.6 s / 10.5 s | 3.3 s / 16.0 s | 4.6 s / 9.5 s |
+| Cost (logged, all tasks) | $10.23 | $10.05 | $15.54 | $16.37 |
+
+The same 55 cases in `full`, compared with the `no_model` runs (success rate):
+
+| Agent | User | Several manuals | One manual | All |
+|---|---|---|---|---|
+| Journey | gives the model (`full`) | 75.6% | 70.0% | 74.5% |
+| Journey | finds it when asked | 64.4% | 90.0% | 69.1% |
+| Journey | never finds it | 72.2% | 60.0% | 70.0% |
+| Baseline | gives the model (`full`) | 61.1% | 67.5% | 62.3% |
+| Baseline | finds it when asked | 76.7% | 80.0% | 77.3% |
+| Baseline | never finds it | 78.9% | 75.0% | 78.2% |
+
+The baseline's `full` rows look worse than its `no_model` rows because of the citation check: with a known model number, the baseline cites another model's manual in 28% of trials. Without one, that check doesn't apply.
+
+## What the before run shows
+
+- **Without a model number, the journey agent is worse than the baseline** (69.5% vs 77.7%). It resolves less (59.5% vs 69.1%) and hands off more (40.5% vs 30.9%). With the model number, the journey agent is ahead on success and far ahead on citing the right manual.
+- **It never asks for the model number.** `troubleshoot.yaml` declares `ask_policy: once`, but nothing reads it. The judge counted 0 requests in all 220 journey trials, so a user who would find the number when asked never gets the chance. The baseline asked in 24 trials.
+- **Why the journey trials failed** (67 of 220):
+  - **The plan ran out (32), and in 26 of these the fix was never offered.** Brand plus category retrieval mixes manuals of different models, so the plan's steps aren't the user's model's.
+  - **No plan at all, so a handoff (28).**
+    - In 16, the manual scored below τ, web findings replaced the chunks, and the planner, which reads only manual excerpts, had nothing to work with.
+    - In 11, the search had relaxed to other brands' manuals, and the planner rightly found nothing that fit.
+  - **G-LOOP-01 (7).** Six steps failed.
+- **The model number goes unused even when the user offers it.** A model number given mid-conversation is stored, but the plan keeps its old steps.
+- **Groups that look alike.** For brands with several manuals, 60% of the journey's step citations come from another model of the same brand.
+
+## Changes to the eval during this work
+
+- **The simulated user answers a request for the model number made in passing.** Before, only an explicit request got an answer; now "if it's handy, tell me the model number" does too. This was changed after the before runs.
+  - The journey agent never asked before, so its before numbers don't depend on it.
+  - The baseline's requests were explicit and mostly answered already (11 of the 15 typed reveals it asked for).
+- **A simulated photo now goes with a button press.** Before, when the user pressed a step button and sent the sticker in the same turn, the photo was dropped. The baseline ignores photos, and the journey agent never asked for one before, so neither before run depends on it.
