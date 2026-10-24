@@ -13,6 +13,7 @@ from homehelper.channels.events import (
     MessageDeltaEvent,
     StepCard,
 )
+from homehelper.knowledge.features import ManualIndex
 from homehelper.knowledge.schemas import (
     CategoryId,
     ChunkMetadata,
@@ -154,7 +155,7 @@ async def test_general_steps_ask_once_then_the_look_picks_the_manual() -> None:
     assert "Is it French door or side by side?" in text
     prompt = str(llm.calls_for("planner")[0].messages[0].content)
     assert "the excerpts come from 3 manuals" in prompt
-    assert "do not\nask for the model number" in str(
+    assert "do not ask about any of these yourself" in str(
         llm.calls_for("responder")[0].messages[0].content
     )
 
@@ -269,3 +270,186 @@ async def test_a_blocked_reply_does_not_count_as_asking() -> None:
     assert _text(events) == BLOCKED_REPLY  # no request for the model number after it
     state = await agent.state("conv-1")
     assert state is not None and state.state.model_asked == []
+
+
+# --- review findings ------------------------------------------------------------------------
+
+
+class Appears(Library):
+    """No chunks on the first search, two per manual afterwards."""
+
+    async def search(self, query: RetrievalQuery) -> RetrievalResult:
+        self.chunks = bool(self.queries)
+        return await super().search(query)
+
+
+def _says(**slots: str) -> NLUResult:
+    return NLUResult(
+        intent="other", slot_updates=[SlotUpdate(name=k, value=v) for k, v in slots.items()]
+    )
+
+
+def _plan(*ids: str) -> PlanDraft:
+    return PlanDraft(items=[PlanDraftItem(instruction=f"Step {i}.", citation_ids=[i]) for i in ids])
+
+
+async def _step_after(agent: JourneyAgent) -> str | None:
+    state = await agent.state("conv-1")
+    assert state is not None
+    return state.state.step_id
+
+
+async def test_a_hazard_at_a_no_plan_handoff_keeps_it_whatever_comes_next() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [
+                REPORT,
+                NLUResult(intent="report_problem", hazard_signals=["smoke_or_burning"]),
+                _says(trait_layout="side_by_side"),
+            ],
+            "planner": [_plan("samsung-sbs:1")],
+            "responder": [AgentReply(message=x) for x in "abc"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    agent = _agent(llm, Appears(chunks=False))
+    await _send(agent, "My Samsung fridge isn't cooling")
+    assert await _step_after(agent) == "escalate"
+    await _send(agent, "Now there's smoke coming from the back")
+    third = await _send(agent, "It's a side by side")
+    assert await _step_after(agent) == "escalate" and not _steps(third)
+
+
+async def test_a_technician_request_at_a_no_plan_handoff_keeps_it() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT, NLUResult(intent="book_technician"), _says(model_number="RF23ABC")],
+            "planner": [_plan("samsung-fd1:1")],
+            "responder": [AgentReply(message=x) for x in "abc"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    agent = _agent(llm, Appears(chunks=False))
+    await _send(agent, "My Samsung fridge isn't cooling")
+    await _send(agent, "Just send a technician")
+    await _send(agent, "The model is RF23ABC")
+    assert await _step_after(agent) == "escalate"
+
+
+async def test_a_model_number_at_a_no_plan_handoff_diagnoses_again() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT, _says(model_number="RF23ABC")],
+            "planner": [_plan("samsung-fd1:1")],
+            "responder": [AgentReply(message=x) for x in "ab"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    agent = _agent(llm, Appears(chunks=False))
+    first = await _send(agent, "My Samsung fridge isn't cooling")
+    assert "These steps are general" not in _text(first)  # a handoff has no steps
+    second = await _send(agent, "The model is RF23ABC")
+    assert await _step_after(agent) == "guide"
+    assert [c.instruction for c in _steps(second)] == ["Step samsung-fd1:1."]
+
+
+async def test_a_model_number_naming_the_manual_already_used_changes_nothing() -> None:
+    bosch = NLUResult(
+        intent="report_problem",
+        slot_updates=[
+            SlotUpdate(name="appliance_category", value="dishwasher"),
+            SlotUpdate(name="brand", value="Bosch"),
+            SlotUpdate(name="symptom", value="not draining"),
+        ],
+        search_query_en="dishwasher not draining",
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [bosch, _says(model_number="SHX878")],
+            "planner": [_plan("bosch-dw:1", "bosch-dw:2")],
+            "responder": [AgentReply(message=x) for x in "ab"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    library = Library()
+    agent = _agent(llm, library)
+    await _send(agent, "My Bosch dishwasher won't drain")
+    second = await _send(agent, "It's an SHX878")
+    assert len(library.queries) == 1 and len(llm.calls_for("planner")) == 1
+    assert [c.plan_item_id for c in _steps(second)] == ["p1"]
+    state = await agent.state("conv-1")
+    assert state is not None and state.state.plan_basis is not None
+    assert state.state.plan_basis.scope == "model"  # recorded, though nothing re-ran
+
+
+async def test_a_rebuilt_plan_never_reuses_a_shown_steps_id() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT, _says(trait_layout="side_by_side")],
+            "planner": [_plan("samsung-fd1:1", "samsung-fd2:1"), _plan("samsung-sbs:1")],
+            "responder": [AgentReply(message=x) for x in "ab"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    agent = _agent(llm, Library())
+    first = await _send(agent, "My Samsung fridge isn't cooling")
+    second = await _send(agent, "It's a side by side")
+    assert [c.plan_item_id for c in _steps(first)] == ["p1"]
+    assert [c.plan_item_id for c in _steps(second)] == ["p3"]
+
+
+async def test_the_last_step_failing_with_a_new_detail_hands_off_for_the_steps() -> None:
+    from homehelper.channels.events import HandoffCard, StructuredAction
+
+    bosch = NLUResult(
+        intent="report_problem",
+        slot_updates=[
+            SlotUpdate(name="appliance_category", value="dishwasher"),
+            SlotUpdate(name="brand", value="Bosch"),
+            SlotUpdate(name="symptom", value="not draining"),
+        ],
+        search_query_en="dishwasher not draining",
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [bosch, _says(model_number="XQ9000")],
+            "planner": [_plan("bosch-dw:1")],
+            "responder": [AgentReply(message=x) for x in "ab"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    agent = _agent(llm, Library())
+    await _send(agent, "My Bosch dishwasher won't drain")
+    message = InboundMessage(
+        conversation_id="conv-1",
+        text="That didn't help, the model is XQ9000",
+        action=StructuredAction(type="step_result", value="not_fixed"),
+    )
+    events = [e async for e in agent.handle(message)]
+    cards = [e.card for e in events if isinstance(e, CardEvent) and isinstance(e.card, HandoffCard)]
+    assert [c.reason for c in cards] == ["The troubleshooting steps did not fix it"]
+
+
+async def test_giving_the_brand_the_hint_asked_for_searches_again() -> None:
+    no_brand = REPORT.model_copy(
+        update={"slot_updates": [u for u in REPORT.slot_updates if u.name != "brand"]}
+    )
+    llm = FakeLLMClient(
+        {
+            "nlu": [no_brand, _says(brand="Samsung")],
+            "planner": [_plan("samsung-fd1:1"), _plan("samsung-fd2:1")],
+            "responder": [AgentReply(message=x) for x in "ab"],
+            "supervisor": [PASS] * 4,
+        }
+    )
+    library = Library()
+    index = manual_index()
+    lg = index.manuals[0].model_copy(update={"doc_id": "lg-fr", "brand": "LG"})
+    agent = JourneyAgent(
+        AgentDeps.default(llm, library, manuals=ManualIndex((*index.manuals, lg), index.features))
+    )
+    first = await _send(agent, "My fridge isn't cooling")
+    assert "the brand and model number" in _text(first)
+    await _send(agent, "It's a Samsung")
+    assert len(library.queries) == 2
+    assert "lg-fr" not in (library.queries[1].doc_ids or [])

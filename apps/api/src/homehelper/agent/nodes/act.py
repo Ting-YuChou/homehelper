@@ -39,10 +39,15 @@ NOTICE_REPAIR_HISTORY = "repair_history"  # an earlier repair looks like this pr
 NOTICE_REPLANNED = "replanned"  # a better identification rebuilt the plan (ADR-013)
 NOTICE_SAME_MANUALS = "same_manuals"  # it didn't tell the manuals apart: the plan stays
 NOTICE_UNKNOWN_MODEL = "unknown_model"  # a model number no manual in the library matches
+NOTICE_PLAN_KEPT = "plan_kept"  # searched again, but nothing better came up
 # Without the exact model: chunks per candidate manual, and how many in all (ADR-013).
 PER_MANUAL = 2
 GENERIC_TOP_K = 8
-SEARCH_ACTIONS = frozenset({"knowledge.search", "plan.build"})
+# What a diagnosis repeated midway runs: the warranty check too, so the new plan keeps its
+# G-WARR-01 warnings.
+SEARCH_ACTIONS = frozenset(
+    {"mcp:user_profile.get_warranty_status", "knowledge.search", "plan.build"}
+)
 Emit = Callable[[object], None]
 
 
@@ -296,15 +301,19 @@ def rediagnosis(
         return actions, []
     basis = identify(state, deps.manuals)
     if basis is not None and same_manuals(basis, state.plan_basis):
-        notices = [NOTICE_SAME_MANUALS]
-        if basis.model_number and basis.scope != "model":
-            notices.append(NOTICE_UNKNOWN_MODEL)
         state.plan_basis = basis
         state.decision_log.append(
             Decision(kind="plan", journey=state.active_journey, reason="same manuals: plan kept")
         )
-        return [], notices
+        return [], [NOTICE_SAME_MANUALS]
     return [a for a in actions if a in SEARCH_ACTIONS], [NOTICE_REPLANNED]
+
+
+def unknown_model(before: PlanBasis | None, after: PlanBasis | None) -> bool:
+    """The user gave a model number this turn that no manual in the library matches."""
+    if after is None or after.scope == "model" or after.model_number is None:
+        return False
+    return before is None or before.model_number != after.model_number
 
 
 def _remember_citations(graph: GraphState, retrieval: RetrievalResult | None) -> None:
@@ -323,10 +332,10 @@ def _model_hint(state: AgentState, deps: AgentDeps) -> str | None:
     if step is None:
         return None
     at_first_step = step.type == "guide" and not any(i.status in TRIED for i in state.plan)
-    no_plan = step.type == "handoff" and not state.plan and not state.hazard_flags
-    if not (at_first_step or no_plan):
-        return None
-    hint = model_hint(state, deps.manuals, state.plan_basis)
+    no_plan = step.type == "handoff" and not state.plan
+    if not (at_first_step or no_plan) or state.hazard_flags:
+        return None  # after any hazard, nothing that sends the user to look behind the appliance
+    hint = model_hint(state, deps.manuals, state.plan_basis, with_steps=at_first_step)
     category = _slot(state, "appliance_category")
     if hint is not None and category is not None:
         state.model_asked.append(category)
@@ -357,9 +366,14 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
     if not result.skip_respond:
         for _ in range(MAX_ACTION_ROUNDS):
             actions, notices = rediagnosis(state, deps, result.actions)
-            turn.notices.extend(notices)
+            before = [(item.id, item.instruction) for item in state.plan]
             for action in actions:
                 state = await run_action(action, graph, state, deps, emit, outcomes)
+            if NOTICE_REPLANNED in notices and before == [
+                (i.id, i.instruction) for i in state.plan
+            ]:
+                notices = [NOTICE_PLAN_KEPT]  # nothing retrieved, or no new steps
+            turn.notices.extend(notices)
             _remember_citations(graph, state.last_retrieval)
             if not result.continue_after_actions:
                 break
@@ -369,6 +383,8 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.notices.extend(result.notices)
         turn.retrieval = state.last_retrieval
         turn.model_hint = _model_hint(state, deps)
+        if unknown_model(graph.state.plan_basis, state.plan_basis):
+            turn.notices.append(NOTICE_UNKNOWN_MODEL)
     else:
         # A template replaces the reply (e.g. a hazard escalation), but read tools still run:
         # the visit times offered with it come from them.

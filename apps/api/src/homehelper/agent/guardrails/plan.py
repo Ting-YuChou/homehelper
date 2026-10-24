@@ -177,10 +177,10 @@ def postprocess_plan(
 
 def merge_plan(current: list[PlanItem], new: list[PlanItem]) -> PlanEdit:
     """A plan built again (a model number or the appliance's look arrived midway): the steps
-    already tried stay first, with their results, so they still count towards G-LOOP-01; the
-    new plan replaces the rest, including a step shown but not answered. With no new steps the
-    current plan stays as it is. Items are renumbered in their new order."""
-    tried = [item for item in current if item.status in TRIED]
+    already tried stay first, with their results and ids, so they still count towards
+    G-LOOP-01; the new plan replaces the rest, including a step shown but not answered. With
+    no new steps the current plan stays as it is. New items are numbered after the highest id
+    the plan used, so no card ever shows a reused id."""
     if not new:
         return PlanEdit(
             items=current,
@@ -188,22 +188,34 @@ def merge_plan(current: list[PlanItem], new: list[PlanItem]) -> PlanEdit:
             if current
             else [],
         )
-    merged: list[PlanItem] = []
-    counts = {"step": 0, "power": 0}
-    for item in [*tried, *new]:
-        kind = "power" if is_power_off(item) else "step"
-        counts[kind] += 1
-        number = counts[kind]
-        merged.append(
-            item.model_copy(
-                update={
-                    "id": f"{POWER_OFF_ID_PREFIX}-{number}" if kind == "power" else f"p{number}"
-                }
-            )
-        )
+    if not current:
+        return PlanEdit(items=new)
+    tried = [item for item in current if item.status in TRIED]
+    counts = {
+        "p": _highest(current, "p"),
+        POWER_OFF_ID_PREFIX: _highest(current, POWER_OFF_ID_PREFIX + "-"),
+    }
+    merged = list(tried)
+    for item in new:
+        if is_power_off(item):
+            counts[POWER_OFF_ID_PREFIX] += 1
+            item_id = f"{POWER_OFF_ID_PREFIX}-{counts[POWER_OFF_ID_PREFIX]}"
+        else:
+            counts["p"] += 1
+            item_id = f"p{counts['p']}"
+        merged.append(item.model_copy(update={"id": item_id}))
     decisions = []
     if tried:
         decisions.append(
             _plan_decision(f"kept {len(tried)} tried steps; {len(new)} new steps after them")
         )
     return PlanEdit(items=merged, decisions=decisions)
+
+
+def _highest(items: list[PlanItem], prefix: str) -> int:
+    numbers = [
+        int(item.id[len(prefix) :])
+        for item in items
+        if item.id.startswith(prefix) and item.id[len(prefix) :].isdigit()
+    ]
+    return max(numbers, default=0)

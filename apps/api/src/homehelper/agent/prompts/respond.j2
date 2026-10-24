@@ -61,8 +61,8 @@ The step to present (step {{ plan_item.index }} of {{ plan_item.total }}): "{{ p
 {% endif %}
 {% endif %}
 {% if model_hint %}
-The app adds one sentence after your message that asks for the model number or a photo; do not
-ask for the model number, a photo or what the appliance looks like yourself.
+The app adds a sentence after your message that asks about the appliance (its model number, a
+photo, or what it looks like); do not ask about any of these yourself.
 {% endif %}
 {% if previous_result %}
 The user's result for the previous step: {{ previous_result }}. Acknowledge it briefly first.
@@ -90,6 +90,9 @@ What the user just told you identifies their appliance: the steps now come from 
 What the user just told you narrows down their appliance, but the steps are still general ones.
 Thank them in a few words before the step.
 {% endif %}
+{% elif notice == "plan_kept" %}
+Thank the user for the details in a few words; they didn't turn up better steps, so continue
+with the current one.
 {% elif notice == "same_manuals" %}
 What the user just told you about the appliance doesn't change which manual applies: thank them
 briefly and continue.

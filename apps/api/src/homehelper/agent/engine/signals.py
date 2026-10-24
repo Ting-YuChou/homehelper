@@ -21,7 +21,8 @@ CONFIRM_VALUES = frozenset({"yes", "y", "true", "confirm", "confirmed", "correct
 DENY_VALUES = frozenset({"no", "n", "false", "deny", "denied", "incorrect", "wrong"})
 FEEDBACK_VALUES: frozenset[str] = frozenset({"fixed", "not_fixed", "cannot_do"})
 # What a message sent with a step button may still tell (its NLU is read only for these).
-CARD_TEXT_SLOTS = ("model_number", "brand", "badge")
+# Not the brand: words typed with a button may be about another appliance.
+CARD_TEXT_SLOTS = ("model_number", "badge")
 CARD_TEXT_PREFIXES = ("trait_",)
 
 

@@ -834,7 +834,21 @@ class _Run:
         if is_ended(journey, self.state):
             return False
         for guard in journey.guardrails:
-            if guard.to == self.state.step_id or not self._holds(journey, guard.when, signals):
+            if not self._holds(journey, guard.when, signals):
+                continue
+            if guard.to == self.state.step_id:
+                # Already there: nothing to enter, but the reason for being there changed (a
+                # hazard or a technician request at a handoff), so later turns see it.
+                into = self._reason_for_step()
+                if into is None or into.predicate != guard.when:
+                    self._log(
+                        "guardrail",
+                        f"guardrail {guard.when} holds at its own step",
+                        from_step=self.state.step_id,
+                        to_step=guard.to,
+                        predicate=guard.when,
+                        rule_id=GUARDRAIL_RULE_IDS.get(guard.when),
+                    )
                 continue
             rule_id = GUARDRAIL_RULE_IDS.get(guard.when)
             if guard.when == "hazard_detected" and signals and signals.escalating_hazards:
@@ -850,6 +864,14 @@ class _Run:
             self._enter(journey, guard.to)
             return True
         return False
+
+    def _reason_for_step(self) -> Decision | None:
+        """The latest decision that led to the current step, this turn's included."""
+        step_id = self.state.step_id
+        for decision in reversed([*self.state.decision_log, *self.decisions]):
+            if decision.to_step == step_id:
+                return decision
+        return None
 
     def _step_transitions(self, journey: Journey, signals: TurnSignals | None) -> None:
         step = self._current_step(journey)

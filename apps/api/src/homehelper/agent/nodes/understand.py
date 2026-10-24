@@ -12,7 +12,7 @@ from homehelper.agent.state import NLUResult, SlotUpdate
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, GraphState
 from homehelper.knowledge.features import TRAIT_SLOT_PREFIX, ManualIndex, trait_slot
 from homehelper.knowledge.schemas import CategoryId
-from homehelper.llm import Message
+from homehelper.llm import LLMError, Message
 from homehelper.media.schemas import VisionResult
 
 CATEGORIES = [category.value for category in CategoryId]
@@ -108,7 +108,13 @@ async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
         if not any(o.vision is not None or o.video is not None for o in state.turn.media):
             return {}
         text = MEDIA_ONLY_TEXT
-    nlu = await deps.llm.structured("nlu", nlu_messages(state, deps, text), NLUResult)
+    try:
+        nlu = await deps.llm.structured("nlu", nlu_messages(state, deps, text), NLUResult)
+    except LLMError:
+        if message.action is None:
+            raise
+        return {}  # the button alone still counts
+
     category = state.state.slots.get("appliance_category")
     nlu = valid_traits(nlu, category.value if category else None, deps.manuals)
     update: dict[str, Any] = {"turn": state.turn.model_copy(update={"nlu": nlu})}

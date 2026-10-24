@@ -102,6 +102,9 @@ def identification_changed_since_plan(state: AgentState) -> bool:
         return True
     if basis.scope == "model":
         return False
+    brand = state.slots.get("brand")
+    if (brand.value.strip().lower() if brand else None) != (basis.brand or None):
+        return True  # a brand given or corrected: other candidates
     badge = state.slots.get(BADGE_SLOT)
     return slot_traits(state) != basis.traits or (badge.value if badge else None) != basis.badge
 
@@ -243,9 +246,12 @@ def identification_changed(ctx: PredicateContext) -> bool:
 @predicate("identification_changed_after_no_plan")
 def identification_changed_after_no_plan(ctx: PredicateContext) -> bool:
     """As `identification_changed`, at a handoff that came only from having no plan: the
-    model's own manual may cover the problem. A hazard, failed steps or a request for a
-    technician keep the handoff."""
-    if not identification_changed(ctx):
+    model's own manual may cover the problem. A hazard (ever, in this conversation), failed
+    steps or a request for a technician keep the handoff."""
+    signals = ctx.signals
+    if not identification_changed(ctx) or signals is None:
+        return False
+    if ctx.state.hazard_flags or signals.hazards or signals.intent == "book_technician":
         return False
     state = ctx.state
     into = next((d for d in reversed(state.decision_log) if d.to_step == state.step_id), None)

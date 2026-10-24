@@ -53,7 +53,10 @@ class Whitelist(BaseModel):
         return sorted({d for domains in self.brands.values() for d in domains} | set(self.general))
 
     def allows(self, url: str) -> bool:
-        host = (urlparse(url).hostname or "").lower()
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False  # shown as a link: never javascript: or data:
+        host = (parsed.hostname or "").lower()
         allowed = {*self.general, *(d for ds in self.brands.values() for d in ds)}
         return any(host == d or host.endswith(f".{d}") for d in allowed)
 

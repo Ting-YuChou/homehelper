@@ -73,6 +73,7 @@ class PlanBasis(BaseModel):
 
     scope: PlanScope
     doc_ids: list[str] = Field(default_factory=list)
+    brand: str | None = None
     model_number: str | None = None
     traits: dict[str, str] = Field(default_factory=dict)  # trait name -> value (features.yaml)
     badge: str | None = None

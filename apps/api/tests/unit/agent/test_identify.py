@@ -96,13 +96,15 @@ def test_model_hint_without_a_splitting_trait_says_the_steps_are_general() -> No
 
 
 def test_identification_changed_compares_with_the_plan_basis() -> None:
-    basis = PlanBasis(scope="generic", doc_ids=["samsung-fd1", "samsung-sbs"])
+    basis = PlanBasis(scope="generic", doc_ids=["samsung-fd1", "samsung-sbs"], brand="samsung")
     assert not identification_changed_since_plan(fridge())  # no basis yet
     assert not identification_changed_since_plan(fridge(plan_basis=basis))
     assert identification_changed_since_plan(
         fridge(plan_basis=basis, trait_layout=slot("side_by_side"))
     )
     assert identification_changed_since_plan(fridge(plan_basis=basis, model_number=slot("RF23X")))
+    # A brand given or corrected counts too.
+    assert identification_changed_since_plan(fridge(plan_basis=basis, brand=slot("LG")))
     pinned = PlanBasis(scope="model", doc_ids=["samsung-fd1"], model_number="RF23X")
     same = fridge(plan_basis=pinned, model_number=slot("rf-23x"), trait_layout=slot("x"))
     assert not identification_changed_since_plan(same)  # the model's manual; looks don't matter
@@ -165,16 +167,17 @@ def test_merge_keeps_tried_steps_first_and_renumbers() -> None:
         PlanItem(id="p1", instruction="D", citation_ids=["c9"]),
     ]
     edit = merge_plan(current, new)
+    # New ids continue after the highest used: a card never shows a replaced step's id.
     assert [(i.id, i.instruction, i.status) for i in edit.items] == [
         ("p1", "A", "done_not_fixed"),
         ("power-off-1", "Unplug", "skipped"),
         ("power-off-2", "Unplug", "pending"),
-        ("p2", "D", "pending"),
+        ("p4", "D", "pending"),
     ]
     assert "kept 2 tried steps" in edit.decisions[0].reason
     kept = merge_plan(current, [])
     assert kept.items == current and "kept the current plan" in kept.decisions[0].reason
-    assert merge_plan([], new).decisions == []
+    assert merge_plan([], new).items == new
 
 
 def test_web_only_steps_are_medium_risk_and_never_open_the_appliance() -> None:
@@ -324,3 +327,19 @@ def test_a_paused_issue_keeps_its_plan_basis() -> None:
     state.plan_basis = None
     restore(state, paused)
     assert state.plan_basis == basis
+
+
+def test_with_a_model_number_the_hint_asks_only_what_tells_the_manuals_apart() -> None:
+    state = fridge(model_number=slot("XQ9000"))  # no manual matches it
+    assert model_hint(state, INDEX, identify(state, INDEX)) == "Is it French door or side by side?"
+    narrowed = fridge(model_number=slot("XQ9000"), trait_layout=slot("french_door"))
+    assert model_hint(narrowed, INDEX, identify(narrowed, INDEX)) is None
+
+
+def test_unknown_model_is_noticed_once() -> None:
+    from homehelper.agent.nodes.act import unknown_model
+
+    generic = PlanBasis(scope="generic", doc_ids=["a", "b"], model_number="XQ9000")
+    assert unknown_model(None, generic)
+    assert not unknown_model(generic, generic)  # already said
+    assert not unknown_model(None, PlanBasis(scope="model", doc_ids=["a"], model_number="RF23"))

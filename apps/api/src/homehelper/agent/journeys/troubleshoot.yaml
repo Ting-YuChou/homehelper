@@ -59,6 +59,8 @@ steps:
     actions: [mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history,
               knowledge.search, mcp:tutorials.search_videos, plan.build]
     transitions:
+      - when: plan_exhausted                        # diagnosed again after the last step
+        to: escalate
       - when: plan_available
         to: guide
       - when: plan_unavailable                      # nothing relevant, or every item removed

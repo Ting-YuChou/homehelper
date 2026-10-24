@@ -34,11 +34,13 @@ def identify(state: AgentState, index: ManualIndex) -> PlanBasis | None:
         manuals = index.model_manuals(model, category)
         if manuals:
             return PlanBasis(scope="model", doc_ids=manuals, model_number=model)
-    candidates = index.candidates(category, _value(state, "brand"))
+    brand = _value(state, "brand")
+    candidates = index.candidates(category, brand)
     narrowed = index.narrow(candidates, traits, badge)
     return PlanBasis(
         scope="identified" if len(narrowed) == 1 else "generic",
         doc_ids=narrowed,
+        brand=brand.strip().lower() if brand else None,
         model_number=model,
         traits=traits,
         badge=badge,
@@ -46,15 +48,9 @@ def identify(state: AgentState, index: ManualIndex) -> PlanBasis | None:
 
 
 def same_manuals(a: PlanBasis | None, b: PlanBasis | None) -> bool:
-    return (
-        a is not None
-        and b is not None
-        and (a.scope, sorted(a.doc_ids))
-        == (
-            b.scope,
-            sorted(b.doc_ids),
-        )
-    )
+    """The same manuals: a model number that names the one manual already used (`identified`
+    then `model`) changes nothing to search."""
+    return a is not None and b is not None and sorted(a.doc_ids) == sorted(b.doc_ids)
 
 
 def appearance(state: AgentState, index: ManualIndex) -> list[str]:
@@ -69,10 +65,13 @@ def appearance(state: AgentState, index: ManualIndex) -> list[str]:
     return [*words, badge] if badge else words
 
 
-def model_hint(state: AgentState, index: ManualIndex, basis: PlanBasis | None) -> str | None:
+def model_hint(
+    state: AgentState, index: ManualIndex, basis: PlanBasis | None, *, with_steps: bool = True
+) -> str | None:
     """The one request for the model number (ADR-013): where its sticker usually is, and, when
-    a visible trait tells the brand's manuals apart, that question first. None once the manual
-    is known, or once asked about this appliance."""
+    a visible trait tells the brand's manuals apart, that question first. With a model number
+    the library has no manual for, only that question. None once the manual is known, or once
+    asked about this appliance. `with_steps`: the reply has general steps (else a handoff)."""
     category = category_of(state)
     if category is None or basis is None or basis.scope != "generic":
         return None
@@ -83,11 +82,18 @@ def model_hint(state: AgentState, index: ManualIndex, basis: PlanBasis | None) -
     location = index.model_location(category)
     what = "the model number" if brand else "the brand and model number"
     split = index.splitting_trait(basis.doc_ids, category, slot_traits(state))
+    if usable_model(state.slots.get("model_number")) is not None:
+        return split[1].question if split is not None else None
     if split is not None:
         _, trait = split
         return (
             f"{trait.question} Or, if it's handy, tell me {what}: it's usually {location}. "
             f"You can also send a photo of that sticker or of the front of the {noun}."
+        )
+    if not with_steps:
+        return (
+            f"If it's handy, tell me {what} (it's usually {location}) or send a photo of that "
+            "sticker, and I'll look in the manual for your exact model."
         )
     appliance = f"{brand} {noun}" if brand else noun
     return (

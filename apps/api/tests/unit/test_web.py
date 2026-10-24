@@ -182,3 +182,9 @@ async def test_web_search_names_the_appliance_and_what_it_looks_like() -> None:
     await WebKnowledge(Recording([LG]), llm, WHITELIST).search(query)
     assert Recording.query == "LG front-loading washing machine washer won't drain"
     assert "Appliance: LG front-loading washing machine" in str(llm.calls[0].messages[1].content)
+
+
+def test_only_web_pages_are_allowed() -> None:
+    assert not WHITELIST.allows("javascript://www.lg.com/%0Aalert(1)")
+    assert not WHITELIST.allows("data:text/html,<p>www.lg.com</p>")
+    assert WHITELIST.allows("http://www.lg.com/us/support")
