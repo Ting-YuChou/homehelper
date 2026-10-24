@@ -53,8 +53,11 @@ showed what goes wrong:
    - **Where:** the first reply of a general plan, or a handoff for having no plan.
    - **What:** a fixed sentence appended after the responder's message: where the sticker
      usually is, and that a photo works too. When a trait tells the candidates apart, its
-     question comes first ("Does it load from the front or the top?"). The responder is told
-     not to ask itself.
+     question comes first ("Does it load from the front or the top?"). If the user gave a
+     model number the library lacks, it asks only that question. The responder is told not to
+     ask itself.
+   - **Never after a hazard,** so it can't send the user behind a leaking or smoking
+     appliance.
    - **Once:** `model_asked` records it per appliance category for the whole conversation.
      A reply the supervisor blocked doesn't count as asked.
    - **No waiting:** the agent doesn't wait for an answer. The first general step is already
@@ -62,24 +65,38 @@ showed what goes wrong:
 4. **A better identification midway re-runs `diagnose`.**
    - In `guide`, the predicate `identification_changed` compares the slots with `plan_basis`.
      It is pure, so the engine still reads only state.
-   - **What triggers it:** a model number (typed, or from a photo at ≥ 0.7 confidence), a trait
-     or a badge.
-   - **What re-runs:** only the search and the plan. If the new details point to the same
-     manuals, nothing re-runs: the plan stays, and the reply says why (for example, no manual
-     matches that model number).
+   - **What triggers it:** a model number (typed, or from a photo at ≥ 0.7 confidence), a trait,
+     a badge, or a brand given or corrected (the brand is part of `plan_basis`).
+   - **What re-runs:** the warranty check, the search and the plan. The warranty check keeps
+     G-WARR-01 warnings on the new plan. If the new details point to the same manuals, nothing
+     re-runs. "The same manuals" includes a model number that names the one manual already
+     used. The plan stays, and the reply says why.
+   - **A model number with no manual in the library:** it is said once, on the turn it is
+     given.
    - **`merge_plan`:**
      - Steps already tried stay first, with their results. They keep counting toward G-LOOP-01,
        so the cap can't be reset by giving a model number.
      - The planner sees the tried steps, so it doesn't repeat them.
      - The rest of the plan is replaced, including a step that was shown but not answered.
+     - New items are numbered after the highest id the plan used, so a card never shows a
+       reused id. (The web app keys step progress by id.)
      - An empty new plan keeps the current one.
-   - A handoff that came only from `plan_unavailable` may go back to `diagnose` the same way;
-     a hazard, failed steps or a request for a technician keep the handoff.
+   - **Back from a handoff:** a handoff that came only from `plan_unavailable` may go back to
+     `diagnose` the same way. These keep the handoff:
+     - any hazard in the conversation;
+     - failed steps;
+     - a request for a technician.
+
+     A guardrail that holds at the step it would enter (a hazard or a technician request while
+     already at the handoff) is recorded too, so that the reason for the handoff stays current.
+   - **The last step failing:** when the last step fails in the same turn as a new detail,
+     `diagnose` hands off with `plan_exhausted`.
 5. **Where the details come from.**
    - **Typed text:** NLU fills `trait_<name>` and `badge` slots. `understand` drops values the
      category doesn't have.
-   - **Text typed together with a step button:** it is read for appliance details only. The
-     button decides the step's result.
+   - **Text typed together with a step button:** it is read for the model number, traits and
+     badge only, not the brand, which may be about another appliance. The button decides the
+     step's result, and an NLU failure keeps the button press.
    - **Photos:** the vision model reports `features`, `badges` and their own
      `features_confidence`. The existing confidence is about the nameplate, and a clear photo
      of the front shows no nameplate. Below 0.7, traits from a photo are not used.
@@ -96,7 +113,7 @@ showed what goes wrong:
      - a step that opens the appliance is dropped;
      - the responder says the step comes from an unofficial page.
    - **Showing the source:** step cards carry `web_sources` (domain, title, URL), and the UI
-     labels them "Unofficial source". `Citation` is unchanged, so stored messages, graders and
+     labels them "Unofficial source". Only http(s) URLs pass the whitelist. `Citation` is unchanged, so stored messages, graders and
      the manual chip keep working.
    - **Checking the reply:** the supervisor's grounding check now sees the findings too.
 7. **Videos while the model is unknown.** `diagnose` runs `tutorials.search_videos`, using the
