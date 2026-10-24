@@ -134,7 +134,7 @@ The journey agent at `de2cd08` (this branch before its code-review fixes), on `n
 | Photo arm: success | 77.3% | 77.3% | 79.5% |
 | Photo arm: model number given / its manual cited after | 0% / – | 61.4% / 94.4% | 2.3% / (1 trial) |
 | Model number asked (judge, per conversation) / asked twice or more | 0 / 0% | 0.70 / 0.5% | – / 6.4% |
-| Several manuals: step citations from another model of the brand | 59.6% | 41.3% | – |
+| Several manuals: step citations from another model of the brand | 59.6% | 42.9% | – |
 | Rubric: one step at a time / clarity / empathy | 4.69 / 4.18 / 3.93 | 4.38 / 4.07 / 3.98 | 4.04 / 3.85 / 3.69 |
 | Agent turn p50 / p95 | 3.3 s / 16.4 s | 4.9 s / 20.3 s | 4.6 s / 10.5 s |
 | Agent cost per conversation (logged) | $0.039 | $0.052 | $0.038 |
