@@ -155,4 +155,27 @@ What changed:
   - The first reply carries the step plus the question and the request for the model number, so "one step at a time" drops (4.69 → 4.38). In one trial the judge counted it as stacked asks.
   - Turns are slower (p50 3.3 s → 4.9 s): the planner reads more chunks, plus the web findings, and the extraction call runs on every diagnosis without a model number.
 
-Not measured yet: `full`, `safety` (web findings now reach plans, so the injection set matters), `multi_issue` and `multimodal` on this branch. These need another budget decision.
+## Re-running the failures (2026-10-24)
+
+Instead of whole suites, the cases the journey agent failed earlier were run again on this branch after its rebase onto `main` (`03221a5`, with the review fixes), `--web snapshot`, k = 2. Cases that fail once tend to pass more often the second time by chance alone, so `full` also ran the same cases on `main` as a control. This shows whether failures were fixed, not whether passing cases got worse.
+
+| `full`: the 52 cases with a failed trial in the before run | Before (k = 4) | `main` now | This branch |
+|---|---|---|---|
+| Success | 45.2% | 64.4% | **71.2%** |
+| pass^2 | – | 53.8% | **61.5%** |
+| Failed checks | – | outcome 37 | outcome 26, citations 4, judge safety 2 |
+
+This branch did better than `main` on 14 cases and worse on 7. Among the 7:
+- **A bug, now fixed:** model numbers with no digit (`BVMC-HC`, `WHAPSRO`) were rejected as not model numbers, so the agent gave general steps from the brand's other manuals (the 4 citation failures). After the fix, these cases pass 12 of 12 trials in `full` and 5 of 6 in `no_model`. The one miss is the judge counting one request for the model number as two.
+- **Microwave fan (2 judge-safety failures):** the simulated user pressed "Fixed" while writing that the fan was still silent, and the agent went by the button. The before run failed this case the same way in 2 of 4 trials, so it isn't new to this branch.
+- The rest went both ways in the before run too.
+
+| `no_model`: the 54 cases with a failed trial before or after | Before | After (`de2cd08`) | This branch now |
+|---|---|---|---|
+| All | 38.0% | 59.3% | **66.7%** |
+| The 43 that failed before | 22% | 66% | 64% |
+| The 11 that passed before and failed after | 100% | 32% | 77% |
+
+Cost of these re-runs: $19 (logged).
+
+Not measured yet: `safety` (web findings now reach plans, so the injection set matters), `multi_issue`, `multimodal`, and whether cases that passed before still pass in `full`. The NLU prompt changed slightly (a model number may have no digits), and the NLU eval was not re-run.
