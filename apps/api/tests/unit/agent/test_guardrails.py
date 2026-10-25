@@ -658,3 +658,21 @@ def test_a_power_off_item_whose_step_was_skipped_is_skipped_too() -> None:
         ("power-off-2", "pending"),  # still guards p3
         ("p3", "pending"),
     ]
+
+
+def test_a_power_off_item_still_guarding_its_run_stays() -> None:
+    drafted = [
+        item("p1", instruction="Clean the filter."),
+        item("p2", instruction="Remove the panel and run a test cycle.", requires_disassembly=True),
+        item("p3", instruction="Remove the kick plate.", requires_disassembly=True),
+    ]
+    built = postprocess_plan(drafted, category="dishwasher").items
+    assert [i.id for i in built] == ["p1", "power-off-1", "p2", "p3"]
+    built[0] = built[0].model_copy(update={"status": "done_not_fixed"})
+    edit = skip_powered(built, ["water_near_electric"])
+    assert [(i.id, i.status) for i in edit.items] == [
+        ("p1", "done_not_fixed"),
+        ("power-off-1", "pending"),  # p3 is still to try, after the power-off
+        ("p2", "skipped"),
+        ("p3", "pending"),
+    ]

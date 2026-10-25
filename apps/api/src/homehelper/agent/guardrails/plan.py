@@ -240,11 +240,15 @@ def skip_powered(items: Iterable[PlanItem], hazards: Iterable[str]) -> PlanEdit:
                 )
             )
         result.append(item)
-    # A power-off item (G-SAFE-06) whose disassembly step was just skipped has nothing to
-    # come before: it would be the only "step" left to try.
+    # A power-off item (G-SAFE-06) guards the run of disassembly steps after it
+    # (`insert_power_off`). Once none of them is left to try, it would be the only "step".
     for index, item in enumerate(result):
-        after = result[index + 1] if index + 1 < len(result) else None
-        guards = after is not None and after.status in OPEN and after.requires_disassembly
+        run = []
+        for after in result[index + 1 :]:
+            if not after.requires_disassembly:
+                break
+            run.append(after)
+        guards = any(after.status in OPEN for after in run)
         if is_power_off(item) and item.status in OPEN and not guards:
             result[index] = item.model_copy(
                 update={"status": "skipped", "safety_rule": POWER_OFF_RULE}
