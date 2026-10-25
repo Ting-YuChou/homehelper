@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from homehelper.agent import prompts
-from homehelper.agent.deps import AgentDeps, presented_item, slot_values
+from homehelper.agent.deps import AgentDeps, presented_item, slot_values, step_position
 from homehelper.agent.engine.issues import find_record
 from homehelper.agent.engine.predicates import unconfirmed_low_confidence
 from homehelper.agent.engine.transition import (
@@ -79,6 +79,10 @@ SLOT_QUESTIONS = {
     "question": "what they would like to know",
 }
 HANDOFF_REASONS = {
+    "only_powered_steps_left": (
+        "the remaining steps need the appliance switched on, which is not safe until it has "
+        "been checked"
+    ),
     "hazard_detected": "there is a safety hazard",
     "max_failed_steps_reached": "the steps from the manual have not fixed it",
     "plan_exhausted": "the steps from the manual have not fixed it",
@@ -161,12 +165,13 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
             cited = set(item.citation_ids)
             findings = turn.retrieval.web_findings if turn.retrieval else []
             web = [f for f in findings if f.id in cited]
+            index, total = step_position(state, item)
             return ResponsePlan(
                 task="Present the next troubleshooting step.",
                 excerpts=[chunk for chunk in retrieved if chunk.chunk_id in cited],
                 plan_item={
-                    "index": state.plan.index(item) + 1,
-                    "total": len(state.plan),
+                    "index": index,
+                    "total": total,
                     "instruction": item.instruction,
                     "warranty_warning": item.warranty_warning,
                     "safety_rule": item.safety_rule,

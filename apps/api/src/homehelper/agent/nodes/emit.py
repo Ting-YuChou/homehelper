@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
-from homehelper.agent.deps import AgentDeps, presented_item
+from homehelper.agent.deps import AgentDeps, presented_item, step_position
 from homehelper.agent.engine.predicates import unconfirmed_low_confidence
 from homehelper.agent.engine.transition import NOTICE_REMIND_PAUSED, NOTICE_RESUME_PAUSED
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
@@ -41,6 +41,7 @@ KEEP_TRANSCRIPT_LINES = 60
 MAX_RESULT_CARDS = 3  # per kind (parts, videos)
 
 HANDOFF_CARD_REASONS = {
+    "only_powered_steps_left": "The remaining steps need the power on, which isn't safe now",
     "hazard_detected": "Safety hazard",
     "max_failed_steps_reached": "The troubleshooting steps did not fix it",
     "plan_exhausted": "The troubleshooting steps did not fix it",
@@ -130,11 +131,12 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
         item = presented_item(state)
         if item is not None and not blocked:
             item_citations = [graph.citations[c] for c in item.citation_ids if c in graph.citations]
+            index, total = step_position(state, item)
             cards.append(
                 StepCard(
                     plan_item_id=item.id,
-                    index=state.plan.index(item) + 1,
-                    total=len(state.plan),
+                    index=index,
+                    total=total,
                     instruction=item.instruction,
                     citations=item_citations,
                     warranty_warning=item.warranty_warning,

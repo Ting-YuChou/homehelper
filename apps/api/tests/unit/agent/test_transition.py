@@ -10,6 +10,7 @@ from homehelper.agent.engine import (
     signals_from_input,
     transition,
 )
+from homehelper.agent.engine.predicates import failed_step_count
 from homehelper.agent.engine.transition import (
     NOTICE_OFFER_HANDOFF,
     NOTICE_RESUME_PAUSED,
@@ -17,7 +18,7 @@ from homehelper.agent.engine.transition import (
 )
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY
-from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue, UserContext
+from homehelper.agent.state import AgentState, OfferedSlot, PausedIssue, PlanItem, UserContext
 from homehelper.channels.events import InboundMessage, StructuredAction
 from tests.unit.agent.helpers import (
     DIAGNOSE_ACTIONS,
@@ -260,6 +261,118 @@ def test_water_near_electric_prefixes_reply_and_continues(catalog: JourneyCatalo
     assert any(
         d.reason == "water_near_electric persists after the warning" for d in again.decisions
     )
+
+
+def _guide_with(catalog: JourneyCatalog, *instructions: str) -> AgentState:
+    items = [
+        PlanItem(id=f"p{i}", instruction=text, citation_ids=[f"c{i}"])
+        for i, text in enumerate(instructions, start=1)
+    ]
+    report = say("report_problem", "My dishwasher won't drain", slots=DISHWASHER)
+    result = run_turn(catalog, new_state(), report, items)
+    assert result.state.step_id == "guide"
+    return result.state
+
+
+def test_water_mid_plan_skips_the_steps_that_need_power(catalog: JourneyCatalog) -> None:
+    state = _guide_with(catalog, "Clean the filter.", "Run a rinse cycle.", "Check the drain hose.")
+    result = transition(
+        catalog,
+        state,
+        say("step_feedback", "There's water pooling near the outlet", step_feedback="not_fixed"),
+    )
+    assert [(i.id, i.status, i.safety_rule) for i in result.state.plan] == [
+        ("p1", "done_not_fixed", None),
+        ("p2", "skipped", "G-SAFE-08"),
+        ("p3", "presented", None),
+    ]
+    assert failed_step_count(result.state) == 1  # a skip for safety is not a failed step
+    assert any(d.rule_id == "G-SAFE-08" for d in result.decisions)
+
+
+def test_water_while_a_powered_step_is_shown_moves_to_the_next(catalog: JourneyCatalog) -> None:
+    state = _guide_with(catalog, "Run a rinse cycle.", "Check the drain hose.")
+    result = transition(catalog, state, say("other", "Water is dripping onto the power strip"))
+    assert [(i.id, i.status) for i in result.state.plan] == [
+        ("p1", "skipped"),
+        ("p2", "presented"),
+    ]
+    assert result.state.step_id == "guide"
+
+
+def test_water_with_only_powered_steps_left_hands_off(catalog: JourneyCatalog) -> None:
+    state = _guide_with(catalog, "Clean the filter.", "Run a rinse cycle.")
+    result = transition(
+        catalog,
+        state,
+        say("step_feedback", "Water is leaking onto the outlet", step_feedback="not_fixed"),
+    )
+    assert [i.status for i in result.state.plan] == ["done_not_fixed", "skipped"]
+    assert result.state.step_id == "escalate"
+    assert any(d.predicate == "only_powered_steps_left" for d in result.decisions)
+
+
+def test_a_side_question_with_water_still_shows_the_replacement_step(
+    catalog: JourneyCatalog,
+) -> None:
+    state = _guide_with(catalog, "Run a rinse cycle.", "Check the drain hose.")
+    result = transition(
+        catalog,
+        state,
+        say("ask_how_to", "How do I remove the filter? Also water is dripping onto the outlet"),
+    )
+    assert [(i.id, i.status) for i in result.state.plan] == [("p1", "skipped"), ("p2", "presented")]
+    assert not result.side_question  # the user must see p2, not a reminder of p1
+
+
+def test_water_before_the_appliance_is_named_stays_with_that_issue(
+    catalog: JourneyCatalog,
+) -> None:
+    first = transition(
+        catalog, new_state(), say("report_problem", "There's water pooling around the outlet")
+    )
+    assert first.state.power_off == {"issue:iss_1": ["water_near_electric"]}  # not "*"
+    dishwasher = run_turn(
+        catalog,
+        first.state,
+        say("report_problem", slots=DISHWASHER),
+        [
+            PlanItem(id="p1", instruction="Run a rinse cycle.", citation_ids=["c1"]),
+            PlanItem(id="p2", instruction="Clean the filter.", citation_ids=["c2"]),
+        ],
+    ).state
+    assert [i.status for i in dishwasher.plan] == ["skipped", "presented"]
+
+
+def test_a_hazard_about_another_appliance_is_kept_for_that_appliance(
+    catalog: JourneyCatalog,
+) -> None:
+    state = _guide_with(catalog, "Clean the filter.", "Run a rinse cycle.")
+    result = transition(
+        catalog,
+        state,
+        say(
+            "small_talk",
+            "Oh, and water is dripping onto the dryer's outlet",
+            slots={"appliance_category": "dryer"},
+        ),
+    )
+    # The text starts a dryer issue: the hazard is the dryer's, not the dishwasher's.
+    assert result.state.power_off == {"issue:iss_2": ["water_near_electric"]}
+
+
+def test_a_plan_of_only_powered_steps_hands_off_for_that_reason(catalog: JourneyCatalog) -> None:
+    skipped = PlanItem(
+        id="p1",
+        instruction="Run a cycle.",
+        citation_ids=["c1"],
+        status="skipped",
+        safety_rule="G-SAFE-08",
+    )
+    report = say("report_problem", "My dishwasher won't drain", slots=DISHWASHER)
+    result = run_turn(catalog, new_state(), report, [skipped])
+    assert result.state.step_id == "escalate"
+    assert any(d.predicate == "only_powered_steps_left" for d in result.decisions)
 
 
 @pytest.mark.parametrize(
@@ -776,3 +889,20 @@ def test_a_side_question_about_the_same_appliance_fills_the_topic(
     parts = say("ask_parts", slots={"appliance_category": "dishwasher", "symptom": "leaks"})
     result = transition(catalog, state, parts)
     assert result.state.slots["symptom"].value == "leaks"
+
+
+def test_a_hazard_on_an_unsupported_appliance_leaves_the_active_plan(
+    catalog: JourneyCatalog,
+) -> None:
+    state = _guide_with(catalog, "Clean the filter.", "Run a rinse cycle.")
+    result = transition(
+        catalog,
+        state,
+        say(
+            "report_problem",
+            "My water heater is leaking onto the outlet",
+            slots={"appliance_category": "water_heater", "symptom": "leak"},
+        ),
+    )
+    assert result.state.power_off == {"water_heater": ["water_near_electric"]}
+    assert [(i.id, i.status) for i in result.state.plan] == [("p1", "presented"), ("p2", "pending")]

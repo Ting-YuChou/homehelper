@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from homehelper.agent.engine.perception import LOW_CONFIDENCE
 from homehelper.agent.engine.schema import Journey
 from homehelper.agent.engine.signals import TurnSignals
+from homehelper.agent.guardrails.plan import POWER_OFF_RULE
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
 from homehelper.agent.state import AgentState, SlotValue
 from homehelper.knowledge.features import BADGE_SLOT, TRAIT_SLOT_PREFIX
@@ -200,6 +201,18 @@ def user_reports_not_fixed_and_plan_has_next(ctx: PredicateContext) -> bool:
         ctx.signals is not None
         and ctx.signals.feedback in ("not_fixed", "cannot_do")
         and has_pending_item(ctx.state)
+    )
+
+
+@predicate("only_powered_steps_left")
+def only_powered_steps_left(ctx: PredicateContext) -> bool:
+    """G-SAFE-08: nothing left to try, and some steps were skipped because they need the power
+    the user was told to keep off. The handoff says so instead of "the steps didn't help"."""
+    plan = ctx.state.plan
+    return (
+        bool(plan)
+        and not any(item.status in ("pending", "presented") for item in plan)
+        and any(item.safety_rule == POWER_OFF_RULE for item in plan)
     )
 
 

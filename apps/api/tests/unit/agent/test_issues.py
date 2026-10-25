@@ -15,7 +15,7 @@ from homehelper.agent.engine.transition import (
     NOTICE_RESUMED_ISSUE,
 )
 from homehelper.agent.guardrails.templates import WATER_REMINDER_REPLY, safety_reply
-from homehelper.agent.state import AgentState, IssueRecord, PausedIssue, SlotValue
+from homehelper.agent.state import AgentState, IssueRecord, PausedIssue, PlanItem, SlotValue
 from homehelper.channels.events import StructuredAction
 from tests.unit.agent.helpers import DIAGNOSE_ACTIONS, new_state, plan, press, run_turn, say
 
@@ -425,3 +425,103 @@ def test_a_hazard_with_a_step_result_is_about_the_active_appliance(
     result = transition(catalog, two_issues(catalog), turn)
     assert result.state.step_id == "escalate"
     assert [p.issue_id for p in result.state.paused_issues] == ["iss_1"]  # the dishwasher
+
+
+# --- G-SAFE-08 across issues --------------------------------------------------------------
+
+
+def _items(*instructions: str) -> list[PlanItem]:
+    return [
+        PlanItem(id=f"p{i}", instruction=text, citation_ids=[f"c{i}"])
+        for i, text in enumerate(instructions, start=1)
+    ]
+
+
+def _guide_with(
+    catalog: JourneyCatalog, state: AgentState, category: str, *instructions: str
+) -> AgentState:
+    slots = {"appliance_category": category, "symptom": "broken"}
+    result = run_turn(catalog, state, say("report_problem", slots=slots), _items(*instructions))
+    assert result.state.step_id == "guide"
+    return result.state
+
+
+def test_one_appliances_power_off_leaves_another_appliances_steps(
+    catalog: JourneyCatalog,
+) -> None:
+    state = _guide_with(catalog, new_state(), "dishwasher", "Clean the filter.")
+    state = transition(catalog, state, say("other", "Water is dripping onto the outlet")).state
+    assert state.power_off == {"issue:iss_1": ["water_near_electric"]}
+    dryer = _guide_with(catalog, state, "dryer", "Run a timed dry cycle.", "Clean the lint screen.")
+    assert [(i.id, i.status) for i in dryer.plan] == [("p1", "presented"), ("p2", "pending")]
+
+
+def test_a_resumed_issue_skips_its_powered_steps(catalog: JourneyCatalog) -> None:
+    state = _guide_with(
+        catalog, new_state(), "dishwasher", "Run a rinse cycle.", "Clean the filter."
+    )
+    state = _guide_with(catalog, state, "dryer", "Clean the lint screen.")
+    # The dishwasher's power was cut while it was paused.
+    state.power_off = {"dishwasher": ["water_near_electric"]}
+    resumed = transition(catalog, state, mention("dishwasher"))
+    assert resumed.state.active_issue_id == "iss_1"
+    assert [(i.id, i.status) for i in resumed.state.plan] == [
+        ("p1", "skipped"),
+        ("p2", "presented"),
+    ]
+
+
+def test_a_gas_smell_keeps_every_appliance_switched_off(catalog: JourneyCatalog) -> None:
+    state = new_state(power_off={"*": ["gas_smell"]})
+    dryer = run_turn(
+        catalog,
+        state,
+        say("report_problem", slots={"appliance_category": "dryer", "symptom": "no heat"}),
+        _items("Run a timed dry cycle.", "Clean the lint screen."),
+    ).state
+    assert [(i.id, i.status) for i in dryer.plan] == [("p1", "skipped"), ("p2", "presented")]
+
+
+def test_a_hazard_typed_with_an_issues_card_keeps_both_issues_off(
+    catalog: JourneyCatalog,
+) -> None:
+    state = _guide_with(catalog, new_state(), "dishwasher", "Clean the filter.")
+    state = _guide_with(catalog, state, "dryer", "Run the dryer empty.", "Clean the lint screen.")
+    card = TurnInput(
+        text="the dryer's outlet is wet, water is dripping onto it",
+        action=StructuredAction(type="resume_issue", value="iss_1"),
+    )
+    resumed = transition(catalog, state, card).state
+    assert resumed.active_issue_id == "iss_1"
+    # A card has no NLU to say which appliance the text is about: both issues keep it.
+    assert resumed.power_off == {
+        "issue:iss_1": ["water_near_electric"],
+        "issue:iss_2": ["water_near_electric"],
+    }
+
+
+def test_a_hazard_before_any_issue_goes_to_the_next_issue_only(catalog: JourneyCatalog) -> None:
+    first = transition(
+        catalog, new_state(), say("small_talk", "hi! water is dripping on the outlet")
+    )
+    assert first.state.active_issue_id is None
+    assert first.state.power_off == {"unassigned": ["water_near_electric"]}
+    dishwasher = _guide_with(catalog, first.state, "dishwasher", "Run a rinse cycle.", "Clean it.")
+    assert dishwasher.power_off == {"issue:iss_1": ["water_near_electric"]}
+    assert [i.status for i in dishwasher.plan] == ["skipped", "presented"]
+    tv = _guide_with(catalog, dishwasher, "television", "Turn the TV back on.", "Check the input.")
+    assert [i.status for i in tv.plan] == ["presented", "pending"]
+
+
+def test_a_later_issue_on_the_same_appliance_inherits_its_hazard(catalog: JourneyCatalog) -> None:
+    state = _guide_with(catalog, new_state(), "dishwasher", "Clean the filter.")
+    state = transition(catalog, state, say("other", "Water is dripping onto the outlet")).state
+    state = transition(catalog, state, press("step_result", "fixed")).state
+    again = run_turn(
+        catalog,
+        state,
+        say("report_problem", slots={"appliance_category": "dishwasher", "symptom": "won't start"}),
+        _items("Run a rinse cycle.", "Check the door latch."),
+    ).state
+    assert again.active_issue_id == "iss_2"
+    assert [i.status for i in again.plan] == ["skipped", "presented"]

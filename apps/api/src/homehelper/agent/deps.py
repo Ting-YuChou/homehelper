@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 from homehelper.agent.engine import JourneyCatalog, default_catalog
 from homehelper.agent.engine.schema import Journey, Step
+from homehelper.agent.guardrails.plan import POWER_OFF_RULE
 from homehelper.agent.state import AgentState, PlanItem
 from homehelper.agent.tools import Toolbox
 from homehelper.core.tracing import Tracer
@@ -78,6 +79,14 @@ class AgentDeps:
         if journey is None or state.step_id is None:
             return None
         return journey.step(state.step_id)
+
+
+def step_position(state: AgentState, item: PlanItem) -> tuple[int, int]:
+    """The item's number and the plan's length as the user sees them, leaving out steps skipped
+    for safety (G-SAFE-08). Most were never shown; one that was on screen when the hazard came
+    up shares its number with the step that replaces it."""
+    shown = [i for i in state.plan if i.safety_rule != POWER_OFF_RULE]
+    return shown.index(item) + 1, len(shown)
 
 
 def presented_item(state: AgentState) -> PlanItem | None:
