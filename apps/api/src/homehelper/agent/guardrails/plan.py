@@ -232,7 +232,7 @@ def skip_powered(items: Iterable[PlanItem], hazards: Iterable[str]) -> PlanEdit:
     result: list[PlanItem] = []
     decisions: list[Decision] = []
     for item in items:
-        if item.status in ("pending", "presented") and needs_power(item):
+        if item.status in OPEN and needs_power(item):
             item = item.model_copy(update={"status": "skipped", "safety_rule": POWER_OFF_RULE})
             decisions.append(
                 _plan_decision(
@@ -240,6 +240,18 @@ def skip_powered(items: Iterable[PlanItem], hazards: Iterable[str]) -> PlanEdit:
                 )
             )
         result.append(item)
+    # A power-off item (G-SAFE-06) whose disassembly step was just skipped has nothing to
+    # come before: it would be the only "step" left to try.
+    for index, item in enumerate(result):
+        after = result[index + 1] if index + 1 < len(result) else None
+        guards = after is not None and after.status in OPEN and after.requires_disassembly
+        if is_power_off(item) and item.status in OPEN and not guards:
+            result[index] = item.model_copy(
+                update={"status": "skipped", "safety_rule": POWER_OFF_RULE}
+            )
+            decisions.append(
+                _plan_decision(f"skipped {item.id}: its step needs power", POWER_OFF_RULE)
+            )
     return PlanEdit(items=result, decisions=decisions)
 
 

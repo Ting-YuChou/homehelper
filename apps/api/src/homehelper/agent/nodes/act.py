@@ -394,6 +394,10 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             state = result.state
             turn.fixed_replies.extend(result.fixed_replies)
             turn.notices.extend(result.notices)
+        step = deps.step(state)
+        if step is not None and step.type == "handoff" and NOTICE_REPLANNED in turn.notices:
+            # The new plan had nothing to try (G-SAFE-08): the reply is the handoff.
+            turn.notices = [n for n in turn.notices if n != NOTICE_REPLANNED]
         turn.retrieval = state.last_retrieval
         turn.model_hint = _model_hint(state, deps)
         if unknown_model(graph.state.plan_basis, state.plan_basis):

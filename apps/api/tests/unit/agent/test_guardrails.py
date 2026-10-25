@@ -512,7 +512,8 @@ def test_postprocess_skips_powered_steps_after_a_power_off_hazard() -> None:
     # Code-inserted safety items and steps already tried are left alone.
     tried = item("cycle", instruction="Run a rinse cycle.", status="done_not_fixed")
     safety = item("off", instruction="Plug it back in.", safety_rule="G-SAFE-06")
-    assert skip_powered([tried, safety], ["sparks"]).items == [tried, safety]
+    panel = item("panel", instruction="Remove the back panel.", requires_disassembly=True)
+    assert skip_powered([tried, safety, panel], ["sparks"]).items == [tried, safety, panel]
 
 
 def test_skipped_steps_stay_outside_the_plan_cap() -> None:
@@ -639,3 +640,21 @@ def test_a_replan_with_only_powered_steps_keeps_the_steps_left_to_try() -> None:
     tried = [item("p1", status="done_not_fixed")]
     merged = merge_plan(tried, new).items
     assert [(i.id, i.status) for i in merged] == [("p1", "done_not_fixed"), ("p2", "skipped")]
+
+
+def test_a_power_off_item_whose_step_was_skipped_is_skipped_too() -> None:
+    plan = [
+        item("p1", status="done_not_fixed"),
+        item("power-off-1", instruction=POWER_OFF_INSTRUCTION, safety_rule="G-SAFE-06"),
+        item("p2", instruction="Open the panel and run a test cycle.", requires_disassembly=True),
+        item("power-off-2", instruction=POWER_OFF_INSTRUCTION, safety_rule="G-SAFE-06"),
+        item("p3", instruction="Remove the kick plate.", requires_disassembly=True),
+    ]
+    edit = skip_powered(plan, ["water_near_electric"])
+    assert [(i.id, i.status) for i in edit.items] == [
+        ("p1", "done_not_fixed"),
+        ("power-off-1", "skipped"),
+        ("p2", "skipped"),
+        ("power-off-2", "pending"),  # still guards p3
+        ("p3", "pending"),
+    ]
