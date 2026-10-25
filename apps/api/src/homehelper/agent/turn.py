@@ -54,6 +54,8 @@ class TurnScratch(BaseModel):
     reply: AgentReply | None = None
     verdict: SupervisorVerdict | None = None
     revisions: int = 0
+    # The fixed request for the model number shown after the reply, once (ADR-013).
+    model_hint: str | None = None
 
 
 class GraphState(BaseModel):

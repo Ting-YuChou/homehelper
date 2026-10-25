@@ -13,6 +13,7 @@ export type Appliance = Schemas["ApplianceOut"];
 export type Warranty = Schemas["WarrantyOut"];
 export type Repair = Schemas["RepairOut"];
 export type Citation = Schemas["Citation"];
+export type WebSource = Schemas["WebSource"];
 export type StructuredAction = Schemas["StructuredAction"];
 export type SendMessageBody = Schemas["SendMessageRequest"];
 export type Rating = NonNullable<Message["feedback"]>;

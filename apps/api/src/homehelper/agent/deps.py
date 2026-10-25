@@ -10,6 +10,7 @@ from homehelper.agent.engine.schema import Journey, Step
 from homehelper.agent.state import AgentState, PlanItem
 from homehelper.agent.tools import Toolbox
 from homehelper.core.tracing import Tracer
+from homehelper.knowledge.features import ManualIndex
 from homehelper.knowledge.schemas import RetrievalQuery, RetrievalResult
 from homehelper.llm import LLMClient
 from homehelper.media.gemini import VideoAnalyzer
@@ -32,6 +33,9 @@ class AgentDeps:
     tools: Toolbox | None = None  # MCP tools (M5-07); None runs without them
     media: MediaSource | None = None  # uploaded photos and videos (M6); None: they can't be read
     video: VideoAnalyzer | None = None  # Gemini (M6-03); None: videos get M-MEDIA-01
+    # Manuals and what tells them apart (ADR-013); None: the model number is the only way to
+    # pick a manual, and web results replace an insufficient search as before.
+    manuals: ManualIndex | None = None
 
     @classmethod
     def default(
@@ -43,6 +47,7 @@ class AgentDeps:
         tools: Toolbox | None = None,
         media: MediaSource | None = None,
         video: VideoAnalyzer | None = None,
+        manuals: ManualIndex | None = None,
     ) -> "AgentDeps":
         return cls(
             llm=llm,
@@ -53,6 +58,7 @@ class AgentDeps:
             tools=tools,
             media=media,
             video=video,
+            manuals=manuals,
         )
 
     @contextmanager

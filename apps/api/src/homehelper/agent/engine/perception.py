@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from homehelper.agent.state import HazardSignal
+from homehelper.knowledge.features import BADGE_SLOT, TRAIT_SLOT_PREFIX
 from homehelper.knowledge.model_numbers import normalize_error_code, normalize_model
 from homehelper.media.schemas import MediaObservation, VideoResult, VisionResult
 from homehelper.media.validation import MediaKind
@@ -47,6 +48,32 @@ class MediaInput(BaseModel):
     analyzed: int = 0  # attachments with a usable analysis
 
 
+def _look_slots(result: VisionResult) -> list[PerceivedSlot]:
+    """What the appliance looks like (ADR-013), only when the model is sure of it: an unsure
+    trait would narrow to the wrong manual, and isn't worth a confirmation question."""
+    if result.features_confidence < LOW_CONFIDENCE:
+        return []
+    slots = [
+        PerceivedSlot(
+            name=f"{TRAIT_SLOT_PREFIX}{trait.name}",
+            value=trait.value,
+            source="vision",
+            confidence=result.features_confidence,
+        )
+        for trait in result.features
+    ]
+    if result.badges:
+        slots.append(
+            PerceivedSlot(
+                name=BADGE_SLOT,
+                value=result.badges[0],
+                source="vision",
+                confidence=result.features_confidence,
+            )
+        )
+    return slots
+
+
 def _vision_slots(result: VisionResult) -> list[PerceivedSlot]:
     issues = [i.strip() for i in result.visible_issues if i.strip()][:MAX_SYMPTOM_ISSUES]
     values = {
@@ -69,7 +96,7 @@ def _vision_slots(result: VisionResult) -> list[PerceivedSlot]:
         )
         for name, value in values.items()
         if value
-    ]
+    ] + _look_slots(result)
 
 
 def _video_slots(result: VideoResult) -> list[PerceivedSlot]:

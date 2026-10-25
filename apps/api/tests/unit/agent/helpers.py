@@ -94,5 +94,6 @@ DIAGNOSE_ACTIONS = [
     "mcp:user_profile.get_warranty_status",
     "mcp:user_profile.list_repair_history",
     "knowledge.search",
+    "mcp:tutorials.search_videos",
     "plan.build",
 ]

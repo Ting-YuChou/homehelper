@@ -31,7 +31,7 @@ from homehelper.agent.tools import ToolOutcome, from_llm_name, without_user
 from homehelper.agent.turn import MAX_TRANSCRIPT_LINES, AgentReply, GraphState
 from homehelper.core.logging import get_logger
 from homehelper.core.text import neutralize_tags
-from homehelper.knowledge.schemas import RetrievedChunk
+from homehelper.knowledge.schemas import RetrievedChunk, WebFinding
 from homehelper.knowledge.web import format_for_responder
 from homehelper.llm import LLMError, Message, ToolSpec
 
@@ -106,6 +106,7 @@ class ResponsePlan:
     excerpts: list[RetrievedChunk] = field(default_factory=list)
     plan_item: dict[str, object] | None = None
     cite: bool = False  # whether the LLM check for grounding applies
+    web: list[WebFinding] | None = None  # the step's web sources; None: all of the retrieval's
 
     @property
     def citable_ids(self) -> set[str]:
@@ -158,6 +159,8 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
             if item is None:
                 return ResponsePlan(task="Ask the user how it is going.")
             cited = set(item.citation_ids)
+            findings = turn.retrieval.web_findings if turn.retrieval else []
+            web = [f for f in findings if f.id in cited]
             return ResponsePlan(
                 task="Present the next troubleshooting step.",
                 excerpts=[chunk for chunk in retrieved if chunk.chunk_id in cited],
@@ -167,8 +170,11 @@ def response_plan(graph: GraphState, deps: AgentDeps) -> ResponsePlan:
                     "instruction": item.instruction,
                     "warranty_warning": item.warranty_warning,
                     "safety_rule": item.safety_rule,
+                    "general": item.general,
+                    "from_web": bool(web) and len(web) == len(cited),
                 },
                 cite=True,
+                web=web,
             )
         case "inform" if turn.retrieval is None:
             # Answered from tools (profile, parts, videos), not from the manuals.
@@ -316,6 +322,15 @@ def tool_result_text(outcome: ToolOutcome) -> str:
     return text if len(text) <= MAX_TOOL_RESULT_CHARS else text[:MAX_TOOL_RESULT_CHARS] + "…"
 
 
+def identified_manual(graph: GraphState, deps: AgentDeps) -> str | None:
+    """The title of the one manual a rebuilt plan comes from, if it is one (ADR-013)."""
+    basis = graph.state.plan_basis
+    if deps.manuals is None or basis is None or basis.scope == "generic":
+        return None
+    entry = deps.manuals.entry(basis.doc_ids[0]) if basis.doc_ids else None
+    return entry.title if entry else None
+
+
 def step_tools(graph: GraphState, deps: AgentDeps) -> list[str]:
     """The read tools the responder may call this turn (the step's `tools_allowed`)."""
     if deps.tools is None:
@@ -336,7 +351,10 @@ def respond_messages(
     power_off_first = any(
         r.rule_id == HAZARD_RULES["water_near_electric"] for r in turn.fixed_replies
     )
-    web = turn.retrieval.web_findings if turn.retrieval and plan.cite else []
+    if plan.web is not None:
+        web = plan.web
+    else:
+        web = turn.retrieval.web_findings if turn.retrieval and plan.cite else []
     prompt = prompts.render(
         "respond",
         task=plan.task,
@@ -361,6 +379,8 @@ def respond_messages(
         resumed_issue=resumed_summary(graph),
         tool_results=[tool_result_text(o) for o in turn.tool_results],
         tools_offered=tools_offered,
+        model_hint=turn.model_hint is not None,
+        identified_manual=identified_manual(graph, deps),
         feedback=turn.verdict.reasons if turn.verdict and turn.verdict.action == "revise" else [],
         transcript=graph.transcript[-MAX_TRANSCRIPT_LINES:],
         user_text=user_text(graph),

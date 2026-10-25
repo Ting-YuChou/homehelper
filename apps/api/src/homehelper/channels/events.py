@@ -39,6 +39,14 @@ class InboundMessage(BaseModel):
 # --- Cards ---------------------------------------------------------------------------------
 
 
+class WebSource(BaseModel):
+    """An unofficial web page a step comes from (spec §10.6, ADR-013)."""
+
+    url: str
+    title: str | None = None
+    domain: str
+
+
 class StepCard(BaseModel):
     type: Literal["step"] = "step"
     plan_item_id: str
@@ -49,6 +57,8 @@ class StepCard(BaseModel):
     actions: list[StepResult] = Field(default_factory=lambda: ["fixed", "not_fixed", "cannot_do"])
     warranty_warning: bool = False
     issue_id: str | None = None  # the issue this plan belongs to (ADR-007)
+    web_sources: list[WebSource] = Field(default_factory=list)
+    general: bool = False  # not specific to the user's model, which is unknown (ADR-013)
 
 
 class CitationCard(BaseModel):

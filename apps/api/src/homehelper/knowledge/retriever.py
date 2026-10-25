@@ -9,6 +9,11 @@ A model level that finds chunks ends the search even below τ: once the model nu
 identified the user's own manual, another model's manual is confidently wrong however well it
 scores (ADR-012). Below τ the web fallback still runs, but adds its findings to that manual's
 chunks instead of replacing them.
+
+Without a model number the query may name the manuals the appliance can be (`doc_ids`, ADR-013):
+the `candidates` level, which ends the search like the model level. With several, `per_doc` caps
+the chunks from each so that the planner sees what they share, and the query's `web` mode can
+add web findings to every result, not only to an insufficient one.
 """
 
 import copy
@@ -104,6 +109,26 @@ def rrf(ranked_lists: Sequence[tuple[float, Sequence[Candidate]]], k: int) -> li
     return sorted(scored.values(), key=lambda s: s.fused, reverse=True)
 
 
+def _pins(level: FilterLevel) -> bool:
+    """The user's own manual (the model number's), or the manuals their appliance can be:
+    relaxing past them only finds other brands' and models' (ADR-012, ADR-013)."""
+    return level in ("model", "candidates")
+
+
+def _per_doc(ranked: list[_Scored], per_doc: int, top_k: int) -> list[_Scored]:
+    """The best-ranked items, at most `per_doc` from any one manual."""
+    taken: dict[str, int] = {}
+    out: list[_Scored] = []
+    for item in ranked:
+        doc_id = str(item.candidate.metadata.get("doc_id"))
+        if taken.get(doc_id, 0) < per_doc:
+            taken[doc_id] = taken.get(doc_id, 0) + 1
+            out.append(item)
+        if len(out) == top_k:
+            break
+    return out
+
+
 class KnowledgeRetriever:
     def __init__(
         self,
@@ -152,6 +177,13 @@ class KnowledgeRetriever:
             ]
             if doc_ids:
                 levels.append(("model", {"doc_id": doc_ids}))
+        if query.doc_ids and not levels:
+            known = {
+                m.doc_id for m in self._manuals if category is None or m.category.value == category
+            }
+            candidates = [doc_id for doc_id in query.doc_ids if doc_id in known]
+            if candidates:
+                levels.append(("candidates", {"doc_id": candidates}))
         brand = self._brands.get((query.brand or "").strip().lower())
         if brand and category:
             levels.append(("brand_category", {"brand": brand, "category": category}))
@@ -174,6 +206,7 @@ class KnowledgeRetriever:
 
         embedding = await self._embedder.embed_query(query.query_en)
         best: RetrievalResult | None = None
+        pinned = False
         for level, filters in self.filter_levels(query):
             result = await self._search_level(query, embedding, level, filters)
             log.info(
@@ -188,16 +221,15 @@ class KnowledgeRetriever:
             if result.sufficient:
                 best = result
                 break
-            if level == "model" and result.chunks:
-                best = result  # the user's own manual, however it scored (ADR-012)
+            if _pins(level) and result.chunks:
+                best, pinned = result, True  # the user's own manual, however it scored (ADR-012)
                 break
 
         result = best or RetrievalResult(query=query, source="none", kb_version=self._kb_version)
-        if not result.sufficient and self._web is not None:
+        wanted = query.web == "always_add" or not result.sufficient
+        if wanted and self._web is not None:
             findings = await self._web.search(query)
-            if findings and result.filter_level == "model":
-                result = result.model_copy(update={"web_findings": findings})
-            elif findings:
+            if findings and query.web == "replace" and not pinned:
                 result = RetrievalResult(
                     query=query,
                     source="web",
@@ -205,6 +237,9 @@ class KnowledgeRetriever:
                     kb_version=self._kb_version,
                     sufficient=True,
                 )
+            elif findings:
+                source = result.source if result.chunks else "web"
+                result = result.model_copy(update={"web_findings": findings, "source": source})
         if self._cache is not None:
             await self._cache.set(cache_key, result.model_dump_json(), ex=self._cache_ttl_s)
         return result
@@ -232,7 +267,12 @@ class KnowledgeRetriever:
                 query=query, source="none", filter_level=level, kb_version=self._kb_version
             )
 
-        top = await self._rerank(query.query_en, fused[: config.rerank_candidates], query.top_k)
+        candidates = fused[: config.rerank_candidates]
+        if query.per_doc:
+            ranked = await self._rerank(query.query_en, candidates, len(candidates))
+            top = _per_doc(ranked, query.per_doc, query.top_k)
+        else:
+            top = await self._rerank(query.query_en, candidates, query.top_k)
         if top[0].rerank is not None:
             top_score = top[0].rerank
             above = top_score >= config.tau

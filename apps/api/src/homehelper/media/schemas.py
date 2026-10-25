@@ -12,12 +12,21 @@ from homehelper.agent.state import HazardSignal
 from homehelper.media.validation import MediaKind
 
 MAX_ISSUES = 5
+MAX_FEATURES = 6
+MAX_BADGES = 3
 
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True)]
 
 
 def _cut(value: str | None, limit: int) -> str | None:
     return value[:limit] if isinstance(value, str) else value
+
+
+class SeenTrait(BaseModel):
+    """A visible trait from the list in the prompt (`features.yaml`), e.g. type=front_load."""
+
+    name: str
+    value: str
 
 
 class VisionResult(BaseModel):
@@ -46,6 +55,19 @@ class VisionResult(BaseModel):
     confidence: float = Field(
         ge=0, le=1, description="How sure you are of category, brand and model number together."
     )
+    # What the appliance looks like, to tell its brand's manuals apart without a model number
+    # (ADR-013). Its own confidence: a clear photo of the front shows no nameplate.
+    features: list[SeenTrait] = Field(
+        default_factory=list,
+        description="Visible traits from the list given, as name and value; only those you see.",
+    )
+    badges: list[ShortText] = Field(
+        default_factory=list,
+        description="Series or product-line names printed on the appliance, e.g. 'QLED'. Max 3.",
+    )
+    features_confidence: float = Field(
+        default=0, ge=0, le=1, description="How sure you are of the features and badges."
+    )
 
     @field_validator("category", "brand", "displayed_error_code", mode="before")
     @classmethod
@@ -61,6 +83,18 @@ class VisionResult(BaseModel):
     @classmethod
     def _nameplate(cls, value: str | None) -> str | None:
         return _cut(value, 500)
+
+    @field_validator("features", mode="before")
+    @classmethod
+    def _features(cls, value: object) -> object:
+        return value[:MAX_FEATURES] if isinstance(value, list) else value
+
+    @field_validator("badges", mode="before")
+    @classmethod
+    def _badges(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [str(badge)[:40] for badge in value[:MAX_BADGES]]
+        return value
 
     @field_validator("visible_issues", mode="before")
     @classmethod

@@ -15,6 +15,7 @@ const step = {
   citations: [],
   actions: ["fixed" as const, "not_fixed" as const, "cannot_do" as const],
   warranty_warning: false,
+  general: false,
 };
 
 describe("applyEvent", () => {

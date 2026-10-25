@@ -10,6 +10,28 @@ _NON_MODEL_CHARS = re.compile(r"[^A-Z0-9*?]")
 _NON_CODE_CHARS = re.compile(r"[^A-Z0-9]")
 
 
+# What people type when they don't have a model number ("not sure", "N/A", "idk").
+_NOT_A_MODEL = re.compile(
+    r"\b(unknown|not sure|don'?t know|no[\s-]?idea|idk|n/?a|none|missing|can'?t find|"
+    r"cannot find)\b",
+    re.I,
+)
+
+
+def looks_like_model(value: str) -> bool:
+    """A model number has at least three letters or digits and usually a digit; without one it
+    is a single word in capitals of at least four ("BVMC-HC", "WHAPSRO"). An answer like "I
+    don't know" is not one. `understand` also checks a value without a digit against the
+    manuals' model patterns, which this pure check can't see."""
+    if _NOT_A_MODEL.search(value):
+        return False
+    compact = _NON_MODEL_CHARS.sub("", value.upper()).replace("*", "").replace("?", "")
+    if any(c.isdigit() for c in compact):
+        return len(compact) >= 3
+    word = value.strip()
+    return len(compact) >= 4 and " " not in word and word == word.upper()
+
+
 def normalize_model(value: str) -> str:
     """Uppercase and drop separators (spaces, `-`, `/`, `.`); keeps `*`/`?` wildcards."""
     return _NON_MODEL_CHARS.sub("", value.upper())

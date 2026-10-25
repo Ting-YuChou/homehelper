@@ -11,12 +11,14 @@ appliance, so these cases measure what the agent does with a photo, not how well
 
 import asyncio
 from collections.abc import Sequence
+from functools import cache
 from pathlib import Path
 from typing import Any, Literal
 
-from homehelper.media.schemas import VisionResult
+from homehelper.knowledge.features import FEATURES_FILE, FeatureCatalog
+from homehelper.media.schemas import SeenTrait, VisionResult
 from homehelper.media.source import LoadedMedia
-from homehelper_evals import REPO_ROOT
+from homehelper_evals import MANIFEST_PATH, REPO_ROOT
 from homehelper_evals.cases import EvalCase
 
 MEDIA_ROOT = REPO_ROOT / "data" / "media"
@@ -58,13 +60,29 @@ def simulated_photo(case: EvalCase, kind: PhotoKind | None) -> str | None:
 
 
 def simulated_analysis(case: EvalCase, kind: PhotoKind) -> VisionResult:
+    """What a vision model would report: the sticker's model number, or the appliance's look
+    as `features.yaml` describes the case's manual (the first value of each trait)."""
+    features = _features().manual(case.expected_doc_id) if case.expected_doc_id else None
+    exterior = kind == "exterior" and features is not None
     return VisionResult(
         category=case.category.value if case.category else None,
         brand=case.brand,
         model_number=case.model_number if kind == "nameplate" else None,
         nameplate_text=f"MODEL {case.model_number}" if kind == "nameplate" else None,
         confidence=SIMULATED_CONFIDENCE[kind],
+        features=[
+            SeenTrait(name=name, value=values[0])
+            for name, values in (features.traits.items() if exterior and features else [])
+            if values
+        ],
+        badges=features.badges[:1] if exterior and features else [],
+        features_confidence=SIMULATED_CONFIDENCE["exterior"] if exterior else 0,
     )
+
+
+@cache
+def _features() -> FeatureCatalog:
+    return FeatureCatalog.load(MANIFEST_PATH.parent / FEATURES_FILE)
 
 
 class EvalMediaSource:

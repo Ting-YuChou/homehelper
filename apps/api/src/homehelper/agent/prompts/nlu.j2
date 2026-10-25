@@ -3,7 +3,8 @@ Purpose: `understand` node (M3-03). Turns the user's latest message into structu
 the journey engine; it never writes a reply.
 Inputs: journey (str|None), step (str|None), step_goal (str|None), slots (dict name -> value),
   presented_step (str|None), categories (list[str]), transcript (list of {role, text}),
-  user_text (str), media_notes (list[str]: what the user's photos or videos show, M6-02).
+  user_text (str), media_notes (list[str]: what the user's photos or videos show, M6-02),
+  traits (list of {slot, values}: what the appliance may look like, ADR-013).
 Output schema: homehelper.agent.state.NLUResult
 #}
 You analyze one message in a conversation between a user and HomeHelper, an assistant that
@@ -56,7 +57,17 @@ Fields:
   - symptom: a short description of the problem (for report_problem, ask_parts and
     book_technician).
   - question: the user's question (for ask_how_to).
-  - brand, model_number, error_code: exactly as the user wrote them.
+  - brand, model_number, error_code: exactly as the user wrote them. model_number only for an
+    actual model number (usually letters and digits, sometimes only letters such as BVMC-HC);
+    never "unknown" or "I don't know".
+{% if traits %}
+  - what the appliance looks like, only when the user says it, as one of these values:
+{% for trait in traits %}
+    {{ trait.slot }}: {{ trait["values"] | join(", ") }}
+{% endfor %}
+  - badge: a series or product-line name the user reads on the appliance or knows it by
+    ("800 Series", "QLED"), exactly as they wrote it.
+{% endif %}
 - step_feedback: when the message reports on the step they were asked to try: "fixed" (it
   worked), "not_fixed" (they did it and the problem remains), "cannot_do" (they cannot or will
   not do it), "unclear". Otherwise null.

@@ -72,6 +72,7 @@ from homehelper.agent.state import (
     PlanItemStatus,
     SlotValue,
 )
+from homehelper.knowledge.model_numbers import looks_like_model
 from homehelper.knowledge.schemas import CategoryId
 
 # Conversation-level appliance context, carried into the next journey on the same appliance.
@@ -641,6 +642,7 @@ class _Run:
         state.plan_cursor = 0
         state.step_attempts = {}
         state.last_retrieval = None
+        state.plan_basis = None
         if "appliance_category" not in carried:
             state.appliance_id = None  # the same appliance keeps its link across journeys
         state.selected_booking_slot = None
@@ -686,6 +688,10 @@ class _Run:
                         "slot", f"rejected {update.name}={update.value!r}: not an allowed value"
                     )
                     continue
+            if update.name == "model_number" and not looks_like_model(value):
+                # "I don't know it" is an answer, not a model number (ADR-013).
+                self._log("slot", f"rejected model_number={update.value!r}: not a model number")
+                continue
             self.state.slots[update.name] = SlotValue(
                 value=value, source="user", confidence=1.0, confirmed=True
             )
@@ -828,7 +834,21 @@ class _Run:
         if is_ended(journey, self.state):
             return False
         for guard in journey.guardrails:
-            if guard.to == self.state.step_id or not self._holds(journey, guard.when, signals):
+            if not self._holds(journey, guard.when, signals):
+                continue
+            if guard.to == self.state.step_id:
+                # Already there: nothing to enter, but the reason for being there changed (a
+                # hazard or a technician request at a handoff), so later turns see it.
+                into = self._reason_for_step()
+                if into is None or into.predicate != guard.when:
+                    self._log(
+                        "guardrail",
+                        f"guardrail {guard.when} holds at its own step",
+                        from_step=self.state.step_id,
+                        to_step=guard.to,
+                        predicate=guard.when,
+                        rule_id=GUARDRAIL_RULE_IDS.get(guard.when),
+                    )
                 continue
             rule_id = GUARDRAIL_RULE_IDS.get(guard.when)
             if guard.when == "hazard_detected" and signals and signals.escalating_hazards:
@@ -844,6 +864,14 @@ class _Run:
             self._enter(journey, guard.to)
             return True
         return False
+
+    def _reason_for_step(self) -> Decision | None:
+        """The latest decision that led to the current step, this turn's included."""
+        step_id = self.state.step_id
+        for decision in reversed([*self.state.decision_log, *self.decisions]):
+            if decision.to_step == step_id:
+                return decision
+        return None
 
     def _step_transitions(self, journey: Journey, signals: TurnSignals | None) -> None:
         step = self._current_step(journey)

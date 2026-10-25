@@ -12,7 +12,9 @@ from homehelper.agent.engine.perception import LOW_CONFIDENCE
 from homehelper.agent.engine.schema import Journey
 from homehelper.agent.engine.signals import TurnSignals
 from homehelper.agent.guardrails.rules import MAX_FAILED_STEPS
-from homehelper.agent.state import AgentState
+from homehelper.agent.state import AgentState, SlotValue
+from homehelper.knowledge.features import BADGE_SLOT, TRAIT_SLOT_PREFIX
+from homehelper.knowledge.model_numbers import normalize_model
 
 
 @dataclass(frozen=True)
@@ -59,12 +61,52 @@ def has_pending_item(state: AgentState) -> bool:
     return any(item.status == "pending" for item in state.plan)
 
 
+def has_open_item(state: AgentState) -> bool:
+    """A step still to try, or the one shown and not answered yet (a diagnosis repeated
+    midway keeps it)."""
+    return any(item.status in ("pending", "presented") for item in state.plan)
+
+
 def failed_step_count(state: AgentState) -> int:
     return sum(
         1
         for item in state.plan
         if item.status in ("done_not_fixed", "skipped") and item.safety_rule is None
     )
+
+
+def slot_traits(state: AgentState) -> dict[str, str]:
+    """What the user says the appliance looks like, by trait name (`trait_<name>` slots)."""
+    return {
+        name.removeprefix(TRAIT_SLOT_PREFIX): slot.value
+        for name, slot in state.slots.items()
+        if name.startswith(TRAIT_SLOT_PREFIX)
+    }
+
+
+def usable_model(slot: SlotValue | None) -> str | None:
+    """A model number the user gave, or one a photo showed clearly enough."""
+    if slot is None or (not slot.confirmed and slot.confidence < LOW_CONFIDENCE):
+        return None
+    return slot.value
+
+
+def identification_changed_since_plan(state: AgentState) -> bool:
+    """The details that tell manuals apart differ from those the plan was built on: a new model
+    number, or (without one) a new trait or badge."""
+    basis = state.plan_basis
+    if basis is None:
+        return False
+    model = usable_model(state.slots.get("model_number"))
+    if model is not None and normalize_model(model) != normalize_model(basis.model_number or ""):
+        return True
+    if basis.scope == "model":
+        return False
+    brand = state.slots.get("brand")
+    if (brand.value.strip().lower() if brand else None) != (basis.brand or None):
+        return True  # a brand given or corrected: other candidates
+    badge = state.slots.get(BADGE_SLOT)
+    return slot_traits(state) != basis.traits or (badge.value if badge else None) != basis.badge
 
 
 def unconfirmed_low_confidence(state: AgentState) -> list[str]:
@@ -138,13 +180,13 @@ def no_relevant_knowledge(ctx: PredicateContext) -> bool:
 
 @predicate("plan_available")
 def plan_available(ctx: PredicateContext) -> bool:
-    return has_pending_item(ctx.state)
+    return has_open_item(ctx.state)
 
 
 @predicate("plan_unavailable")
 def plan_unavailable(ctx: PredicateContext) -> bool:
     """No usable plan: nothing retrieved, or post-processing removed every item."""
-    return not has_pending_item(ctx.state)
+    return not has_open_item(ctx.state)
 
 
 @predicate("user_reports_fixed")
@@ -192,3 +234,25 @@ def no_profile(ctx: PredicateContext) -> bool:
 @predicate("user_asked_followup")
 def user_asked_followup(ctx: PredicateContext) -> bool:
     return ctx.signals is not None and ctx.signals.intent == "ask_how_to"
+
+
+@predicate("identification_changed")
+def identification_changed(ctx: PredicateContext) -> bool:
+    """This turn told the manuals apart better than the plan's basis (ADR-013): diagnose again,
+    keeping the steps already tried."""
+    return ctx.signals is not None and identification_changed_since_plan(ctx.state)
+
+
+@predicate("identification_changed_after_no_plan")
+def identification_changed_after_no_plan(ctx: PredicateContext) -> bool:
+    """As `identification_changed`, at a handoff that came only from having no plan: the
+    model's own manual may cover the problem. A hazard (ever, in this conversation), failed
+    steps or a request for a technician keep the handoff."""
+    signals = ctx.signals
+    if not identification_changed(ctx) or signals is None:
+        return False
+    if ctx.state.hazard_flags or signals.hazards or signals.intent == "book_technician":
+        return False
+    state = ctx.state
+    into = next((d for d in reversed(state.decision_log) if d.to_step == state.step_id), None)
+    return into is not None and into.predicate == "plan_unavailable"

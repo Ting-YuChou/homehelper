@@ -7,6 +7,7 @@ read like instructions to an AI. What survives is handed to the responder wrappe
 data delimiters, labelled as unofficial.
 """
 
+import hashlib
 import re
 from collections.abc import Sequence
 from pathlib import Path
@@ -52,7 +53,10 @@ class Whitelist(BaseModel):
         return sorted({d for domains in self.brands.values() for d in domains} | set(self.general))
 
     def allows(self, url: str) -> bool:
-        host = (urlparse(url).hostname or "").lower()
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False  # shown as a link: never javascript: or data:
+        host = (parsed.hostname or "").lower()
         allowed = {*self.general, *(d for ds in self.brands.values() for d in ds)}
         return any(host == d or host.endswith(f".{d}") for d in allowed)
 
@@ -83,10 +87,19 @@ class TavilySearchClient:
         ]
 
 
+class ExtractedClaim(BaseModel):
+    claim: str
+    url: str
+
+
 class WebExtraction(BaseModel):
-    findings: list[WebFinding] = Field(
+    findings: list[ExtractedClaim] = Field(
         description="Factual appliance troubleshooting claims, each with the URL it came from"
     )
+
+
+def finding_id(url: str, claim: str) -> str:
+    return "web-" + hashlib.sha256(f"{url}\n{claim}".encode()).hexdigest()[:10]
 
 
 EXTRACTION_SYSTEM = (
@@ -100,8 +113,13 @@ EXTRACTION_SYSTEM = (
 )
 
 
+def _appliance(query: RetrievalQuery) -> str:
+    category = query.category.value.replace("_", " ") if query.category else None
+    return " ".join(p for p in (query.brand, query.model_number, *query.appearance, category) if p)
+
+
 def _prompt(query: RetrievalQuery, hits: Sequence[SearchHit]) -> list[Message]:
-    appliance = " ".join(p for p in (query.brand, query.category, query.model_number) if p)
+    appliance = _appliance(query)
     results = "\n\n".join(
         # Page text cannot close the tags around it.
         f'<result url="{neutralize_tags(hit.url)}">\n{neutralize_tags(hit.title)}\n'
@@ -121,9 +139,10 @@ def _prompt(query: RetrievalQuery, hits: Sequence[SearchHit]) -> list[Message]:
 
 
 def sanitize(
-    findings: Sequence[WebFinding], hits: Sequence[SearchHit], whitelist: Whitelist
+    findings: Sequence[ExtractedClaim], hits: Sequence[SearchHit], whitelist: Whitelist
 ) -> list[WebFinding]:
     returned = {hit.url for hit in hits}
+    titles = {hit.url: hit.title for hit in hits}
     kept: list[WebFinding] = []
     for finding in findings:
         reason = None
@@ -136,7 +155,15 @@ def sanitize(
         if reason:
             log.warning("web_finding_dropped", reason=reason, url=finding.url)
             continue
-        kept.append(WebFinding(claim=finding.claim.strip()[:MAX_CLAIM_CHARS], url=finding.url))
+        claim = finding.claim.strip()[:MAX_CLAIM_CHARS]
+        kept.append(
+            WebFinding(
+                claim=claim,
+                url=finding.url,
+                id=finding_id(finding.url, claim),
+                title=titles.get(finding.url) or None,
+            )
+        )
     return kept
 
 
@@ -150,9 +177,7 @@ class WebKnowledge:
 
     async def search(self, query: RetrievalQuery) -> list[WebFinding]:
         domains = self._whitelist.domains_for(query.brand)
-        search_text = " ".join(
-            p for p in (query.brand, query.model_number, query.category, query.query_en) if p
-        )
+        search_text = f"{_appliance(query)} {query.query_en}".strip()
         try:
             hits = await self._client.search(search_text, domains, MAX_RESULTS)
         except Exception as exc:  # the fallback must never break a turn
