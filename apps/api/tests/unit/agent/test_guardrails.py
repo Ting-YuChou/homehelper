@@ -619,3 +619,23 @@ def test_water_persists_needs_cue_water_and_electricity_in_one_clause(
     text: str | None, persists: bool
 ) -> None:
     assert water_persists(text) is persists
+
+
+def test_a_replan_with_only_powered_steps_keeps_the_steps_left_to_try() -> None:
+    from homehelper.agent.guardrails.plan import merge_plan
+
+    current = [
+        item("p1", status="done_not_fixed"),
+        item("p2", status="presented"),
+        item("p3"),
+    ]
+    new = [item("p1", instruction="Run a cycle.", status="skipped", safety_rule="G-SAFE-08")]
+    edit = merge_plan(current, new)
+    assert edit.items == current
+    assert [d.reason for d in edit.decisions] == [
+        "kept the current plan: every new step needs the power"
+    ]
+    # With nothing left to try, the skipped steps come in, so the handoff can say why.
+    tried = [item("p1", status="done_not_fixed")]
+    merged = merge_plan(tried, new).items
+    assert [(i.id, i.status) for i in merged] == [("p1", "done_not_fixed"), ("p2", "skipped")]

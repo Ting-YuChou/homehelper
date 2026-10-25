@@ -18,6 +18,7 @@ from homehelper.agent.state import Decision, PlanItem
 MAX_PLAN_ITEMS = 6
 WEB_ID_PREFIX = "web-"  # web findings' ids (`knowledge.web.finding_id`)
 TRIED: frozenset[str] = frozenset({"done_not_fixed", "skipped"})
+OPEN: frozenset[str] = frozenset({"pending", "presented"})
 
 POWER_OFF_INSTRUCTION = (
     "Before you go further, unplug the appliance or switch off its circuit breaker, and keep it "
@@ -310,14 +311,22 @@ def merge_plan(current: list[PlanItem], new: list[PlanItem]) -> PlanEdit:
     """A plan built again (a model number or the appliance's look arrived midway): the steps
     already tried stay first, with their results and ids, so they still count towards
     G-LOOP-01; the new plan replaces the rest, including a step shown but not answered. With
-    no new steps the current plan stays as it is. New items are numbered after the highest id
-    the plan used, so no card ever shows a reused id."""
+    no new steps the current plan stays as it is, and so it does when every new step was
+    skipped for safety (G-SAFE-08) while the current plan still has steps to try. New items are
+    numbered after the highest id the plan used, so no card ever shows a reused id."""
     if not new:
         return PlanEdit(
             items=current,
             decisions=[_plan_decision("kept the current plan: the new one has no steps")]
             if current
             else [],
+        )
+    if not any(item.status in OPEN for item in new) and any(
+        item.status in OPEN for item in current
+    ):
+        return PlanEdit(
+            items=current,
+            decisions=[_plan_decision("kept the current plan: every new step needs the power")],
         )
     if not current:
         return PlanEdit(items=new)
@@ -336,9 +345,10 @@ def merge_plan(current: list[PlanItem], new: list[PlanItem]) -> PlanEdit:
             item_id = f"p{counts['p']}"
         merged.append(item.model_copy(update={"id": item_id}))
     decisions = []
-    if tried:
+    done = [item for item in tried if not skipped_for_power(item)]
+    if done:
         decisions.append(
-            _plan_decision(f"kept {len(tried)} tried steps; {len(new)} new steps after them")
+            _plan_decision(f"kept {len(done)} tried steps; {len(new)} new steps after them")
         )
     return PlanEdit(items=merged, decisions=decisions)
 
