@@ -59,6 +59,8 @@ steps:
     actions: [mcp:user_profile.get_warranty_status, mcp:user_profile.list_repair_history,
               knowledge.search, mcp:tutorials.search_videos, plan.build]
     transitions:
+      - when: only_powered_steps_left               # G-SAFE-08: the rest needs the power on
+        to: escalate
       - when: plan_exhausted                        # diagnosed again after the last step
         to: escalate
       - when: plan_available
@@ -77,6 +79,8 @@ steps:
         to: diagnose                                # tried steps stay tried (ADR-013)
       - when: user_reports_not_fixed_and_plan_has_next
         to: guide                                   # re-entry presents the next plan item
+      - when: only_powered_steps_left               # G-SAFE-08: the rest needs the power on
+        to: escalate
       - when: plan_exhausted
         to: escalate
 

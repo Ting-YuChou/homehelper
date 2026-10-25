@@ -9,7 +9,7 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel
 
-from homehelper.agent.state import HazardSignal
+from homehelper.agent.state import AgentState, HazardSignal
 
 _ALL_HAZARDS: tuple[HazardSignal, ...] = get_args(HazardSignal)
 
@@ -111,6 +111,38 @@ KEYWORD_RULES: dict[HazardSignal, tuple[str, ...]] = {
 
 # Opening the casing of these appliances exposes high-voltage parts (G-SAFE-03).
 HIGH_VOLTAGE_CATEGORIES = frozenset({"microwave", "television"})
+
+# Hazards whose fixed reply tells the user to cut the power or not to touch switches; once one
+# was flagged for an appliance, none of its plan steps may need the power back on (G-SAFE-08).
+POWER_OFF_HAZARDS: frozenset[HazardSignal] = frozenset(
+    {"water_near_electric", "smoke_or_burning", "sparks", "gas_smell"}
+)
+ANY_APPLIANCE = "*"  # a gas smell: no switches anywhere in the home
+UNASSIGNED = "unassigned"  # reported before any issue: the next issue takes it
+
+
+def issue_key(issue_id: str) -> str:
+    return f"issue:{issue_id}"
+
+
+def issue_power_off(state: AgentState) -> list[str]:
+    """The power-off hazards that apply to the active issue: its own, those of other issues
+    about the same appliance (as their records say now, so a corrected appliance doesn't
+    carry a stale hazard), those reported about its appliance by name, and gas."""
+    category_slot = state.slots.get("appliance_category")
+    category = category_slot.value if category_slot else None
+    keys = {ANY_APPLIANCE}
+    if state.active_issue_id:
+        keys.add(issue_key(state.active_issue_id))
+    if category:
+        keys.add(category)
+        keys.update(
+            issue_key(record.issue_id)
+            for record in state.issues
+            if record.issue_id != state.active_issue_id and record.appliance_category == category
+        )
+    return sorted({signal for key in keys for signal in state.power_off.get(key, [])})
+
 
 # DOTALL: `.{0,N}` windows must also span line breaks in multi-line messages.
 _FLAGS = re.IGNORECASE | re.DOTALL

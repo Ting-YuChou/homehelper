@@ -74,6 +74,17 @@ RULES: dict[str, GuardrailRule] = {
             "hazards.detect_hazards + journey guardrail hazard_detected",
         ),
         GuardrailRule(
+            "G-SAFE-08",
+            "A hazard that told the user to cut the power (water near electricity, smoke, "
+            "sparks) for that appliance, or a gas smell for any",
+            "No step that needs the power on, the appliance running, or an outlet or cord: the "
+            "planner is told, and code skips such steps (not counted as failed); a plan left "
+            "with only those hands off for that reason",
+            "structural",
+            "plan.skip_powered at plan.build; transition._skip_powered_steps every turn; "
+            "predicate only_powered_steps_left",
+        ),
+        GuardrailRule(
             "G-WARR-01",
             "Under warranty + disassembly step",
             "Warn that the warranty may be voided; offer warranty service",

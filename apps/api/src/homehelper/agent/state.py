@@ -58,6 +58,7 @@ class PlanItem(BaseModel):
     instruction: str
     citation_ids: list[str] = Field(default_factory=list)  # KB chunk ids
     requires_disassembly: bool = False
+    requires_power: bool = False  # powered, running, given power back, or an outlet/plug/cord
     requires_tools: list[str] = Field(default_factory=list)
     risk_level: Literal["low", "medium", "high"] = "low"
     status: PlanItemStatus = "pending"
@@ -161,6 +162,9 @@ class AgentState(BaseModel):
     plan_cursor: int = 0
     step_attempts: dict[str, int] = Field(default_factory=dict)
     hazard_flags: list[str] = Field(default_factory=list)
+    # G-SAFE-08: hazards after which the user was told to cut the power, keyed by issue
+    # ("issue:<id>"), by an appliance named in the text, "*" (a gas smell) or "unassigned".
+    power_off: dict[str, list[str]] = Field(default_factory=dict)
     # G-SAFE-05's power-off warning was given for the current journey (once per problem).
     water_warning_given: bool = False
     frustrated_turns: int = 0  # consecutive turns with user_sentiment == "frustrated" (G-LOOP-01)

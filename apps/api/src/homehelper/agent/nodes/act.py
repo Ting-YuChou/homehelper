@@ -18,7 +18,8 @@ from homehelper.agent.engine.identify import appearance, identify, model_hint, s
 from homehelper.agent.engine.perception import media_input
 from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
-from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS, TRIED, merge_plan
+from homehelper.agent.guardrails.hazards import issue_power_off
+from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS, POWER_OFF_RULE, TRIED, merge_plan
 from homehelper.agent.nodes.mcp_actions import (
     as_tool_call,
     booking_confirmation,
@@ -55,6 +56,7 @@ class PlanDraftItem(BaseModel):
     instruction: str
     citation_ids: list[str] = Field(default_factory=list)
     requires_disassembly: bool = False
+    requires_power: bool = False
     requires_tools: list[str] = Field(default_factory=list)
     risk_level: Literal["low", "medium", "high"] = "low"
     targets_symptom: bool = False  # the excerpts tie this step to this exact symptom
@@ -169,7 +171,13 @@ async def build_plan(
     category = _slot(state, "appliance_category") or "appliance"
     basis = state.plan_basis
     generic = basis is not None and basis.scope == "generic"
-    tried = [item.instruction for item in state.plan if item.status in TRIED]
+    # A step skipped for safety (G-SAFE-08) was never tried.
+    tried = [
+        item.instruction
+        for item in state.plan
+        if item.status in TRIED and item.safety_rule != POWER_OFF_RULE
+    ]
+    power_off = issue_power_off(state)
     prompt = prompts.render(
         "planner",
         category=category.replace("_", " "),
@@ -183,6 +191,7 @@ async def build_plan(
         manuals=len(basis.doc_ids) if generic and basis else 0,
         tried=tried,
         max_items=MAX_PLAN_ITEMS,
+        power_off=power_off,
     )
     draft = await deps.llm.structured("planner", [Message(role="user", content=prompt)], PlanDraft)
     retrieved = retrieval.chunk_ids() | {str(f["id"]) for f in web}
@@ -193,6 +202,7 @@ async def build_plan(
             # An id the planner invented is not a citation (spec P3).
             citation_ids=[cid for cid in dict.fromkeys(item.citation_ids) if cid in retrieved],
             requires_disassembly=item.requires_disassembly,
+            requires_power=item.requires_power,
             requires_tools=item.requires_tools,
             risk_level=item.risk_level,
             general=generic,
@@ -201,7 +211,10 @@ async def build_plan(
     ]
     # `in_warranty` comes from the profile's warranty check (G-WARR-01).
     edit = postprocess_plan(
-        items, category=_slot(state, "appliance_category"), in_warranty=in_warranty
+        items,
+        category=_slot(state, "appliance_category"),
+        in_warranty=in_warranty,
+        hazards=power_off,
     )
     merged = merge_plan(state.plan, edit.items)
     decisions = [

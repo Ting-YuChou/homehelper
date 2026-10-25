@@ -393,3 +393,54 @@ async def test_two_issues_pause_offer_and_resume() -> None:
     finally:
         unregister()
     assert [e for e in events if "blocked" in str(e.get("kind", ""))] == []
+
+
+async def test_after_water_near_electricity_the_plan_keeps_the_power_off() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT],
+            "planner": [
+                PlanDraft(
+                    items=[
+                        PlanDraftItem(
+                            instruction="Add a tablespoon of vegetable oil and run a cycle.",
+                            citation_ids=["c1"],
+                        ),
+                        PlanDraftItem(instruction="Check the door seal.", citation_ids=["c2"]),
+                    ]
+                )
+            ],
+            "responder": [AgentReply(message="Once the breaker is off, check the door seal.")],
+            "supervisor": [PASS],
+        }
+    )
+    agent = _agent(llm)
+    events = await _send(agent, "My Bosch dishwasher flooded and a power strip is in the water")
+    assert any(isinstance(card, SafetyCard) for card in _cards(events))
+    (step,) = [card for card in _cards(events) if isinstance(card, StepCard)]
+    assert (step.instruction, step.total) == ("Check the door seal.", 1)
+    prompt = str(llm.calls_for("planner")[0].messages[-1].content)
+    assert "stays\nswitched off for this whole plan" in prompt
+    snapshot = await agent.snapshot("conv-1")
+    assert any(d.get("rule_id") == "G-SAFE-08" for d in snapshot.decision_log)
+
+
+async def test_a_plan_that_needs_the_power_hands_off_saying_so() -> None:
+    llm = FakeLLMClient(
+        {
+            "nlu": [REPORT],
+            "planner": [
+                PlanDraft(
+                    items=[PlanDraftItem(instruction="Run a rinse cycle.", citation_ids=["c1"])]
+                )
+            ],
+            "responder": [AgentReply(message="Please contact Bosch service.")],
+            "supervisor": [PASS],
+        }
+    )
+    events = await _send(
+        _agent(llm), "My Bosch dishwasher flooded and a power strip is in the water"
+    )
+    (handoff,) = [card for card in _cards(events) if isinstance(card, HandoffCard)]
+    assert handoff.reason == "The remaining steps need the power on, which isn't safe now"
+    assert not [card for card in _cards(events) if isinstance(card, StepCard)]

@@ -6,7 +6,8 @@ Inputs: category (str), brand (str|None), model_number (str|None), symptom (str)
   error_code (str|None), user_said (list[str]: the user's messages so far), excerpts (list of
   {id, manual, page, text}), web_findings (list of {id, claim, url}), manuals (int: how many
   manuals the excerpts may come from when the exact model is unknown; 0 when it is known),
-  tried (list[str]: steps the user already tried without success), max_items (int).
+  tried (list[str]: steps the user already tried without success), max_items (int),
+  power_off (list[str]: hazards that keep this appliance switched off; G-SAFE-08).
 Output schema: homehelper.agent.nodes.act.PlanDraft
 #}
 Write a troubleshooting plan for a home appliance problem, using only the manual excerpts and
@@ -24,6 +25,13 @@ What the user has told us so far:
 - {{ line }}
 {% endfor %}
 
+{% if power_off %}
+Safety: the user reported {{ power_off | join(", ") | replace("_", " ") }}, so the appliance stays
+switched off for this whole plan. Only plan steps that work with it unplugged or its breaker
+off: nothing that runs a cycle, turns it on, presses Start, plugs it in, resets a breaker, or
+touches an outlet, plug or cord (other than unplugging it). Code skips any such step.
+
+{% endif %}
 <manual_excerpts>
 {% for excerpt in excerpts %}
 <excerpt id="{{ excerpt.id }}" manual="{{ excerpt.manual }}" page="{{ excerpt.page }}">
@@ -79,6 +87,13 @@ Rules:
   or none of them address it, return no items.
 - `requires_disassembly`: the user must remove panels, covers or parts beyond normal user
   maintenance (removing a filter or a basket is not disassembly).
+- `requires_power`: the step needs the appliance powered or running, gives it power back, or
+  has the user check or touch an outlet, plug or power cord: running a cycle or the
+  appliance, pressing a button to see what happens, watching or listening for it to work,
+  plugging it in, turning a breaker, fuse, switch or the power back on, inspecting a cord
+  (even with it unplugged). Otherwise false for steps done with the power off, and for
+  unplugging or switching off. An "If ..."
+  clause describing a symptom does not count; the action after it does.
 - `requires_tools`: tools needed, e.g. "screwdriver"; empty if none.
 - `risk_level`: "high" for anything involving gas, refrigerant, internal high-voltage parts,
   or live electrical work; "medium" for disassembly; otherwise "low".

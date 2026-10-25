@@ -45,7 +45,17 @@ from homehelper.agent.engine.predicates import (
 from homehelper.agent.engine.profile import link_profile_appliance
 from homehelper.agent.engine.schema import Journey, Step, StepType
 from homehelper.agent.engine.signals import TurnInput, TurnSignals, signals_from_input
-from homehelper.agent.guardrails.hazards import HazardHit, detect_hazards, water_persists
+from homehelper.agent.guardrails.hazards import (
+    ANY_APPLIANCE,
+    POWER_OFF_HAZARDS,
+    UNASSIGNED,
+    HazardHit,
+    detect_hazards,
+    issue_key,
+    issue_power_off,
+    water_persists,
+)
+from homehelper.agent.guardrails.plan import skip_powered
 from homehelper.agent.guardrails.rules import (
     ESCALATING_HAZARDS,
     HAZARD_RULES,
@@ -374,6 +384,9 @@ class _Run:
         self.offer_paused = False  # an issue ended this turn: offer the paused ones
         self.remind_paused = False  # the user is wrapping up: remind them once
         self.hazard_category: str | None = None  # the appliance this turn's hazards are about
+        self.power_off_hits: list[HazardSignal] = []  # G-SAFE-08, recorded after routing
+        self.hazard_named: str | None = None  # an appliance the turn's text names
+        self.issue_before: str | None = None  # the active issue when the turn arrived
         # Unconfirmed slots before the turn: what a confirmation card showed.
         self.shown_for_confirmation: dict[str, SlotValue] = {}
 
@@ -390,6 +403,7 @@ class _Run:
     # --- entry points ---------------------------------------------------------------------
 
     def on_turn(self, turn: TurnInput) -> None:
+        self.issue_before = self.state.active_issue_id
         self.shown_for_confirmation = {
             name: self.state.slots[name].model_copy()
             for name in unconfirmed_low_confidence(self.state)
@@ -440,6 +454,9 @@ class _Run:
                 close_issue(self.state, signals.close_issue, "abandoned")
                 self._log("route", f"closed {signals.close_issue} (abandoned): issues card")
             self._close_paused_after_hazard(signals)
+        # After routing, so a resumed or newly started issue is the one recorded and checked.
+        self._record_power_off()
+        self._skip_powered_steps()
         if signals.intent == "small_talk":
             step_type = self._step_type(journey)
             self.remind_paused = step_type is None or step_type == "end"
@@ -451,6 +468,9 @@ class _Run:
             return
         if not self._guardrails(journey, None):
             self._step_transitions(journey, None)
+        # A plan just built: `plan.build` skips these already; this keeps the engine safe on its
+        # own.
+        self._skip_powered_steps()
 
     def result(self) -> TransitionResult:
         state = self.state
@@ -517,12 +537,15 @@ class _Run:
             turn.text, nlu_signals, category=category, media_signals=media_signals
         )
         self.hazard_category = category
+        self.hazard_named = _category_update(signals)
         replied_rules: set[str] = set()
         persisting: list[HazardSignal] = []
         for hit in self.hazards:
             rule_id = HAZARD_RULES[hit.signal]
             if hit.signal not in self.state.hazard_flags:
                 self.state.hazard_flags.append(hit.signal)
+            if hit.signal in POWER_OFF_HAZARDS:
+                self.power_off_hits.append(hit.signal)
             self._log("guardrail", f"{hit.signal} detected ({hit.source})", rule_id=rule_id)
             reply = safety_reply(hit.signal)
             if hit.signal not in ESCALATING_HAZARDS:
@@ -553,6 +576,62 @@ class _Run:
         return signals.model_copy(
             update={"hazards": [hit.signal for hit in self.hazards], "persisting": persisting}
         )
+
+    def _record_power_off(self) -> None:
+        """G-SAFE-08, after routing. A gas smell keeps every appliance off. Another power-off
+        hazard goes with the appliance the text names, when that is not the active issue's;
+        otherwise with the issue active before and after the turn (a card that switches issues
+        has no NLU to say which one the text was about). With no issue yet, the next issue
+        takes it. Other issues on the same appliance inherit it when read (`issue_power_off`)."""
+        category = self.state.slots.get(CATEGORY_SLOT)
+        current = category.value if category else None
+        active = self.state.active_issue_id
+
+        def record(key: str, signal: str) -> None:
+            recorded = self.state.power_off.setdefault(key, [])
+            if signal not in recorded:
+                recorded.append(signal)
+
+        if active is not None and UNASSIGNED in self.state.power_off:
+            for signal in self.state.power_off.pop(UNASSIGNED):
+                record(issue_key(active), signal)
+        for signal in self.power_off_hits:
+            named = self.hazard_named
+            if signal == "gas_smell":
+                record(ANY_APPLIANCE, signal)
+            elif named is not None and named != current:
+                record(named, signal)
+            else:
+                issues = {active} if named is not None else {self.issue_before, active}
+                keys = [issue_key(i) for i in issues if i is not None]
+                for key in keys or [UNASSIGNED]:
+                    record(key, signal)
+
+    def _skip_powered_steps(self) -> None:
+        """G-SAFE-08: once the user was told to cut this appliance's power, its open plan steps
+        that need it are skipped (`plan.skip_powered`), including the one about to be shown:
+        feedback has already been applied to the step it was about. Then the next step is
+        shown, or the guide step moves on if none is left, and the turn is no longer a side
+        answer: the user must see the step that replaces the one they were on."""
+        sync_active_record(self.state)  # the issue records say which appliance each is about
+        active = issue_power_off(self.state)
+        if not active or not self.state.plan:
+            return
+        edit = skip_powered(self.state.plan, active)
+        if not edit.decisions:
+            return
+        shown = next((item.id for item in self.state.plan if item.status == "presented"), None)
+        self.state.plan = edit.items
+        for decision in edit.decisions:
+            self._log("plan", decision.reason, rule_id=decision.rule_id)
+        journey = self._journey()
+        if journey is not None and self._step_type(journey) == "guide":
+            self._present_next_item()
+            if not any(item.status == "presented" for item in self.state.plan):
+                self._step_transitions(journey, None)
+        now = next((item.id for item in self.state.plan if item.status == "presented"), None)
+        if now != shown or self._step_type(journey) != "guide":
+            self.side_question = False
 
     def _close_paused_after_hazard(self, signals: TurnSignals) -> None:
         """DIY help has ended for that appliance: its paused issues must not come back with
