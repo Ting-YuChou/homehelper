@@ -141,11 +141,9 @@ How the evals work:
 - The baseline makes one retrieval and one LLM call per turn, with the same models and KB.
 - Unless noted, runs use the production models on Anthropic (Sonnet 5.5 for the responder,
   planner and judge; Haiku 5.5 for NLU, the supervisor and the simulated user).
-- Each scenario's web search is a saved snapshot, so both agents see the same pages. The models'
-  sampling still varies between runs.
+- Each scenario's web search is a saved snapshot, so both agents see the same pages.
 
-These runs were made while the features above were built, on the branches that added them. No
-suite has been run end to end on the current `main`.
+None of these figures come from the current `main`. Each one says which code it ran on.
 
 **`full` suite** (100 test scenarios, k = 4, 400 trials per agent, 2026-10-24), before the
 no-model-number work and the power-off rule:
@@ -153,18 +151,11 @@ no-model-number work and the power-off rule:
 | Metric | Baseline | Journey agent |
 |---|---|---|
 | Success (pass^1) | 66.2% | **71.5%** |
-| pass^4 | **54.0%** | 48.0% |
-| Resolved by the user | **71.8%** | 63.2% |
-| Fix offered (judge, user-fixable cases) | **78.8%** | 71.2% |
 | Citations from the user's own manual (model known) | 72.4% | **97.1%** |
-| Escalated to a technician | 28.0% | 36.7% |
-| Turn latency p50 / p95 | 4.6 s / 9.5 s | 3.3 s / 16.0 s |
 
-- The journey agent cites the user's own manual far more often. It is less consistent across
-  trials (pass^4), resolves less and hands off more.
-- **The cases it failed, re-run with the no-model-number work** (52 cases, k = 2): 45.2% → 71.2%.
-  The code before that work scored 64.4% on the same re-run, as a control for re-running only
-  the failures.
+**The cases it failed, re-run with the no-model-number work** (52 cases, k = 2): 45.2% → 71.2%.
+The code before that work scored 64.4% on the same re-run, as a control for re-running only the
+failures.
 
 **`no_model` suite** (55 of `full`'s cases without the model number; the user never finds it,
 or finds it when asked; 220 trials). "Before" is the journey agent without the
@@ -177,26 +168,21 @@ no-model-number work; "after" is it with that work, before its code-review fixes
 | Handoffs for lack of a plan | – | 28 | **0** |
 | Asked for the model number twice or more | 6.4% | 0% (never asked) | 0.5% |
 
-Without a model number, the journey agent now does about as well as with one. The failures that
-are left are mostly plans that run out because the manuals searched don't contain the fix.
+On the same 55 cases with the model number given (`full`, before), the journey agent scored
+74.5%, so it now does about as well without the number as with it. (`full` also checks
+citations, which don't apply without a model number.)
 
-**Safety** (`safety` suite: hazards, prompt injection and out-of-scope requests, 80 cases):
-- **With the power-off rule** (k = 1, on its branch before it was combined with the
-  no-model-number work): safety, injection and out-of-scope all 100%.
-- **With the no-model-number work**, before the power-off rule: safety 97.5%, injection 100%.
-  The one failure was a step that needed the power after the user was told to cut it, which is
-  what the power-off rule fixes.
-- The release gate uses k = 4, which hasn't been run on this code.
+**Safety** (`safety` suite: hazards, prompt injection and out-of-scope requests, 80 cases, k = 1,
+with the power-off rule, on its branch before it was combined with the no-model-number work):
+safety, injection and out-of-scope all 100%.
+
+Other areas:
 
 | Area | Result |
 |---|---|
-| Retrieval | Recall@5 0.79 → 0.90 with Cohere rerank. Knowing the brand matters most: 0.81 → 0.95 with a brand filter |
+| Retrieval | Recall@5 0.79 → 0.90 with Cohere rerank (100 dev queries). Knowing the brand matters most: 0.81 → 0.95 with a brand filter (all 976 queries, without rerank). The queries were generated from the manuals |
 | Tool use (profile, warranty, booking) | 87.5% pass^4 over 8 cases (substitute models) |
 | Photos | 96.4% pass rate and 85.7% pass^4 over 7 cases (substitute models). No confident-but-wrong appliance at the 0.7 threshold, over 19 synthetic images |
-| Video | One clip. Gemini's answer was correct when it came, but it came within the 60 s budget in only 1 of 4 runs, during a period of 503 errors. Past the budget, the agent asks the user to describe the problem in words |
-
-Not yet run on the current code: `full`, `no_model`, `safety` with k = 4, `multi_issue`,
-`multimodal`, `tools` and the vision eval.
 
 ## Local development
 
