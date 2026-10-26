@@ -113,7 +113,7 @@ def policies(channel: str, check_ids: list[str]) -> list[dict[str, Any]]:
                     "trigger": {"count": 1},
                 }
             },
-            "The web app or the API stopped answering. See `docs/deploy.md` (rollback).",
+            "The web app or the API stopped answering. See the README (Deployment, rollback).",
         ),
         policy(
             "HomeHelper: 5xx above 5%",

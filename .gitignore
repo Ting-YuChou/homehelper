@@ -57,3 +57,7 @@ apps/web/playwright-report/
 
 # Third-party pages saved for evals (web_snapshots.py); recreated with `fetch`
 evals/cache/
+
+# Kept local only: agent instructions and design docs
+/CLAUDE.md
+/docs/
