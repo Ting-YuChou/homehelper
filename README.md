@@ -45,31 +45,69 @@ The design follows Sierra's agent approach:
 ## Architecture
 
 ```mermaid
-flowchart LR
-    browser([Browser]) -->|"pages and /v1 (SSE)"| web
+%%{init: {"theme": "base", "themeVariables": {"lineColor": "#64748B", "textColor": "#0F172A", "edgeLabelBackground": "#FFFFFF"}}}%%
+flowchart TB
+    browser([Browser])
     subgraph run["Cloud Run · us-west1"]
-        web["Next.js web app<br/>proxies /v1"] -->|"/v1 + visitor IP"| api
+        web["Next.js web app<br/>proxies /v1"]
         subgraph api["FastAPI API"]
-            channel["Web channel (SSE)"] --> agent
+            channel["Web channel (SSE)"]
             subgraph agent["Agent runtime (LangGraph)"]
-                direction TB
-                understand["understand: NLU"] --> engine["journey engine + guardrails"]
-                engine --> respond["respond"] --> supervise["supervisor"]
+                direction LR
+                understand["understand<br/>NLU"] --> engine["journey engine<br/>+ guardrails"] --> respond["respond"] --> supervise["supervisor"]
             end
-            agent --> mcp["MCP servers<br/>profile · parts · tutorials · booking · web"]
-            agent --> kb["knowledge<br/>hybrid search + rerank"]
+            mcp["MCP servers<br/>profile · parts · tutorials<br/>booking · web"]
+            kb["knowledge<br/>hybrid search + rerank"]
         end
         jobs["jobs<br/>migrate · seed · ingest"]
     end
-    agent --> llm["Claude, with OpenRouter and OpenAI<br/>fallbacks (LiteLLM)"]
-    agent --> gemini["Gemini: video"]
-    kb --> pg[("Neon Postgres<br/>pgvector KB snapshots")]
+    subgraph models["Model providers"]
+        llm["Claude<br/>OpenRouter, OpenAI fallbacks"]
+        gemini["Gemini<br/>video"]
+    end
+    subgraph data["Data"]
+        pg[("Neon Postgres<br/>pgvector KB snapshots")]
+        redis[("Upstash Redis<br/>limits, spend cap")]
+        gcs[("GCS<br/>uploads")]
+        manuals[("GCS<br/>manual PDFs")]
+    end
+    langfuse["Langfuse<br/>traces"]
+
+    browser -->|"pages and /v1 (SSE)"| web
+    web -->|"/v1 + visitor IP"| api
+    channel --> agent
+    agent --> mcp
+    agent --> kb
+    agent --> models
+    kb --> pg
     api --> pg
-    api --> redis[("Upstash Redis<br/>limits, spend cap")]
-    api --> gcs[("GCS: uploads")]
+    api --> redis
+    api --> gcs
+    api -.-> langfuse
     jobs --> pg
-    jobs --> manuals[("GCS: manual PDFs")]
-    api -.-> langfuse["Langfuse traces"]
+    jobs --> manuals
+
+    classDef client fill:#E2E8F0,stroke:#475569,color:#0F172A
+    classDef web fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
+    classDef service fill:#CCFBF1,stroke:#0D9488,color:#134E4A
+    classDef step fill:#EDE9FE,stroke:#7C3AED,color:#3B0764
+    classDef model fill:#FFEDD5,stroke:#EA580C,color:#7C2D12
+    classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D
+    classDef job fill:#F1F5F9,stroke:#64748B,color:#0F172A
+    classDef ops fill:#FEF9C3,stroke:#A16207,color:#713F12
+    class browser client
+    class web web
+    class channel,mcp,kb service
+    class understand,engine,respond,supervise step
+    class llm,gemini model
+    class pg,redis,gcs,manuals store
+    class jobs job
+    class langfuse ops
+    style run fill:#F8FAFC,stroke:#334155,color:#0F172A
+    style api fill:#F0FDFA,stroke:#0D9488,color:#134E4A
+    style agent fill:#F5F3FF,stroke:#7C3AED,color:#3B0764
+    style models fill:#FFF7ED,stroke:#EA580C,color:#7C2D12
+    style data fill:#F0FDF4,stroke:#16A34A,color:#14532D
 ```
 
 A turn runs `load_context → perceive → understand → step_executor → respond → supervise → emit`:
