@@ -21,6 +21,7 @@ from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.hazards import issue_power_off
 from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS, POWER_OFF_RULE, TRIED, merge_plan
 from homehelper.agent.nodes.mcp_actions import (
+    BOOK,
     as_tool_call,
     booking_confirmation,
     run_mcp_action,
@@ -404,9 +405,11 @@ async def step_and_act(graph: GraphState, deps: AgentDeps, emit: Emit) -> dict[s
             turn.notices.append(NOTICE_UNKNOWN_MODEL)
     else:
         # A template replaces the reply (e.g. a hazard escalation), but read tools still run:
-        # the visit times offered with it come from them.
+        # the visit times offered with it come from them. So does the booking of a visit the user
+        # picked on this turn's card: a hazard typed with the pick doesn't cancel the visit.
         for action in result.actions:
-            if action.startswith("mcp:") and not is_write_tool(action):
+            picked = action == BOOK and state.selected_booking_slot is not None
+            if action.startswith("mcp:") and (picked or not is_write_tool(action)):
                 state = await run_action(action, graph, state, deps, emit, outcomes)
     turn.tool_results = outcomes
     confirmation = booking_confirmation(outcomes, state)

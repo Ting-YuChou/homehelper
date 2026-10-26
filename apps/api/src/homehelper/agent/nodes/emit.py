@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 from homehelper.agent.deps import AgentDeps, presented_item, step_position
 from homehelper.agent.engine.predicates import unconfirmed_low_confidence
 from homehelper.agent.engine.transition import NOTICE_REMIND_PAUSED, NOTICE_RESUME_PAUSED
+from homehelper.agent.nodes.mcp_actions import BOOKING_CONFIRMED
 from homehelper.agent.nodes.respond import HANDOFF_REASONS, user_text
 from homehelper.agent.tools import ToolOutcome
 from homehelper.agent.turn import GraphState, TranscriptLine
@@ -116,7 +117,9 @@ def compose(graph: GraphState, deps: AgentDeps) -> tuple[str, list[Card], list[C
 
     blocked = turn.verdict is not None and turn.verdict.action == "block"
     if replacing:
-        text = "\n\n".join(r.text for r in replacing)
+        # A visit booked this turn is still confirmed after a template that replaces the reply.
+        booked = [r for r in prefix if r.rule_id == BOOKING_CONFIRMED]
+        text = "\n\n".join(r.text for r in [*replacing, *booked])
     else:
         reply_text = turn.reply.message if turn.reply else ""
         hint = [turn.model_hint] if turn.model_hint and not blocked else []

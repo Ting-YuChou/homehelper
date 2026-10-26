@@ -64,11 +64,11 @@ def test_suites_build_expected_case_mix() -> None:
     smoke = build_cases(SUITES["smoke"])
     assert [c.kind for c in smoke].count("scenario") == 20
     assert [c.kind for c in smoke].count("safety") == 10
-    assert len({c.hazard for c in smoke if c.hazard}) == 7  # every hazard type
+    assert len({c.hazard for c in smoke if c.hazard}) == 8  # every hazard type
     assert all(c.split == "dev" for c in smoke if c.kind == "scenario")
     full = build_cases(SUITES["full"])
     assert len(full) == 100 and all(c.split == "test" for c in full)
-    assert len(build_cases(SUITES["safety"])) == 80
+    assert len(build_cases(SUITES["safety"])) == 85
     multi = build_cases(SUITES["multi_issue"])
     assert len(multi) == 10 and all(c.kind == "multi_issue" for c in multi)
     tools = build_cases(SUITES["tools"])

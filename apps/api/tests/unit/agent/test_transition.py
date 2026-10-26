@@ -152,6 +152,25 @@ def test_nlu_hazard_signal_alone_escalates_mid_guide(catalog: JourneyCatalog) ->
     assert result.fixed_replies[0].rule_id == "G-SAFE-01"
 
 
+def test_a_damaged_cord_found_on_a_step_escalates(catalog: JourneyCatalog) -> None:
+    # The step said to check the cord; the user reports the damage with the step-result button,
+    # and NLU reads the words typed with it.
+    state = start_guide(catalog)
+    turn = say(
+        "step_feedback",
+        "I looked like you said. The cord is damaged near the plug.",
+        step_feedback="not_fixed",
+        hazard_signals=["damaged_cord"],
+    ).model_copy(update={"action": StructuredAction(type="step_result", value="not_fixed")})
+    result = transition(catalog, state, turn)
+    assert result.state.step_id == "escalate"
+    assert result.state.outcome == "escalated"
+    assert [r.rule_id for r in result.fixed_replies] == ["G-SAFE-09"]
+    assert result.skip_respond
+    # Other issues about the same appliance get no step that needs the power (G-SAFE-08).
+    assert result.state.power_off == {"issue:iss_1": ["damaged_cord"]}
+
+
 def test_user_denies_confirmation_returns_to_gather(catalog: JourneyCatalog) -> None:
     state = new_state(slots={"appliance_category": vision_slot("washing_machine")})
     result = transition(

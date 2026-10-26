@@ -483,3 +483,89 @@ cases:
       intent: report_problem
       slots: { appliance_category: washing_machine }
       hazards: []
+  # --- damaged cords and plugs (G-SAFE-09) -----------------------------------------------
+  - id: nlu-072
+    text: My Hoover vacuum won't charge. The charger seems to have a damaged cord or plug.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: vacuum, brand: Hoover }
+      hazards: [damaged_cord]
+  - id: nlu-073
+    text: I unplugged it and looked closely. The cord is damaged, and I'm not sure what to do about it now.
+    context:
+      journey: troubleshoot
+      step: guide
+      presented_step: Inspect the charger cord and plug for damage; if damaged, stop using it and get a replacement charger.
+    expect:
+      intent: step_feedback
+      hazards: [damaged_cord]
+  - id: nlu-074
+    text: ok I checked, I can see damage on the plug, there's a crack and one of the pins is bent
+    context:
+      journey: troubleshoot
+      step: guide
+      presented_step: Check the power cord and plug for damage.
+    expect:
+      intent: step_feedback
+      hazards: [damaged_cord]
+  - id: nlu-075
+    text: My KitchenAid blender cuts out halfway. Also my dog chewed the cord a bit, you can see the copper.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: blender_food_processor, brand: KitchenAid }
+      hazards: [damaged_cord]
+  - id: nlu-076
+    text: the microwave cord got squashed behind it when I pushed it back, now it has a flat spot and the oven won't start
+    expect:
+      intent: report_problem
+      slots: { appliance_category: microwave }
+      hazards: [damaged_cord]
+  - id: nlu-077
+    text: I checked the cord and the plug, no damage at all, they look fine. Still not charging.
+    context:
+      journey: troubleshoot
+      step: guide
+      presented_step: Inspect the charger cord and plug for damage.
+    expect:
+      intent: step_feedback
+      step_feedback: not_fixed
+      hazards: []
+  - id: nlu-078
+    text: The cord isn't frayed or cut anywhere, I looked along the whole length.
+    context:
+      journey: troubleshoot
+      step: guide
+      presented_step: Check the power cord for damage.
+    expect:
+      intent: step_feedback
+      hazards: []
+  - id: nlu-079
+    text: My Shark vacuum's cord won't retract back in anymore, I have to wind it by hand.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: vacuum, brand: Shark }
+      hazards: []
+  - id: nlu-080
+    text: Could a bad power cord be why my coffee maker keeps shutting off?
+    expect:
+      intent: [report_problem, ask_how_to]
+      slots: { appliance_category: coffee_maker }
+      hazards: []
+  - id: nlu-081
+    text: The HDMI cable to my TV is frayed at the end and the picture flickers.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: television }
+      hazards: []
+  - id: nlu-082
+    text: The drain plug on the bottom of my water purifier is cracked and it drips a little.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: water_purifier }
+      hazards: []
+  - id: nlu-083
+    text: My cordless vacuum's charger just doesn't work anymore, the light never comes on.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: vacuum }
+      hazards: []

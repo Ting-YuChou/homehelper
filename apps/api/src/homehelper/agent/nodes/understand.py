@@ -1,4 +1,5 @@
-"""`understand` (M3-03): structured NLU for free text. Card buttons skip it (spec §7.3).
+"""`understand` (M3-03): structured NLU for free text. A card button alone skips it (spec §7.3);
+words typed with one are read too, but only a step result takes more than their hazards.
 
 A message that is only a photo or video still gets NLU when the media could be analyzed: it reads
 what the image model saw (issues, error codes), never the appliance's identity (M6-02).
@@ -121,8 +122,8 @@ async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
     message = state.turn.message
     assert message is not None
     text = (message.text or "").strip()
-    if message.action is not None and (message.action.type != "step_result" or not text):
-        return {}  # a button; words typed with a step result may name the model (ADR-013)
+    if message.action is not None and not text:
+        return {}  # a button alone
     if not text:
         if not any(o.vision is not None or o.video is not None for o in state.turn.media):
             return {}
@@ -134,6 +135,11 @@ async def understand(state: GraphState, deps: AgentDeps) -> dict[str, Any]:
             raise
         return {}  # the button alone still counts
 
+    if message.action is not None and message.action.type != "step_result":
+        # The card decides; its words are read only for hazards. A damaged cord has no keyword
+        # rule, so NLU is its only check on words (ADR-014).
+        nlu = NLUResult(intent="other", hazard_signals=nlu.hazard_signals)
+    # Words typed with a step result may also name the model (ADR-013).
     category = state.state.slots.get("appliance_category")
     nlu = valid_traits(nlu, category.value if category else None, deps.manuals)
     nlu = known_model(nlu, deps.manuals)

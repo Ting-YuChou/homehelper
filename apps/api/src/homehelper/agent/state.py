@@ -28,6 +28,7 @@ HazardSignal = Literal[
     "smoke_or_burning",
     "sparks",
     "water_near_electric",
+    "damaged_cord",
     "refrigerant",
     "high_voltage_internal",
     "injury",

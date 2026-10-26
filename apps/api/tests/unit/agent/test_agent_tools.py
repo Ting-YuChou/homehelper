@@ -22,6 +22,7 @@ from homehelper.channels.events import (
     HandoffCard,
     InboundMessage,
     PartCard,
+    SafetyCard,
     StepCard,
     StructuredAction,
     VideoCard,
@@ -352,10 +353,11 @@ async def _escalate(
     bookings: InMemoryBookingStore,
     user_id: str,
     verdicts: list[Any] | None = None,
+    nlu: list[Any] | None = None,
 ):
     llm = FakeLLMClient(
         {
-            "nlu": [WASHER_REPORT],
+            "nlu": [WASHER_REPORT, *(nlu or [])],
             "planner": [ONE_STEP],
             "responder": llm_replies,
             "supervisor": verdicts or [PASS, PASS, PASS],
@@ -769,7 +771,9 @@ async def test_the_booking_fallback_keeps_the_water_warning() -> None:
         AgentReply(message="A technician is the best next step; pick a time below."),
         LLMError("down"),
     ]
-    _, send, escalated = await _escalate(replies, InMemoryBookingStore(), "demo_alex")
+    # Words typed with the card are read for hazards (NLU) as well as by the keyword rules.
+    words = NLUResult(intent="other", hazard_signals=["water_near_electric"])
+    _, send, escalated = await _escalate(replies, InMemoryBookingStore(), "demo_alex", nlu=[words])
     slots = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots
     events = await send(
         "ok, and there's water pooling near the outlet",
@@ -778,3 +782,55 @@ async def test_the_booking_fallback_keeps_the_water_warning() -> None:
     text = _text(events)
     assert safety_reply("water_near_electric").text in text
     assert "Your technician visit is booked for " in text
+
+
+async def test_a_damaged_cord_typed_with_a_card_is_caught() -> None:
+    # A damaged cord has no keyword rule (ADR-014): words typed with any card go through NLU,
+    # which counts only for their hazards (the card decides the rest).
+    replies: list[Any] = [
+        reply("Let's clean the filter.", "c1"),
+        AgentReply(message="A technician is the best next step; pick a time below."),
+    ]
+    words = NLUResult(intent="other", hazard_signals=["damaged_cord"])
+    bookings = InMemoryBookingStore()
+    agent, send, escalated = await _escalate(replies, bookings, "demo_alex", nlu=[words])
+    slots = next(c for c in _cards(escalated) if isinstance(c, BookingSlotsCard)).slots
+    events = await send(
+        "ok. also the plug is cracked",
+        StructuredAction(type="select_booking_slot", value=slots[0].slot_id),
+    )
+    assert [c.hazard for c in _cards(events) if isinstance(c, SafetyCard)] == ["damaged_cord"]
+    snapshot = await agent.snapshot("conv-1")
+    assert "damaged_cord" in snapshot.hazard_flags
+    # The safety template replaces the reply, but the visit the user picked is still booked.
+    assert "Your technician visit is booked for " in _text(events)
+    assert await bookings.active_slot_ids([slots[0].slot_id]) == {slots[0].slot_id}
+
+
+async def test_words_typed_with_a_card_count_only_for_their_hazards() -> None:
+    from homehelper.agent.nodes.understand import understand
+    from homehelper.agent.state import AgentState
+    from homehelper.agent.turn import GraphState, TurnScratch
+
+    full = NLUResult(
+        intent="ask_how_to",
+        slot_updates=[SlotUpdate(name="model_number", value="ABC123")],
+        step_feedback="fixed",
+        hazard_signals=["damaged_cord"],
+        search_query_en="cracked plug",
+        user_sentiment="frustrated",
+    )
+    llm = FakeLLMClient({"nlu": [LLMError("down"), full]})
+    deps = AgentDeps.default(llm, FakeRetriever())
+    card = StructuredAction(type="confirm_appliance", value="yes")
+
+    def graph(text: str) -> GraphState:
+        message = InboundMessage(conversation_id="c1", text=text, action=card)
+        state = AgentState(conversation_id="c1", release_id="r1")
+        return GraphState(agent=state, turn=TurnScratch(message=message))
+
+    # NLU failing falls back to the card alone; otherwise only the hazards are kept.
+    assert await understand(graph("yes"), deps) == {}
+    update = await understand(graph("yes, and the plug is cracked"), deps)
+    assert update["turn"].nlu == NLUResult(intent="other", hazard_signals=["damaged_cord"])
+    assert "search_query" not in update
