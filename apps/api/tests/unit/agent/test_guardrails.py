@@ -114,6 +114,19 @@ def test_high_voltage_category_rule() -> None:
     assert keyword_hazards(text, category="dishwasher") == []
 
 
+def test_a_damaged_cord_comes_from_the_nlu_only() -> None:
+    # G-SAFE-09 has no keyword rule: a reply to "check the cord" must not end the repair.
+    for text in [
+        "the cord is frayed",
+        "Checked for a damaged cord - all good",
+        "The cord looks frayed but it's just lint.",
+    ]:
+        assert keyword_hazards(text) == []
+    hits = detect_hazards("the cord is frayed", ["damaged_cord"])
+    assert [(h.signal, h.source) for h in hits] == [("damaged_cord", "nlu")]
+    assert "damaged_cord" in ESCALATING_HAZARDS
+
+
 def test_detect_hazards_unions_both_layers() -> None:
     hits = detect_hazards("there is smoke", ["smoke_or_burning", "injury"])
     assert [(h.signal, h.source) for h in hits] == [

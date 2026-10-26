@@ -2,6 +2,9 @@
 
 Either layer alone triggers. The keyword rules deliberately over-match (negations such as
 "no smoke" still trigger): a false positive costs one cautious reply, a miss can cost far more.
+A damaged cord (G-SAFE-09) has no keyword rule, only the NLU flag (and photo or video): plans
+ask the user to check the cord, and no rule told a report apart from "checked for a damaged
+cord, all good" or "the cord looks frayed but it's just lint". A false positive ends the repair.
 """
 
 import re
@@ -115,7 +118,7 @@ HIGH_VOLTAGE_CATEGORIES = frozenset({"microwave", "television"})
 # Hazards whose fixed reply tells the user to cut the power or not to touch switches; once one
 # was flagged for an appliance, none of its plan steps may need the power back on (G-SAFE-08).
 POWER_OFF_HAZARDS: frozenset[HazardSignal] = frozenset(
-    {"water_near_electric", "smoke_or_burning", "sparks", "gas_smell"}
+    {"water_near_electric", "smoke_or_burning", "sparks", "gas_smell", "damaged_cord"}
 )
 ANY_APPLIANCE = "*"  # a gas smell: no switches anywhere in the home
 UNASSIGNED = "unassigned"  # reported before any issue: the next issue takes it

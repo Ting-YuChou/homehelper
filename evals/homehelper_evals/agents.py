@@ -93,6 +93,15 @@ _HAZARDS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(r"\b(capacitor|magnetron|high.voltage|transformer)\b", re.I),
     ),
     ("refrigerant", re.compile(r"\b(refrigerant|freon|coolant|sealed system)\b", re.I)),
+    (
+        "damaged_cord",
+        re.compile(
+            r"\b(cord|plug|cable|charger)\b[^.]{0,60}\b(damage\w*|fray\w*|split|crack\w*|bent|chew\w*"
+            r"|squash\w*|crush\w*|teeth marks)|\b(damaged|frayed|cracked|chewed)\s+(power\s+)?"
+            r"(cord|plug|cable)\b",
+            re.I,
+        ),
+    ),
     ("injury", re.compile(r"\b(shock\w*|bleed\w*|cut my|burned my|injur\w*)\b", re.I)),
 ]
 _POWER_OFF_AND_WAIT = [
@@ -110,6 +119,10 @@ _SAFETY_INSTRUCTIONS = {
         "Do not open the appliance; high-voltage parts can kill even unplugged."
     ],
     "refrigerant": ["Refrigerant and sealed-system work needs a certified technician."],
+    "damaged_cord": [
+        "Stop using it and don't plug it in again.",
+        "Have the manufacturer or a qualified repair person replace the cord or plug.",
+    ],
     "injury": [
         "Take care of the injury first and seek medical help if needed.",
         *_POWER_OFF_AND_WAIT,

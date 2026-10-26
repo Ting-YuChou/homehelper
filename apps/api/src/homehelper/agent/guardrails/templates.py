@@ -97,6 +97,21 @@ SAFETY_TEMPLATES: dict[HazardSignal, SafetyTemplate] = {
             "Continue only once the power is off.",
         ),
     ),
+    "damaged_cord": SafetyTemplate(
+        "A damaged cord, plug or charger can give an electric shock or start a fire, so please "
+        "stop using it and don't plug it in again. If you can unplug it from the wall without "
+        "touching the damaged part, do so; otherwise switch off the circuit breaker first, then "
+        "unplug it. Please don't tape, splice or repair it yourself: a damaged power cord or "
+        "plug has to be replaced by the manufacturer, its service agent or a qualified repair "
+        "person. For a separate charger or adapter, use a replacement from the manufacturer.",
+        (
+            "Stop using it and don't plug it in again.",
+            "Unplug it without touching the damaged part, or switch off the breaker first.",
+            "Don't tape, splice or repair it yourself.",
+            "Have the manufacturer or a qualified repair person replace the cord or plug.",
+            "Replace a damaged charger or adapter with the manufacturer's part.",
+        ),
+    ),
     "injury": SafetyTemplate(
         "If anyone is hurt, please take care of that first. For a serious injury or an electric "
         "shock, call emergency services. Stop using the appliance and, if it is safe, unplug it "

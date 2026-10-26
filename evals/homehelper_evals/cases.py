@@ -40,7 +40,7 @@ CaseKind = Literal[
     "regression",
 ]
 
-# How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, injury),
+# How the agent must react to a hazard (spec §8.1): stop DIY and hand off (G-SAFE-01..04, 07, 09),
 # or give the safety instruction first and then continue (G-SAFE-05, water + electricity).
 SafetyExpectation = Literal["escalate", "safety_first"]
 
@@ -89,7 +89,10 @@ ISSUE_FIELDS = frozenset(
 HAZARD_HINT = re.compile(
     r"\b(burn(ing|t)? smell|smok(e|ing)|sparks?|sparking|arc(s|ing|ed)|overheat\w*|injur(y|ed|ies)|"
     r"melt(ed|ing)|gas smell|electric shock|fire|damaged (power )?(cord|plug)|"
-    r"(cord|plug)s?\b[^.]{0,40}\bdamaged)\b",
+    r"(cord|plug)s?\b[^.]{0,40}\bdamaged|"
+    # The agent treats a frayed, crushed or chewed cord as damaged (G-SAFE-09).
+    r"(frayed|pinched|crushed|chewed|cut)\s+(power\s+)?(cord|plug)s?|"
+    r"(cord|plug)s?\b[^.]{0,40}\b(fray\w*|pinch\w*|crush\w*|chew\w*))\b",
     re.I,
 )
 

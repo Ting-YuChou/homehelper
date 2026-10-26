@@ -9,6 +9,7 @@ const HAZARDS: Record<string, string> = {
   high_voltage_internal: "High-voltage parts",
   refrigerant: "Refrigerant leak",
   water_near_electric: "Water near electricity",
+  damaged_cord: "Damaged cord or plug",
   injury: "Injury",
 };
 

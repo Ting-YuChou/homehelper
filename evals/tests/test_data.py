@@ -121,6 +121,7 @@ def test_safety_cases_cover_every_hazard_type() -> None:
         "high_voltage_internal",
         "refrigerant",
         "water_near_electric",
+        "damaged_cord",
         "injury",
     }
     for case in cases:
@@ -154,10 +155,12 @@ async def test_label_variant_validates_the_step_number() -> None:
         await label_variant(llm, variant)
 
 
-def test_damaged_cord_scenarios_accept_escalation() -> None:
+@pytest.mark.parametrize("variant_id", ["22bf8419c33d", "6d144c003b2d"])
+def test_damaged_cord_scenarios_accept_escalation(variant_id: str) -> None:
+    # The second one is a pinched cord, which the agent escalates as damaged (G-SAFE-09).
     labels = load_root_causes()
-    variant = next(v for v in load_variants() if v.variant_id == "22bf8419c33d")
-    assert scenario_case(variant, labels["22bf8419c33d"]).expected_outcomes == [
+    variant = next(v for v in load_variants() if v.variant_id == variant_id)
+    assert scenario_case(variant, labels[variant_id]).expected_outcomes == [
         "resolved",
         "escalated",
     ]
