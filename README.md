@@ -45,6 +45,7 @@ The design follows Sierra's agent approach:
 ## Architecture
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "-apple-system, Segoe UI, Helvetica, Arial, sans-serif", "lineColor": "#64748B", "textColor": "#0F172A", "edgeLabelBackground": "#FFFFFF", "clusterBkg": "#F8FAFC", "clusterBorder": "#334155"}}}%%
 flowchart LR
     browser([Browser]) -->|"pages and /v1 (SSE)"| web
     subgraph run["Cloud Run · us-west1"]
@@ -70,6 +71,26 @@ flowchart LR
     jobs --> pg
     jobs --> manuals[("GCS: manual PDFs")]
     api -.-> langfuse["Langfuse traces"]
+
+    classDef client fill:#E2E8F0,stroke:#475569,color:#0F172A
+    classDef web fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
+    classDef service fill:#CCFBF1,stroke:#0D9488,color:#134E4A
+    classDef step fill:#EDE9FE,stroke:#7C3AED,color:#3B0764
+    classDef model fill:#FFEDD5,stroke:#EA580C,color:#7C2D12
+    classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D
+    classDef job fill:#F1F5F9,stroke:#64748B,color:#0F172A
+    classDef ops fill:#FEF9C3,stroke:#CA8A04,color:#713F12
+    class browser client
+    class web web
+    class channel,mcp,kb service
+    class understand,engine,respond,supervise step
+    class llm,gemini model
+    class pg,redis,gcs,manuals store
+    class jobs job
+    class langfuse ops
+    style run fill:#F8FAFC,stroke:#334155,color:#0F172A
+    style api fill:#F0FDFA,stroke:#0D9488,color:#134E4A
+    style agent fill:#F5F3FF,stroke:#7C3AED,color:#3B0764
 ```
 
 A turn runs `load_context → perceive → understand → step_executor → respond → supervise → emit`:
