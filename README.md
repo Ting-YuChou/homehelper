@@ -74,7 +74,7 @@ flowchart TB
     langfuse["Langfuse<br/>traces"]
 
     browser -->|"pages and /v1 (SSE)"| web
-    web -->|"/v1 + visitor IP"| channel
+    web -->|"/v1 + visitor IP"| api
     channel --> agent
     agent --> mcp
     agent --> kb
@@ -94,7 +94,7 @@ flowchart TB
     classDef model fill:#FFEDD5,stroke:#EA580C,color:#7C2D12
     classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D
     classDef job fill:#F1F5F9,stroke:#64748B,color:#0F172A
-    classDef ops fill:#FEF9C3,stroke:#CA8A04,color:#713F12
+    classDef ops fill:#FEF9C3,stroke:#A16207,color:#713F12
     class browser client
     class web web
     class channel,mcp,kb service
