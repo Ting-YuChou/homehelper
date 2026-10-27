@@ -569,3 +569,34 @@ cases:
       intent: report_problem
       slots: { appliance_category: vacuum }
       hazards: []
+  # --- an injury alone is not sparks (G-SAFE-07) -----------------------------------------
+  - id: nlu-084
+    text: I tried to free it with my fingers and cut myself. It's bleeding quite a bit.
+    context:
+      journey: troubleshoot
+      step: guide
+      presented_step: >-
+        Before you handle a blade or disc, unplug the appliance and hold it only by its plastic
+        hub or finger grip, with your fingers away from the cutting edges. Lift the stuck blade
+        straight out of the work bowl with a firm, steady pull.
+    expect:
+      intent: [step_feedback, report_problem]
+      hazards: [injury]
+  - id: nlu-085
+    text: The steam from the coffee maker burned the back of my hand.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: coffee_maker }
+      hazards: [injury]
+  - id: nlu-086
+    text: There was a bright flash and a loud pop from the outlet behind the dryer, now nothing works.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: dryer }
+      hazards: [sparks]
+  - id: nlu-087
+    text: The outlet behind my fridge crackles and I saw a little blue flash there this morning.
+    expect:
+      intent: report_problem
+      slots: { appliance_category: refrigerator }
+      hazards: [sparks]

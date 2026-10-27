@@ -14,6 +14,7 @@ from typing import Any
 
 from homehelper.agent.deps import AgentDeps
 from homehelper.agent.engine.schema import is_write_tool
+from homehelper.agent.guardrails.plan import without_caution
 from homehelper.agent.guardrails.templates import FixedReply
 from homehelper.agent.protocol import ToolCall
 from homehelper.agent.state import (
@@ -123,7 +124,9 @@ def _repair_record_args(graph: GraphState, state: AgentState) -> dict[str, Any] 
     return {
         "appliance_id": appliance,
         "issue": (_slot(state, "symptom") or _slot(state, "question") or "Troubleshooting")[:500],
-        "resolution": (fixed.instruction if fixed else "Solved with HomeHelper's help")[:1000],
+        "resolution": (
+            without_caution(fixed.instruction) if fixed else "Solved with HomeHelper's help"
+        )[:1000],
         "outcome": "resolved",
         "error_code": _slot(state, "error_code"),
         "performed_by": "self",

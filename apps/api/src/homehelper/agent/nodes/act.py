@@ -19,7 +19,14 @@ from homehelper.agent.engine.perception import media_input
 from homehelper.agent.engine.schema import is_write_tool
 from homehelper.agent.guardrails import postprocess_plan
 from homehelper.agent.guardrails.hazards import issue_power_off
-from homehelper.agent.guardrails.plan import MAX_PLAN_ITEMS, POWER_OFF_RULE, TRIED, merge_plan
+from homehelper.agent.guardrails.plan import (
+    BLADE_CATEGORIES,
+    MAX_PLAN_ITEMS,
+    POWER_OFF_RULE,
+    TRIED,
+    merge_plan,
+    without_caution,
+)
 from homehelper.agent.nodes.mcp_actions import (
     BOOK,
     as_tool_call,
@@ -135,7 +142,8 @@ def rank_draft(items: list[PlanDraftItem]) -> list[PlanDraftItem]:
 def plan_summary(items: list[PlanItem]) -> str:
     """One line per item for the decision log, so eval reports show the whole plan."""
     return "; ".join(
-        f"{item.id} [{','.join(item.citation_ids)}] {item.instruction[:80]}" for item in items
+        f"{item.id} [{','.join(item.citation_ids)}] {without_caution(item.instruction)[:80]}"
+        for item in items
     )
 
 
@@ -174,7 +182,7 @@ async def build_plan(
     generic = basis is not None and basis.scope == "generic"
     # A step skipped for safety (G-SAFE-08) was never tried.
     tried = [
-        item.instruction
+        without_caution(item.instruction)
         for item in state.plan
         if item.status in TRIED and item.safety_rule != POWER_OFF_RULE
     ]
@@ -182,6 +190,7 @@ async def build_plan(
     prompt = prompts.render(
         "planner",
         category=category.replace("_", " "),
+        blades=category in BLADE_CATEGORIES,
         brand=_slot(state, "brand"),
         model_number=_slot(state, "model_number") if not generic else None,
         symptom=_slot(state, "symptom") or retrieval.query.query_en,
