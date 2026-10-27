@@ -14,14 +14,18 @@ from homehelper.agent.guardrails import (
 )
 from homehelper.agent.guardrails.hazards import water_persists
 from homehelper.agent.guardrails.plan import (
+    BLADE_CAUTION,
     POWER_OFF_INSTRUCTION,
+    caution_blades,
     drop_high_risk,
     drop_uncited,
     flag_warranty,
     forbid_high_voltage_disassembly,
+    handles_blade,
     insert_power_off,
     needs_power,
     skip_powered,
+    without_caution,
 )
 from homehelper.agent.guardrails.privacy import personal_data_requests
 from homehelper.agent.guardrails.templates import SAFETY_TEMPLATES, STEP_TEMPLATES
@@ -211,6 +215,50 @@ def test_postprocess_caps_and_forbids_high_voltage_disassembly() -> None:
     assert [i.id for i in result.items] == ["p1", "p2", "p3", "p4", "p5", "p6"]
     assert result.decisions[0].rule_id == "G-SAFE-03"
     assert "capped at 6" in result.decisions[-1].reason
+
+
+def test_a_step_that_handles_a_blade_starts_with_the_caution() -> None:
+    stuck = "Using extreme care, use a little extra force to remove the blade."
+    items = [item("p1", instruction=stuck), item("p2", instruction="Check the jar base.")]
+    result = postprocess_plan(items, category="blender_food_processor")
+    assert [i.instruction for i in result.items] == [
+        f"{BLADE_CAUTION} {stuck}",
+        "Check the jar base.",
+    ]
+    assert [(d.reason, d.rule_id) for d in result.decisions] == [
+        ("blade caution on p1", "G-SAFE-10")
+    ]
+    # once is enough, even if the plan is post-processed again
+    assert caution_blades(result.items, "blender_food_processor").decisions == []
+    assert without_caution(result.items[0].instruction) == stuck
+    # other appliances' "blades" are a power plug's prongs or a fan's
+    assert postprocess_plan(items, category="vacuum").items == items
+
+
+@pytest.mark.parametrize(
+    ("instruction", "expected"),
+    [
+        ("Remove the gasket and blade assembly.", True),
+        ("Carefully remove food from the blade.", True),
+        ("Check that the blade unit is securely fastened onto the tumbler jar.", True),
+        ("Unplug the blender, refit the blade assembly, then plug it back in.", True),
+        ("Lower it into the jar, blades down.", True),
+        ("Remove the slicing disc and clear the food wedged under it.", True),
+        ("Lift out the dicing grid and the cutter assembly.", True),
+        ("Remove the adjustable slicer and clear the jammed food.", True),
+        ("Make sure the plug blades are not bent.", False),
+        ("This blender has a polarized plug (one wide blade); it fits one way only.", False),
+        ("A polarized plug has two blades with one wider than the other; reverse it.", False),
+        ("Make sure the plug blades can be fully inserted into the outlet.", False),
+        ("Check that the jar base is screwed on tightly.", False),
+    ],
+)
+def test_handles_blade(instruction: str, expected: bool) -> None:
+    step = PlanItem(id="p1", instruction=instruction)
+    assert handles_blade(step, "blender_food_processor") is expected
+    if expected:  # code-inserted safety items never get the caution
+        inserted = step.model_copy(update={"safety_rule": "G-SAFE-06"})
+        assert not handles_blade(inserted, "blender_food_processor")
 
 
 def test_plan_helpers_individually() -> None:

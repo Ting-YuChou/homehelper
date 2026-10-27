@@ -27,6 +27,27 @@ POWER_OFF_INSTRUCTION = (
 POWER_OFF_ID_PREFIX = "power-off"
 POWER_OFF_RULE = "G-SAFE-08"
 
+# G-SAFE-10: a step that has the user handle a blender's or food processor's blade or disc.
+BLADE_CATEGORIES = frozenset({"blender_food_processor"})
+# Worded as a condition: a blade step may also run the appliance ("pulse to spin the blade clean").
+BLADE_CAUTION = (
+    "Before you handle a blade or disc, unplug the appliance and hold it only by its plastic "
+    "hub or finger grip, with your fingers away from the cutting edges."
+)
+BLADE_RULE = "G-SAFE-10"
+_BLADE = re.compile(
+    r"\b(blades?|discs?|disks?|knife|knives|cutters?|slicers?|shredders?|graters?|choppers?|"
+    r"(dicing|cutting|grating)\s+grids?|cutting\s+(tools?|edges?|assembly|unit))\b",
+    re.IGNORECASE,
+)
+# A power plug's blades (its prongs), not a cutting blade. A false match only costs a caution,
+# so this removes just the plug wording the manuals use.
+_PLUG_BLADE = re.compile(
+    r"\bplug\s*(\(|has|with)[^.;)]{0,20}\bblades?\b|\bplug'?s?\s+blades?\b|"
+    r"\bwider?\s+blades?\b|\bblades?\b[^.;]{0,15}\bwider\b",
+    re.IGNORECASE,
+)
+
 _APPLIANCE = (
     r"the\s+(\w+\s+)?(appliance|machine|unit|dishwasher|washer|dryer|microwave|oven|range|"
     r"fridge|refrigerator|freezer|coffee\s+maker|vacuum|tv|television|purifier)"
@@ -259,6 +280,34 @@ def skip_powered(items: Iterable[PlanItem], hazards: Iterable[str]) -> PlanEdit:
     return PlanEdit(items=result, decisions=decisions)
 
 
+def handles_blade(item: PlanItem, category: str | None) -> bool:
+    """A step of a blender or food processor that mentions a blade, disc or other cutting part.
+    Most have the user hold, fit or clean it; for the rest the caution's condition doesn't
+    apply. Code-inserted safety items never handle one."""
+    if category not in BLADE_CATEGORIES or item.safety_rule:
+        return False
+    return bool(_BLADE.search(_PLUG_BLADE.sub(" ", item.instruction)))
+
+
+def caution_blades(items: Iterable[PlanItem], category: str | None) -> PlanEdit:
+    """G-SAFE-10: a step that handles a blade starts with a fixed caution (unplug it, hold the
+    blade by its hub, fingers off the edges). The planner is also told never to force a blade;
+    a manual can still say to ("use a little extra force to remove the blade")."""
+    result: list[PlanItem] = []
+    decisions: list[Decision] = []
+    for item in items:
+        if handles_blade(item, category) and not item.instruction.startswith(BLADE_CAUTION):
+            item = item.model_copy(update={"instruction": f"{BLADE_CAUTION} {item.instruction}"})
+            decisions.append(_plan_decision(f"blade caution on {item.id}", BLADE_RULE))
+        result.append(item)
+    return PlanEdit(items=result, decisions=decisions)
+
+
+def without_caution(instruction: str) -> str:
+    """The step itself, for records that quote it (the repair history, the decision log)."""
+    return instruction.removeprefix(f"{BLADE_CAUTION} ")
+
+
 def skipped_for_power(item: PlanItem) -> bool:
     return item.safety_rule == POWER_OFF_RULE
 
@@ -298,7 +347,8 @@ def postprocess_plan(
     max_items: int = MAX_PLAN_ITEMS,
 ) -> PlanEdit:
     """Apply all §7.6 rules in order: P3, G-INJ-01, high risk, web-only steps (§10.6),
-    G-SAFE-03, G-SAFE-08 (skips, kept last and outside the cap), cap, G-WARR-01, G-SAFE-06."""
+    G-SAFE-03, G-SAFE-08 (skips, kept last and outside the cap), cap, G-WARR-01, G-SAFE-10,
+    G-SAFE-06."""
     decisions: list[Decision] = []
 
     def apply(edit: PlanEdit) -> list[PlanItem]:
@@ -318,6 +368,7 @@ def postprocess_plan(
         decisions.append(_plan_decision(f"dropped {dropped}: plan capped at {max_items} items"))
         current = current[:max_items]
     current = apply(flag_warranty(current, in_warranty))
+    current = apply(caution_blades(current, category))
     current = apply(insert_power_off(current))
     # Skipped items stay in the plan, last, so a handoff can say they needed the power.
     return PlanEdit(items=[*current, *skipped], decisions=decisions)

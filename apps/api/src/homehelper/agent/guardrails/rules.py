@@ -94,6 +94,14 @@ RULES: dict[str, GuardrailRule] = {
             "hazards.detect_hazards + journey guardrail hazard_detected",
         ),
         GuardrailRule(
+            "G-SAFE-10",
+            "A step that has the user handle a blender's or food processor's blade",
+            "Fixed caution first (unplug, hold it by the hub, fingers off the edges); the planner "
+            "never says to force a blade",
+            "structural",
+            "plan.caution_blades at plan.build; planner prompt",
+        ),
+        GuardrailRule(
             "G-WARR-01",
             "Under warranty + disassembly step",
             "Warn that the warranty may be voided; offer warranty service",
