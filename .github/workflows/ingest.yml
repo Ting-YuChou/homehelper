@@ -36,7 +36,7 @@ jobs:
       - name: Run the ingest job
         run: infra/gcp/cloudrun.sh run-job ingest
       - run: infra/gcp/ci-secrets.sh DATABASE_URL OPENAI_API_KEY COHERE_API_KEY
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           version: "0.11.19"
           enable-cache: true
