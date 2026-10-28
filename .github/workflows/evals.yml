@@ -61,7 +61,7 @@ jobs:
       - if: steps.paths.outputs.run == 'true'
         run: infra/gcp/ci-secrets.sh DATABASE_URL OPENAI_API_KEY COHERE_API_KEY
       - if: steps.paths.outputs.run == 'true'
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           version: "0.11.19"
           enable-cache: true
@@ -92,7 +92,7 @@ jobs:
           infra/gcp/ci-secrets.sh DATABASE_URL ANTHROPIC_API_KEY OPENAI_API_KEY \
             OPENROUTER_API_KEY COHERE_API_KEY LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
             LANGFUSE_BASE_URL LANGFUSE_PROJECT_ID
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           version: "0.11.19"
           enable-cache: true
