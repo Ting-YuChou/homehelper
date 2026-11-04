@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "HomeHelper API: appliance repair support agent"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "alembic>=1.20.0",
+    "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "av>=19.0.2",
     "fastapi>=0.157.0",
